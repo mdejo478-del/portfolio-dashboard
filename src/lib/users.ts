@@ -1,5 +1,8 @@
-import { randomBytes, randomInt, scryptSync, timingSafeEqual } from "crypto";
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
+
+const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
 export interface StoredUser {
   id: string;
@@ -11,26 +14,19 @@ export interface StoredUser {
   verificationCode: string | null;
 }
 
-interface UserRow {
-  id: string;
-  name: string;
-  email: string;
-  password_hash: string;
-  created_at: string;
-  verified: boolean;
-  verification_code: string | null;
+async function readUsers(): Promise<StoredUser[]> {
+  try {
+    const raw = await fs.readFile(USERS_FILE, "utf-8");
+    return JSON.parse(raw) as StoredUser[];
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
+  }
 }
 
-function rowToUser(row: UserRow): StoredUser {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    passwordHash: row.password_hash,
-    createdAt: row.created_at,
-    verified: row.verified,
-    verificationCode: row.verification_code,
-  };
+async function writeUsers(users: StoredUser[]): Promise<void> {
+  await fs.mkdir(path.dirname(USERS_FILE), { recursive: true });
+  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
 }
 
 function hashPassword(password: string): string {
@@ -54,44 +50,32 @@ function generateVerificationCode(): string {
 
 export async function findUserByEmail(email: string): Promise<StoredUser | undefined> {
   const normalized = email.trim().toLowerCase();
-  const { data, error } = await getSupabaseClient()
-    .from("users")
-    .select("*")
-    .eq("email", normalized)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? rowToUser(data as UserRow) : undefined;
+  const users = await readUsers();
+  return users.find((u) => u.email === normalized);
 }
 
 export async function findUserById(id: string): Promise<StoredUser | undefined> {
-  const { data, error } = await getSupabaseClient()
-    .from("users")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? rowToUser(data as UserRow) : undefined;
+  const users = await readUsers();
+  return users.find((u) => u.id === id);
 }
 
 export async function createUser(name: string, email: string, password: string): Promise<StoredUser> {
   const normalized = email.trim().toLowerCase();
-  const { data, error } = await getSupabaseClient()
-    .from("users")
-    .insert({
-      name,
-      email: normalized,
-      password_hash: hashPassword(password),
-      verified: false,
-      verification_code: generateVerificationCode(),
-    })
-    .select("*")
-    .single();
+  const users = await readUsers();
+  if (users.some((u) => u.email === normalized)) throw new Error("EMAIL_TAKEN");
 
-  if (error) {
-    if (error.code === "23505") throw new Error("EMAIL_TAKEN");
-    throw error;
-  }
-  return rowToUser(data as UserRow);
+  const user: StoredUser = {
+    id: randomUUID(),
+    name,
+    email: normalized,
+    passwordHash: hashPassword(password),
+    createdAt: new Date().toISOString(),
+    verified: false,
+    verificationCode: generateVerificationCode(),
+  };
+  users.push(user);
+  await writeUsers(users);
+  return user;
 }
 
 export async function verifyCredentials(email: string, password: string): Promise<StoredUser | null> {
@@ -102,12 +86,11 @@ export async function verifyCredentials(email: string, password: string): Promis
 }
 
 export async function markUserVerified(id: string): Promise<boolean> {
-  const { data, error } = await getSupabaseClient()
-    .from("users")
-    .update({ verified: true, verification_code: null })
-    .eq("id", id)
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
-  return Boolean(data);
+  const users = await readUsers();
+  const user = users.find((u) => u.id === id);
+  if (!user) return false;
+  user.verified = true;
+  user.verificationCode = null;
+  await writeUsers(users);
+  return true;
 }

@@ -1,4 +1,5 @@
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { promises as fs } from "fs";
+import path from "path";
 
 export interface RawPosition {
   symbol: string;
@@ -47,63 +48,27 @@ export interface PortfolioData {
   nextTradeId: number;
 }
 
-interface PortfolioRow {
-  user_id: string;
-  positions: Position[] | null;
-  trades: Trade[] | null;
-  ledger: Ledger | null;
-  next_position_id: number | null;
-  next_trade_id: number | null;
-}
+const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
 
 function emptyPortfolio(): PortfolioData {
   return { positions: [], trades: [], ledger: {}, nextPositionId: 0, nextTradeId: 0 };
 }
 
-export async function getPortfolio(userId: string): Promise<PortfolioData> {
-  const { data, error } = await getSupabaseClient()
-    .from("portfolios")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return emptyPortfolio();
+function portfolioPath(userId: string): string {
+  return path.join(PORTFOLIOS_DIR, `${userId}.json`);
+}
 
-  const row = data as PortfolioRow;
-  return {
-    positions: row.positions ?? [],
-    trades: row.trades ?? [],
-    ledger: row.ledger ?? {},
-    nextPositionId: row.next_position_id ?? 0,
-    nextTradeId: row.next_trade_id ?? 0,
-  };
+export async function getPortfolio(userId: string): Promise<PortfolioData> {
+  try {
+    const raw = await fs.readFile(portfolioPath(userId), "utf-8");
+    return JSON.parse(raw) as PortfolioData;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return emptyPortfolio();
+    throw err;
+  }
 }
 
 export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
-  const supabase = getSupabaseClient();
-  const payload = {
-    positions: data.positions,
-    trades: data.trades,
-    ledger: data.ledger,
-    next_position_id: data.nextPositionId,
-    next_trade_id: data.nextTradeId,
-    updated_at: new Date().toISOString(),
-  };
-
-  // Avoid relying on a DB-level unique constraint on user_id (upsert's
-  // ON CONFLICT needs one and the live table may not have it) - update first,
-  // insert only if no row existed yet.
-  const { data: updated, error: updateError } = await supabase
-    .from("portfolios")
-    .update(payload)
-    .eq("user_id", userId)
-    .select("user_id");
-  if (updateError) throw updateError;
-
-  if (!updated || updated.length === 0) {
-    const { error: insertError } = await supabase
-      .from("portfolios")
-      .insert({ user_id: userId, ...payload });
-    if (insertError) throw insertError;
-  }
+  await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
+  await fs.writeFile(portfolioPath(userId), JSON.stringify(data, null, 2), "utf-8");
 }
