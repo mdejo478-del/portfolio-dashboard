@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createUser, verifyCredentials, findUserById, markUserVerified } from "@/lib/users";
-import { createSession, deleteSession } from "@/lib/session";
+import { createSession, deleteSession, getSession, acceptDisclaimer as acceptDisclaimerSession } from "@/lib/session";
 import {
   createPendingVerification,
   getPendingVerification,
@@ -95,4 +95,12 @@ export async function verifyCode(
 export async function logout(): Promise<void> {
   await deleteSession();
   redirect("/login");
+}
+
+export async function acceptDisclaimer(): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  await acceptDisclaimerSession(session);
+  redirect("/");
 }
