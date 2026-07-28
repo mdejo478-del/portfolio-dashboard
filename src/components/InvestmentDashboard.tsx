@@ -665,8 +665,7 @@ export default function InvestmentDashboard({
               <tbody>
                 {evaluated.map((p, i) => (
                   <tr key={p.id}>
-                    <td style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block" }} />
+                    <td style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                       {tradingViewUrl(p.symbol) ? (
                         <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
                           style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}
@@ -676,6 +675,7 @@ export default function InvestmentDashboard({
                           {p.symbol}
                         </a>
                       ) : p.symbol}
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
                     </td>
                     <td className="num" style={{ color: "var(--text-dim)" }}>
                       {editingPosId === p.id ? (
