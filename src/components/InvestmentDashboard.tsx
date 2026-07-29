@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
-  Download, X, Check, Filter, LayoutDashboard, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff,
+  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction } from "@/app/actions/portfolio";
@@ -783,20 +783,31 @@ export default function InvestmentDashboard({
         <div style={{ padding: "20px 20px 0" }}>
 
           {/* Ticker */}
-          <div className="ticker-wrap" style={{ overflow: "hidden", border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "9px 0", marginBottom: 26 }}>
-            <div className="ticker-track">
-              {[...evaluated, ...evaluated].map((p, i) => (
-                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--mono)", fontSize: 12.5, padding: "0 6px" }}>
-                  <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.symbol}</span>
-                  <span style={{ color: "var(--text-dim)" }}>{fmtPct(p.weight)}</span>
-                  <span style={{ color: TONE_STYLES[p.tone].text }}>{"●"}</span>
-                </span>
-              ))}
+          <div className="ticker-wrap" style={{
+            display: "flex", alignItems: "center", gap: 14,
+            border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "10px 16px", marginBottom: 24,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)", boxShadow: "0 0 0 3px rgba(34,211,168,0.18)" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.4, whiteSpace: "nowrap" }}>הקצאה חיה</span>
+            </div>
+            <div style={{ width: 1, height: 16, background: "var(--border)", flexShrink: 0 }} />
+            <div style={{
+              position: "relative", overflow: "hidden", flex: 1, minWidth: 0,
+              WebkitMaskImage: "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
+              maskImage: "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
+            }}>
+              <div className="ticker-track">
+                {[...evaluated, ...evaluated].map((p, i) => (
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--mono)", fontSize: 12.5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: TONE_STYLES[p.tone].text, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.symbol}</span>
+                    <span style={{ color: "var(--text-faint)" }}>{fmtPct(p.weight)}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-
-          {/* Portfolio banner */}
-          <PageBanner icon={<LayoutDashboard size={20} />} title="ניהול סיכונים ותיק השקעות" subtitle="Professional Portfolio Dashboard" />
 
           <SectionTitle icon={<Wallet size={16} />} text="החזקות בתיק" />
 
