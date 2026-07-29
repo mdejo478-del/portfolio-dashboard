@@ -42,3 +42,159 @@ export async function getQuotes(symbols: string[]): Promise<QuotesResult> {
   );
   return { configured: true, prices: Object.fromEntries(entries) };
 }
+
+const COMPANY_NAME_OVERRIDES: Record<string, string> = {
+  ETH: "Ethereum",
+  CASH: "מזומן",
+};
+
+const RETURN_PERIOD_DAYS = {
+  "1W": 7,
+  "1M": 30,
+  "3M": 90,
+  "1Y": 365,
+} as const;
+
+export interface StockReturns {
+  "1D": number | null;
+  "1W": number | null;
+  "1M": number | null;
+  "3M": number | null;
+  YTD: number | null;
+  "1Y": number | null;
+}
+
+export interface StockDetail {
+  configured: boolean;
+  symbol: string;
+  name: string | null;
+  price: number | null;
+  change: number | null;
+  changePct: number | null;
+  high: number | null;
+  low: number | null;
+  open: number | null;
+  previousClose: number | null;
+  returns: StockReturns;
+  historicalAvailable: boolean;
+}
+
+interface FinnhubQuote { c?: number; d?: number; dp?: number; h?: number; l?: number; o?: number; pc?: number }
+interface FinnhubCandle { c?: number[]; t?: number[]; s?: string; error?: string }
+interface FinnhubProfile { name?: string }
+interface DailyCloses { t: number[]; c: number[] }
+
+function closestCloseBefore(candle: DailyCloses, targetTs: number): number | null {
+  const t = candle.t;
+  const c = candle.c;
+  for (let i = t.length - 1; i >= 0; i--) {
+    if (t[i] <= targetTs) return c[i];
+  }
+  return null;
+}
+
+// Finnhub's candle endpoints (stock + crypto) are restricted on the free tier
+// ("You don't have access to this resource."). Try them anyway in case the
+// plan changes, then fall back to Yahoo Finance's unauthenticated chart API,
+// which is free and covers both stocks and crypto (via the "-USD" suffix).
+async function fetchFinnhubCandle(finnhubSymbol: string, isCrypto: boolean, apiKey: string, fromSec: number, toSec: number): Promise<DailyCloses | null> {
+  const candleEndpoint = isCrypto ? "crypto/candle" : "stock/candle";
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE}/${candleEndpoint}?symbol=${encodeURIComponent(finnhubSymbol)}&resolution=D&from=${fromSec}&to=${toSec}&token=${apiKey}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as FinnhubCandle;
+    if (data.error || data.s !== "ok" || !data.t || !data.c || data.t.length === 0) return null;
+    return { t: data.t, c: data.c };
+  } catch {
+    return null;
+  }
+}
+
+const YAHOO_SYMBOL_OVERRIDES: Record<string, string> = { ETH: "ETH-USD" };
+
+async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
+  const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d`,
+      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: (number | null)[] }> } }> };
+    };
+    const result = data.chart?.result?.[0];
+    const timestamps = result?.timestamp;
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (!timestamps || !closes || timestamps.length === 0) return null;
+    const t: number[] = [];
+    const c: number[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closes[i];
+      if (typeof close === "number") { t.push(timestamps[i]); c.push(close); }
+    }
+    return t.length > 0 ? { t, c } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getStockDetail(symbol: string): Promise<StockDetail> {
+  const empty: StockReturns = { "1D": null, "1W": null, "1M": null, "3M": null, YTD: null, "1Y": null };
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) {
+    return {
+      configured: false, symbol, name: COMPANY_NAME_OVERRIDES[symbol] || null,
+      price: null, change: null, changePct: null, high: null, low: null, open: null,
+      previousClose: null, returns: empty, historicalAvailable: false,
+    };
+  }
+
+  const finnhubSymbol = SYMBOL_OVERRIDES[symbol] || symbol;
+  const isCrypto = Boolean(SYMBOL_OVERRIDES[symbol]);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const fromSec = nowSec - 400 * 24 * 3600;
+
+  const [quoteRes, finnhubCandle, profileRes] = await Promise.all([
+    fetch(`${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<FinnhubQuote>) : null)).catch(() => null),
+    fetchFinnhubCandle(finnhubSymbol, isCrypto, apiKey, fromSec, nowSec),
+    isCrypto ? Promise.resolve(null) : fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<FinnhubProfile>) : null)).catch(() => null),
+  ]);
+
+  // Finnhub's candle endpoints are blocked on the free plan for this key -
+  // fall back to Yahoo Finance's free chart API rather than giving up.
+  const candleRes = finnhubCandle || (await fetchYahooCandle(symbol));
+
+  const price = typeof quoteRes?.c === "number" && quoteRes.c > 0 ? quoteRes.c : null;
+  const change = typeof quoteRes?.d === "number" ? quoteRes.d : null;
+  const changePct = typeof quoteRes?.dp === "number" ? quoteRes.dp / 100 : null;
+
+  const historicalAvailable = Boolean(candleRes && candleRes.t.length > 0);
+  const returns: StockReturns = { ...empty, "1D": changePct };
+  if (historicalAvailable && price !== null && candleRes) {
+    for (const period of Object.keys(RETURN_PERIOD_DAYS) as (keyof typeof RETURN_PERIOD_DAYS)[]) {
+      const targetTs = nowSec - RETURN_PERIOD_DAYS[period] * 24 * 3600;
+      const base = closestCloseBefore(candleRes, targetTs);
+      returns[period] = base && base > 0 ? (price - base) / base : null;
+    }
+    const jan1 = Math.floor(new Date(new Date().getFullYear(), 0, 1).getTime() / 1000);
+    const ytdBase = closestCloseBefore(candleRes, jan1);
+    returns.YTD = ytdBase && ytdBase > 0 ? (price - ytdBase) / ytdBase : null;
+  }
+
+  const name = (profileRes && profileRes.name) || COMPANY_NAME_OVERRIDES[symbol] || null;
+
+  return {
+    configured: true, symbol, name, price, change, changePct,
+    high: typeof quoteRes?.h === "number" ? quoteRes.h : null,
+    low: typeof quoteRes?.l === "number" ? quoteRes.l : null,
+    open: typeof quoteRes?.o === "number" ? quoteRes.o : null,
+    previousClose: typeof quoteRes?.pc === "number" ? quoteRes.pc : null,
+    returns, historicalAvailable,
+  };
+}

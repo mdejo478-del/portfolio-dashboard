@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode, type ChangeEvent } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
-  Download, X, Check, Filter, LayoutDashboard, Landmark, LogOut, RefreshCw,
+  Download, X, Check, Filter, LayoutDashboard, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
 import type { Position, Trade, Ledger, PortfolioData } from "@/lib/portfolio";
+import StockDetailDrawer from "@/components/StockDetailDrawer";
+import TradeImportModal from "@/components/TradeImportModal";
+import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
 
-type Tone = "green" | "amber" | "red" | "blue";
+export type Tone = "green" | "amber" | "red" | "blue";
 
 interface PositionEval {
   status: string;
@@ -45,31 +48,39 @@ interface PosEditFields {
   max: string;
   dilute: string;
 }
+interface UndoSnapshot {
+  label: string;
+  positions: Position[];
+  trades: Trade[];
+  ledger: Ledger;
+  nextPositionId: number;
+  nextTradeId: number;
+}
 
 const SYMBOL_COLORS: Record<string, string> = {
   NVDA: "#22D3A8", IBIT: "#4FA3F7", PLTR: "#A78BFA", TSLA: "#FF5A5F",
   GOOG: "#F2A93B", SOFI: "#34D399", RKLB: "#FB923C", ETH: "#8B93FF", CASH: "#94A3B8",
 };
 const FALLBACK_COLORS = ["#22D3A8", "#4FA3F7", "#A78BFA", "#FF5A5F", "#F2A93B", "#34D399", "#8B93FF", "#F472B6", "#60A5FA", "#FBBF24"];
-function colorFor(symbol: string, idx: number): string {
+export function colorFor(symbol: string, idx: number): string {
   return SYMBOL_COLORS[symbol] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
 }
 
 const TRADINGVIEW_SYMBOL_MAP: Record<string, string | null> = { ETH: "ETHUSD", CASH: null };
-function tradingViewUrl(symbol: string): string | null {
+export function tradingViewUrl(symbol: string): string | null {
   if (TRADINGVIEW_SYMBOL_MAP[symbol] === null) return null;
   const tvSymbol = TRADINGVIEW_SYMBOL_MAP[symbol] || symbol;
   return "https://www.tradingview.com/symbols/" + tvSymbol + "/";
 }
 
-function fmtUSD(n: number | null | undefined, opts: { digits?: number } = {}): string {
+export function fmtUSD(n: number | null | undefined, opts: { digits?: number } = {}): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "-";
   const abs = Math.abs(n);
   const digits = opts.digits !== undefined ? opts.digits : (abs < 1000 ? 2 : 0);
   const s = abs.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return (n < 0 ? "-$" : "$") + s;
 }
-function fmtPct(n: number | null | undefined, digits = 1): string {
+export function fmtPct(n: number | null | undefined, digits = 1): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "-";
   return (n * 100).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }) + "%";
 }
@@ -94,18 +105,23 @@ function parseNum(v: unknown): number {
   return parseFloat(s);
 }
 
-function evaluatePosition(p: Position, total: number): PositionEval {
+export const PRIVACY_MASK = "•••••";
+export function formatMoney(n: number | null | undefined, masked: boolean, opts: { digits?: number } = {}): string {
+  return masked ? PRIVACY_MASK : fmtUSD(n, opts);
+}
+
+function evaluatePosition(p: Position, total: number, masked: boolean): PositionEval {
   const weight = p.value / total;
   if (p.hodl) {
     return { status: "🔒 להחזיק (HODL)", tone: "blue", priority: "נמוכה", action: "🔒 להחזיק - HODL, לא למכור", weight };
   }
   if (weight < p.min) {
     const amount = p.min * total - p.value;
-    return { status: "דורש חיזוק", tone: "amber", priority: "בינונית", action: "📈 לקנות לחיזוק: " + fmtUSD(amount), weight };
+    return { status: "דורש חיזוק", tone: "amber", priority: "בינונית", action: "📈 לקנות לחיזוק: " + formatMoney(amount, masked), weight };
   }
   if (weight > p.dilute) {
     const amount = p.value - p.max * total;
-    return { status: "חריגה - דילול נדרש", tone: "red", priority: "גבוהה", action: "🚨 למכור לדילול: " + fmtUSD(amount), weight };
+    return { status: "חריגה - דילול נדרש", tone: "red", priority: "גבוהה", action: "🚨 למכור לדילול: " + formatMoney(amount, masked), weight };
   }
   if (weight > p.max) {
     return { status: "מעל היעד", tone: "amber", priority: "בינונית", action: "👀 שקול דילול הדרגתי", weight };
@@ -113,7 +129,7 @@ function evaluatePosition(p: Position, total: number): PositionEval {
   return { status: "✅ תקין", tone: "green", priority: "נמוכה", action: "✅ תקין", weight };
 }
 
-const TONE_STYLES: Record<Tone, { bg: string; border: string; text: string }> = {
+export const TONE_STYLES: Record<Tone, { bg: string; border: string; text: string }> = {
   green: { bg: "rgba(46,204,113,0.12)", border: "rgba(46,204,113,0.35)", text: "#5BE39D" },
   amber: { bg: "rgba(242,169,59,0.12)", border: "rgba(242,169,59,0.35)", text: "#F5BE6B" },
   red: { bg: "rgba(255,90,95,0.12)", border: "rgba(255,90,95,0.35)", text: "#FF8589" },
@@ -152,6 +168,7 @@ const ACTION_LABELS: Record<string, { label: string; tone: Tone; icon: ReactNode
   "קנייה": { label: "קנייה", tone: "green", icon: <ArrowUpCircle size={14} /> },
   "מכירה": { label: "מכירה", tone: "red", icon: <ArrowDownCircle size={14} /> },
   "הפקדה": { label: "הפקדה", tone: "blue", icon: <PiggyBank size={14} /> },
+  "משיכה": { label: "משיכה", tone: "amber", icon: <ArrowDownCircle size={14} /> },
 };
 function ActionBadge({ action }: { action: string }) {
   const meta = ACTION_LABELS[action] || { label: action, tone: "amber" as Tone, icon: null };
@@ -179,7 +196,7 @@ function mapStrategyToOption(s: string | null | undefined): string {
   if (str.includes("DCA") || str.includes("קנייה")) return "📈 קנייה DCA";
   return "⚙️ אחר";
 }
-const ACTION_OPTS = ["קנייה", "מכירה", "הפקדה"];
+const ACTION_OPTS = ["קנייה", "מכירה", "הפקדה", "משיכה"];
 
 const EMPTY_FORM: TradeFormState = {
   date: new Date().toISOString().slice(0, 10),
@@ -215,6 +232,7 @@ export default function InvestmentDashboard({
   initialNextPositionId,
   initialNextTradeId,
 }: InvestmentDashboardProps) {
+  const [privacyMode, setPrivacyMode] = useState<boolean>(false);
   const [globalError, setGlobalError] = useState<string>("");
   useEffect(() => {
     function onError(e: ErrorEvent) { setGlobalError(String((e && e.message) || e)); }
@@ -244,6 +262,13 @@ export default function InvestmentDashboard({
   const [form, setForm] = useState<TradeFormState>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [tradeFormError, setTradeFormError] = useState<string>("");
+
+  const [importResult, setImportResult] = useState<ParseResult | null>(null);
+  const [importFileName, setImportFileName] = useState<string>("");
+  const [importLoading, setImportLoading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
 
   const skipNextSave = useRef<boolean>(true);
   useEffect(() => {
@@ -292,13 +317,16 @@ export default function InvestmentDashboard({
     return () => clearInterval(interval);
   }, [refreshPrices]);
 
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
+  function openDetail(symbol: string) { if (symbol !== "CASH") setDetailSymbol(symbol); }
+
   const [fSymbol, setFSymbol] = useState<string>("הכל");
   const [fAction, setFAction] = useState<string>("הכל");
   const [fFrom, setFFrom] = useState<string>("");
   const [fTo, setFTo] = useState<string>("");
 
   const total = useMemo(() => positions.reduce((a, p) => a + p.value, 0), [positions]);
-  const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total) })), [positions, total]);
+  const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
   const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
 
@@ -319,6 +347,7 @@ export default function InvestmentDashboard({
     const maxNum = parseNum(posEditFields.max);
     const diluteNum = parseNum(posEditFields.dilute);
     if (Number.isNaN(qtyNum) || qtyNum < 0) { cancelPosEdit(); return; }
+    pushUndoSnapshot("עריכת נכס בתיק");
     const min = !Number.isNaN(minNum) ? minNum / 100 : p.min;
     const max = !Number.isNaN(maxNum) ? maxNum / 100 : p.max;
     const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : p.dilute;
@@ -331,6 +360,7 @@ export default function InvestmentDashboard({
     cancelPosEdit();
   }
   function deletePosition(id: number) {
+    pushUndoSnapshot("מחיקת נכס מהתיק");
     setPositions((ps) => {
       const target = ps.find((p) => p.id === id);
       if (target && target.symbol === "CASH") return ps;
@@ -347,6 +377,7 @@ export default function InvestmentDashboard({
     if (Number.isNaN(qty) || qty <= 0) { setPosFormError("נא להזין כמות תקינה (מספר גדול מ-0)."); return; }
     if (Number.isNaN(price) || price <= 0) { setPosFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
     if (positions.some((p) => p.symbol === symbol)) { setPosFormError("נכס בסימול " + symbol + " כבר קיים בתיק. ערוך את הכמות שלו ישירות בטבלה במקום."); return; }
+    pushUndoSnapshot("הוספת נכס לתיק");
     const value = qty * price;
     setPositions((ps) => [...ps, {
       id: nextPosId.current++, symbol, qty, price, value, weight: 0,
@@ -372,7 +403,7 @@ export default function InvestmentDashboard({
     const wins = sells.filter((t) => t.pnl !== null && t.pnl > 0);
     const realizedPnl = trades.reduce((a, t) => a + (t.pnl || 0), 0);
     const fees = trades.reduce((a, t) => a + (t.fee || 0), 0);
-    const buysSells = trades.filter((t) => t.action !== "הפקדה").length;
+    const buysSells = trades.filter((t) => t.action !== "הפקדה" && t.action !== "משיכה").length;
     const winRate = sells.length ? wins.length / sells.length : 0;
     const avgPnl = sells.length ? sells.reduce((a, t) => a + (t.pnl || 0), 0) / sells.length : 0;
     const rets = sells.filter((t) => t.retPct !== null).map((t) => t.retPct as number);
@@ -389,6 +420,7 @@ export default function InvestmentDashboard({
   function cashEffect(t: Trade | null | undefined): number {
     if (!t) return 0;
     if (t.action === "הפקדה") return t.value + (t.fee || 0);
+    if (t.action === "משיכה") return -t.value + (t.fee || 0);
     if (t.action === "קנייה") return -t.value + (t.fee || 0);
     if (t.action === "מכירה") return t.value + (t.fee || 0);
     return 0;
@@ -406,6 +438,111 @@ export default function InvestmentDashboard({
     });
   }
 
+  function pushUndoSnapshot(label: string) {
+    setUndoSnapshot({
+      label,
+      positions: JSON.parse(JSON.stringify(positions)),
+      trades: JSON.parse(JSON.stringify(trades)),
+      ledger: JSON.parse(JSON.stringify(ledger)),
+      nextPositionId: nextPosId.current,
+      nextTradeId: nextId.current,
+    });
+  }
+
+  function undoLastAction() {
+    if (!undoSnapshot) return;
+    setPositions(undoSnapshot.positions);
+    setTrades(undoSnapshot.trades);
+    setLedger(undoSnapshot.ledger);
+    nextPosId.current = undoSnapshot.nextPositionId;
+    nextId.current = undoSnapshot.nextTradeId;
+    setUndoSnapshot(null);
+  }
+
+  function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportFileName(file.name);
+    const lowerName = file.name.toLowerCase();
+    const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+    const isCsv = lowerName.endsWith(".csv");
+    if (!isExcel && !isCsv) {
+      setImportResult({
+        fileError: "פורמט קובץ לא נתמך. יש להעלות קובץ CSV (.csv) או Excel (.xlsx/.xls).",
+        rows: [],
+      });
+      return;
+    }
+    setImportLoading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        if (isExcel) {
+          const buffer = reader.result as ArrayBuffer;
+          setImportResult(await parseTradeWorkbook(buffer));
+        } else {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          setImportResult(parseTradeFile(text));
+        }
+      } finally {
+        setImportLoading(false);
+      }
+    };
+    reader.onerror = () => { setImportResult({ fileError: "שגיאה בקריאת הקובץ. נסה שוב.", rows: [] }); setImportLoading(false); };
+    if (isExcel) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file, "utf-8");
+  }
+
+  function closeImportModal() {
+    setImportResult(null);
+    setImportFileName("");
+  }
+
+  function confirmImport(validRows: ParsedTradeRow[]) {
+    if (validRows.length === 0) { closeImportModal(); return; }
+    pushUndoSnapshot("ייבוא קובץ עסקאות");
+    const chronological = [...validRows].sort((a, b) => (a.date as string).localeCompare(b.date as string));
+    let workingLedger: Ledger = { ...ledger };
+    let cashDelta = 0;
+    const newTrades: Trade[] = [];
+
+    for (const row of chronological) {
+      const symbol = row.symbol as string;
+      const action = row.action as string;
+      const qty = row.qty as number;
+      const price = row.price as number;
+      const value = qty * price;
+      let pnl: number | null = null;
+      let retPct: number | null = null;
+
+      if (action === "קנייה" && symbol !== "CASH") {
+        const cur = workingLedger[symbol] || { qty: 0, avgCost: price };
+        const newQty = cur.qty + qty;
+        const newAvg = newQty > 0 ? (cur.qty * cur.avgCost + qty * price) / newQty : price;
+        workingLedger = { ...workingLedger, [symbol]: { qty: newQty, avgCost: newAvg } };
+      } else if (action === "מכירה" && symbol !== "CASH") {
+        const cur = workingLedger[symbol] || { qty: 0, avgCost: price };
+        const autoPnl = Math.round((price - cur.avgCost) * qty * 100) / 100;
+        pnl = row.pnlOverride !== null ? row.pnlOverride : autoPnl;
+        retPct = (value - pnl) !== 0 ? pnl / (value - pnl) : 0;
+        workingLedger = { ...workingLedger, [symbol]: { qty: cur.qty - qty, avgCost: cur.avgCost } };
+      }
+
+      const trade: Trade = {
+        id: nextId.current++, date: row.date as string, symbol, action, qty, price, value,
+        fee: row.fee, pnl, retPct, strategy: row.strategy, notes: row.notes,
+      };
+      cashDelta += cashEffect(trade);
+      newTrades.push(trade);
+    }
+
+    setLedger(workingLedger);
+    setTrades((ts) => [...ts, ...newTrades]);
+    applyCashDelta(cashDelta);
+    closeImportModal();
+  }
+
   const filteredTrades = useMemo(() => {
     return trades.filter((t) => {
       if (fSymbol !== "הכל" && t.symbol !== fSymbol) return false;
@@ -416,7 +553,10 @@ export default function InvestmentDashboard({
     });
   }, [trades, fSymbol, fAction, fFrom, fTo]);
 
-  const sortedTrades = useMemo(() => [...filteredTrades].reverse(), [filteredTrades]);
+  const sortedTrades = useMemo(() => [...filteredTrades].sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return b.id - a.id;
+  }), [filteredTrades]);
 
   function updateForm(field: keyof TradeFormState, val: string) { setForm((f) => ({ ...f, [field]: val })); setTradeFormError(""); }
 
@@ -454,6 +594,7 @@ export default function InvestmentDashboard({
     if (Number.isNaN(qty) || qty <= 0) { setTradeFormError("נא להזין כמות תקינה (מספר גדול מ-0)."); return; }
     if (Number.isNaN(price) || price <= 0) { setTradeFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
     if (!form.date) { setTradeFormError("נא לבחור תאריך."); return; }
+    pushUndoSnapshot(editingId !== null ? "עריכת עסקה" : "הוספת עסקה");
     const value = qty * price;
     let pnl: number | null = null;
     let retPct: number | null = null;
@@ -489,6 +630,7 @@ export default function InvestmentDashboard({
 
   function deleteTrade(id: number) {
     const trade = trades.find((t) => t.id === id);
+    pushUndoSnapshot("מחיקת עסקה");
     applyCashDelta(-cashEffect(trade));
     setTrades((ts) => ts.filter((t) => t.id !== id));
     setDeleteConfirmId(null);
@@ -592,13 +734,39 @@ export default function InvestmentDashboard({
           <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
             <div style={{ textAlign: "left" }}>
               <div style={{ color: "var(--text-faint)", fontSize: 11 }}>שווי תיק כולל</div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800, color: "#5BE39D" }}>{fmtUSD(total)}</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800, color: "#5BE39D" }}>{formatMoney(total, privacyMode)}</div>
             </div>
             <div style={{ width: 1, height: 34, background: "var(--border)" }} />
             <div style={{ textAlign: "left" }}>
               <div style={{ color: "var(--text-faint)", fontSize: 11 }}>מזומן פנוי</div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800 }}>{fmtUSD(cashFree)}</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800 }}>{formatMoney(cashFree, privacyMode)}</div>
             </div>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <button
+              type="button" className="ghost" onClick={undoLastAction} disabled={!undoSnapshot}
+              title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                opacity: undoSnapshot ? 1 : 0.45, cursor: undoSnapshot ? "pointer" : "not-allowed",
+              }}
+            >
+              <Undo2 size={14} /> בטל פעולה אחרונה{undoSnapshot ? " (" + undoSnapshot.label + ")" : ""}
+            </button>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <button
+              type="button" onClick={() => setPrivacyMode((v) => !v)}
+              title={privacyMode ? "כבה מצב פרטיות והצג נתונים כספיים" : "הפעל מצב פרטיות - הסתרת נתונים כספיים"}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                borderRadius: 10, fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+                background: privacyMode ? "rgba(79,163,247,0.15)" : "transparent",
+                border: "1px solid " + (privacyMode ? "rgba(79,163,247,0.45)" : "var(--border)"),
+                color: privacyMode ? "#7FBBFA" : "var(--text-dim)",
+              }}
+            >
+              {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
+              {privacyMode ? "מצב פרטיות פעיל" : "הסתר מידע רגיש"}
+            </button>
             <div style={{ width: 1, height: 34, background: "var(--border)" }} />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: "var(--text-dim)", fontSize: 13 }}>
@@ -665,9 +833,14 @@ export default function InvestmentDashboard({
               <tbody>
                 {evaluated.map((p, i) => (
                   <tr key={p.id}>
-                    <td style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                    <td
+                      onClick={() => openDetail(p.symbol)}
+                      title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
+                      style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+                    >
                       {tradingViewUrl(p.symbol) ? (
                         <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}
                           onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderBottomColor = "var(--accent)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text)"; e.currentTarget.style.borderBottomColor = "var(--text-faint)"; }}
@@ -685,8 +858,8 @@ export default function InvestmentDashboard({
                         p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
                       )}
                     </td>
-                    <td className="num" style={{ color: "var(--text-dim)" }}>{p.price !== null && p.price !== undefined ? fmtUSD(p.price, { digits: 2 }) : "-"}</td>
-                    <td className="num" style={{ fontWeight: 600 }}>{fmtUSD(p.value)}</td>
+                    <td className="num" style={{ color: "var(--text-dim)" }}>{p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}</td>
+                    <td className="num" style={{ fontWeight: 600 }}>{formatMoney(p.value, privacyMode)}</td>
                     <td className="num">{fmtPct(p.weight)}</td>
                     <td className="num" style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
                     <td className="num" style={{ color: "var(--text-faint)" }}>
@@ -754,7 +927,7 @@ export default function InvestmentDashboard({
               <tfoot>
                 <tr>
                   <td colSpan={3} style={{ fontWeight: 700, borderBottom: "none" }}>סך הכל התיק</td>
-                  <td className="num" style={{ fontWeight: 700, color: "#5BE39D", borderBottom: "none" }}>{fmtUSD(total)}</td>
+                  <td className="num" style={{ fontWeight: 700, color: "#5BE39D", borderBottom: "none" }}>{formatMoney(total, privacyMode)}</td>
                   <td className="num" style={{ fontWeight: 700, borderBottom: "none" }}>100.0%</td>
                   <td colSpan={8} style={{ borderBottom: "none" }} />
                 </tr>
@@ -815,9 +988,13 @@ export default function InvestmentDashboard({
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={95} paddingAngle={2}>
-                      {pieData.map((p, i) => (<Cell key={p.name} fill={colorFor(p.name, i)} stroke="var(--panel)" strokeWidth={2} />))}
+                      {pieData.map((p, i) => (
+                        <Cell key={p.name} fill={colorFor(p.name, i)} stroke="var(--panel)" strokeWidth={2}
+                          onClick={() => openDetail(p.name)}
+                          style={{ cursor: p.name !== "CASH" ? "pointer" : "default" }} />
+                      ))}
                     </Pie>
-                    <Tooltip contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} formatter={(val, name) => [fmtUSD(Number(val)), String(name)]} />
+                    <Tooltip contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} formatter={(val, name) => [formatMoney(Number(val), privacyMode), String(name)]} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -859,16 +1036,26 @@ export default function InvestmentDashboard({
           <PageBanner icon={<ListChecks size={20} />} title="יומן מסחר חכם ומקצועי (Smart Trade Log)" subtitle="כל העסקאות, הסיכומים והפעולות במקום אחד" />
 
           <div className="idash-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 22 }}>
-            <Card label="מזומן פנוי" value={fmtUSD(cashFree)} icon={<Wallet size={15} color="#8B98AB" />} />
-            <Card label="רווח/הפסד ממומש" value={fmtUSD(stats.realizedPnl)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
+            <Card label="מזומן פנוי" value={formatMoney(cashFree, privacyMode)} icon={<Wallet size={15} color="#8B98AB" />} />
+            <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
             <Card label="אחוז הצלחה" value={fmtPct(stats.winRate)} sub={stats.sellCount + " עסקאות מכירה"} icon={<Percent size={15} color="#8B98AB" />} />
             <Card label="מספר עסקאות" value={fmtNum(stats.buysSells)} sub={trades.length + " שורות כולל"} icon={<Activity size={15} color="#8B98AB" />} />
-            <Card label="סך עמלות" value={fmtUSD(stats.fees)} tone="red" icon={<Receipt size={15} color="#FF8589" />} />
-            <Card label="ממוצע רווח לעסקה" value={fmtUSD(stats.avgPnl)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
+            <Card label="סך עמלות" value={formatMoney(stats.fees, privacyMode)} tone="red" icon={<Receipt size={15} color="#FF8589" />} />
+            <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <input
+                ref={fileInputRef} type="file"
+                accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                style={{ display: "none" }} onChange={handleFileSelected}
+              />
+              <button className="ghost" onClick={() => fileInputRef.current?.click()} disabled={importLoading}
+                style={{ display: "flex", alignItems: "center", gap: 6, opacity: importLoading ? 0.6 : 1 }}>
+                {importLoading ? <RefreshCw size={15} className="spin-icon" /> : <Upload size={15} />}
+                {importLoading ? "טוען קובץ..." : "העלאת קובץ עסקאות (CSV / Excel)"}
+              </button>
               <button className="ghost" onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Download size={15} /> ייצוא CSV
               </button>
@@ -999,10 +1186,10 @@ export default function InvestmentDashboard({
                     <td style={{ fontWeight: 700 }}>{t.symbol}</td>
                     <td className="center"><ActionBadge action={t.action} /></td>
                     <td className="num">{fmtNum(t.qty, t.qty % 1 !== 0 ? 2 : 0)}</td>
-                    <td className="num">{fmtUSD(t.price, { digits: 2 })}</td>
-                    <td className="num">{fmtUSD(t.value)}</td>
-                    <td className="num" style={{ color: "var(--text-faint)" }}>{fmtUSD(t.fee)}</td>
-                    <td className="num" style={{ fontWeight: 600, color: t.pnl == null ? "var(--text-faint)" : t.pnl >= 0 ? "#5BE39D" : "#FF8589" }}>{t.pnl == null ? "-" : fmtUSD(t.pnl)}</td>
+                    <td className="num">{formatMoney(t.price, privacyMode, { digits: 2 })}</td>
+                    <td className="num">{formatMoney(t.value, privacyMode)}</td>
+                    <td className="num" style={{ color: "var(--text-faint)" }}>{formatMoney(t.fee, privacyMode)}</td>
+                    <td className="num" style={{ fontWeight: 600, color: t.pnl == null ? "var(--text-faint)" : t.pnl >= 0 ? "#5BE39D" : "#FF8589" }}>{t.pnl == null ? "-" : formatMoney(t.pnl, privacyMode)}</td>
                     <td className="num" style={{ color: t.retPct == null ? "var(--text-faint)" : t.retPct >= 0 ? "#5BE39D" : "#FF8589" }}>{t.retPct == null ? "-" : fmtPct(t.retPct)}</td>
                     <td style={{ color: "var(--text-dim)" }}>{t.strategy}</td>
                     <td style={{ color: "var(--text-faint)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.notes || ""}>{t.notes || "-"}</td>
@@ -1033,6 +1220,23 @@ export default function InvestmentDashboard({
           </div>
         </div>
       </div>
+
+      <StockDetailDrawer
+        symbol={detailSymbol}
+        position={positions.find((p) => p.symbol === detailSymbol)}
+        colorIndex={Math.max(0, evaluated.findIndex((p) => p.symbol === detailSymbol))}
+        privacyMode={privacyMode}
+        onClose={() => setDetailSymbol(null)}
+      />
+
+      {importResult && (
+        <TradeImportModal
+          result={importResult}
+          fileName={importFileName}
+          onConfirm={confirmImport}
+          onClose={closeImportModal}
+        />
+      )}
     </div>
   );
 }
