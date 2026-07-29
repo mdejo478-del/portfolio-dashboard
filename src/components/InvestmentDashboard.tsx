@@ -276,19 +276,65 @@ export default function InvestmentDashboard({
 
   const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
 
+  const positionsRef = useRef<Position[]>(positions);
+  useEffect(() => { positionsRef.current = positions; }, [positions]);
+  const tradesRef = useRef<Trade[]>(trades);
+  useEffect(() => { tradesRef.current = trades; }, [trades]);
+  const ledgerRef = useRef<Ledger>(ledger);
+  useEffect(() => { ledgerRef.current = ledger; }, [ledger]);
+
+  // Autosave: strictly sequential, never more than one save in flight. Without
+  // this, two rapid edits (e.g. adding two trades back-to-back) fire two
+  // overlapping save requests, and if the OLDER one happens to resolve AFTER
+  // the newer one (perfectly normal on a real network), it silently
+  // overwrites the file with stale data - the newer trade looks saved in the
+  // UI but is gone from disk. This queue always reads the latest ref values
+  // at send-time and, if state changed again mid-save, immediately runs one
+  // more save right after - never dropping a change, never racing.
+  const saveInFlight = useRef<boolean>(false);
+  const savePending = useRef<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error">("idle");
+
+  const runSave = useCallback(async () => {
+    if (saveInFlight.current) { savePending.current = true; return; }
+    saveInFlight.current = true;
+    try {
+      for (;;) {
+        savePending.current = false;
+        const data: PortfolioData = {
+          positions: positionsRef.current,
+          trades: tradesRef.current,
+          ledger: ledgerRef.current,
+          nextPositionId: nextPosId.current,
+          nextTradeId: nextId.current,
+        };
+        setSaveStatus("saving");
+        try {
+          await savePortfolioAction(data);
+          setSaveStatus("idle");
+        } catch (err) {
+          setSaveStatus("error");
+          setGlobalError(String((err && (err as Error).message) || err));
+        }
+        if (!savePending.current) break;
+      }
+    } finally {
+      saveInFlight.current = false;
+    }
+  }, []);
+
   const skipNextSave = useRef<boolean>(true);
   useEffect(() => {
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    const data: PortfolioData = {
-      positions, trades, ledger,
-      nextPositionId: nextPosId.current,
-      nextTradeId: nextId.current,
-    };
-    savePortfolioAction(data).catch((err) => setGlobalError(String((err && err.message) || err)));
-  }, [positions, trades, ledger]);
+    runSave();
+  }, [positions, trades, ledger, runSave]);
 
-  const positionsRef = useRef<Position[]>(positions);
-  useEffect(() => { positionsRef.current = positions; }, [positions]);
+  // Periodic backup save: a safety net independent of the change-triggered
+  // save above, in case a transient failure was missed or dismissed.
+  useEffect(() => {
+    const interval = setInterval(() => { runSave(); }, 15_000);
+    return () => clearInterval(interval);
+  }, [runSave]);
 
   const [pricesConfigured, setPricesConfigured] = useState<boolean | null>(null);
   const [pricesLoading, setPricesLoading] = useState<boolean>(false);
@@ -836,10 +882,24 @@ export default function InvestmentDashboard({
                   ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
                   : "טוען מחירים..."}
             </div>
-            <button type="button" className="ghost" onClick={refreshPrices} disabled={pricesLoading}
-              style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <RefreshCw size={14} className={pricesLoading ? "spin-icon" : undefined} /> רענון מחירים
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <span style={{
+                display: "flex", alignItems: "center", gap: 5, fontSize: 11.5,
+                color: saveStatus === "error" ? "#FF8589" : "var(--text-faint)",
+              }}>
+                {saveStatus === "saving" ? (
+                  <><RefreshCw size={12} className="spin-icon" /> שומר...</>
+                ) : saveStatus === "error" ? (
+                  <>⚠ שגיאה בשמירה - ינסה שוב אוטומטית</>
+                ) : (
+                  <>✓ נשמר</>
+                )}
+              </span>
+              <button type="button" className="ghost" onClick={refreshPrices} disabled={pricesLoading}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <RefreshCw size={14} className={pricesLoading ? "spin-icon" : undefined} /> רענון מחירים
+              </button>
+            </div>
           </div>
           {priceError && (
             <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>

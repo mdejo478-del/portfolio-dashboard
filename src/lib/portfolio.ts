@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -165,5 +166,12 @@ export async function getPortfolio(userId: string): Promise<PortfolioData> {
 
 export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
   await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
-  await fs.writeFile(portfolioPath(userId), JSON.stringify(data, null, 2), "utf-8");
+  const finalPath = portfolioPath(userId);
+  // Write to a unique temp file and rename over the target: rename is atomic
+  // on the same filesystem, so a reader (or a crash mid-write) never sees a
+  // truncated/partial JSON file - the old contents remain intact until the
+  // new file is fully written.
+  const tmpPath = finalPath + "." + randomUUID() + ".tmp";
+  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+  await fs.rename(tmpPath, finalPath);
 }
