@@ -335,10 +335,15 @@ export default function InvestmentDashboard({
   const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
   const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
-  // CASH always anchors the bottom of the holdings table, regardless of when it was added;
+  // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
   const tableRows = useMemo(
-    () => evaluated.map((p, i) => ({ p, i })).sort((a, b) => (a.p.symbol === "CASH" ? 1 : 0) - (b.p.symbol === "CASH" ? 1 : 0)),
+    () => evaluated.map((p, i) => ({ p, i })).sort((a, b) => {
+      const aCash = a.p.symbol === "CASH" ? 1 : 0;
+      const bCash = b.p.symbol === "CASH" ? 1 : 0;
+      if (aCash !== bCash) return aCash - bCash;
+      return b.p.value - a.p.value;
+    }),
     [evaluated]
   );
 
@@ -947,11 +952,11 @@ export default function InvestmentDashboard({
                 )}
               </tbody>
               <tfoot>
-                <tr>
-                  <td colSpan={3} style={{ fontWeight: 700, borderBottom: "none" }}>סך הכל התיק</td>
-                  <td className="num" style={{ fontWeight: 700, color: "#5BE39D", borderBottom: "none" }}>{formatMoney(total, privacyMode)}</td>
-                  <td className="num" style={{ fontWeight: 700, borderBottom: "none" }}>100.0%</td>
-                  <td colSpan={8} style={{ borderBottom: "none" }} />
+                <tr style={{ background: "var(--panel-2)" }}>
+                  <td colSpan={3} style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
+                  <td className="num" style={{ fontWeight: 800, fontSize: 15.5, color: "#5BE39D", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
+                  <td className="num" style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
+                  <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
                 </tr>
               </tfoot>
             </table>
