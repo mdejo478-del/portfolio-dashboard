@@ -1,4 +1,5 @@
-import { cookies } from "next/headers";
+import { createHash } from "crypto";
+import { cookies, headers } from "next/headers";
 import { encodeToken, decodeToken } from "@/lib/signedToken";
 
 const COOKIE_NAME = "session";
@@ -10,11 +11,21 @@ export interface SessionPayload {
   email: string;
   disclaimerAccepted: boolean;
   exp: number;
+  // Hash of the User-Agent that created this session. Bound in on every
+  // request so a copied/stolen cookie used from a different client is
+  // rejected. This is a basic tripwire, not device fingerprinting - it
+  // doesn't stop an attacker who also spoofs the same User-Agent string.
+  fp: string;
 }
 
-export function decodeSession(token: string | undefined | null): SessionPayload | null {
+export function fingerprintFor(userAgent: string | null | undefined): string {
+  return createHash("sha256").update(userAgent || "unknown").digest("hex").slice(0, 32);
+}
+
+export function decodeSession(token: string | undefined | null, userAgent?: string | null): SessionPayload | null {
   const payload = decodeToken<SessionPayload>(token);
   if (!payload || typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
+  if (userAgent !== undefined && payload.fp && payload.fp !== fingerprintFor(userAgent)) return null;
   return payload;
 }
 
@@ -32,12 +43,14 @@ async function setSessionCookie(payload: SessionPayload): Promise<void> {
 
 export async function createSession(user: { id: string; name: string; email: string }): Promise<void> {
   const exp = Date.now() + SESSION_TTL_MS;
+  const h = await headers();
   await setSessionCookie({
     userId: user.id,
     name: user.name,
     email: user.email,
     disclaimerAccepted: false,
     exp,
+    fp: fingerprintFor(h.get("user-agent")),
   });
 }
 
@@ -47,7 +60,8 @@ export async function acceptDisclaimer(session: SessionPayload): Promise<void> {
 
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
-  return decodeSession(cookieStore.get(COOKIE_NAME)?.value);
+  const h = await headers();
+  return decodeSession(cookieStore.get(COOKIE_NAME)?.value, h.get("user-agent"));
 }
 
 export async function deleteSession(): Promise<void> {

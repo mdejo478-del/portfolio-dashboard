@@ -6,7 +6,7 @@ const PUBLIC_ROUTES = new Set(["/login", "/register", "/verify"]);
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);
-  const session = decodeSession(request.cookies.get("session")?.value);
+  const session = decodeSession(request.cookies.get("session")?.value, request.headers.get("user-agent"));
 
   if (!isPublicRoute && !session) {
     return NextResponse.redirect(new URL("/login", request.url));
