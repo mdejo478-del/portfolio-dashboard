@@ -809,7 +809,7 @@ export default function InvestmentDashboard({
             </div>
           </div>
 
-          <SectionTitle icon={<Wallet size={16} />} text="החזקות בתיק" />
+          <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
             <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
