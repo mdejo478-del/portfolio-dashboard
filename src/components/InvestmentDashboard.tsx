@@ -329,6 +329,12 @@ export default function InvestmentDashboard({
   const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
   const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
+  // CASH always anchors the bottom of the holdings table, regardless of when it was added;
+  // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
+  const tableRows = useMemo(
+    () => evaluated.map((p, i) => ({ p, i })).sort((a, b) => (a.p.symbol === "CASH" ? 1 : 0) - (b.p.symbol === "CASH" ? 1 : 0)),
+    [evaluated]
+  );
 
   function startEditPosQty(p: Position) {
     setEditingPosId(p.id);
@@ -841,8 +847,8 @@ export default function InvestmentDashboard({
                 </tr>
               </thead>
               <tbody>
-                {evaluated.map((p, i) => (
-                  <tr key={p.id}>
+                {tableRows.map(({ p, i }) => (
+                  <tr key={p.id} style={p.symbol === "CASH" ? { background: "rgba(148,163,184,0.07)", borderTop: "1px solid var(--border)" } : undefined}>
                     <td
                       onClick={() => openDetail(p.symbol)}
                       title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
@@ -869,7 +875,7 @@ export default function InvestmentDashboard({
                       )}
                     </td>
                     <td className="num" style={{ color: "var(--text-dim)" }}>{p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}</td>
-                    <td className="num" style={{ fontWeight: 600 }}>{formatMoney(p.value, privacyMode)}</td>
+                    <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                     <td className="num">{fmtPct(p.weight)}</td>
                     <td className="num" style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
                     <td className="num" style={{ color: "var(--text-faint)" }}>
