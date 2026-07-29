@@ -153,7 +153,6 @@ function Card({ label, value, sub, tone, icon }: { label: string; value: ReactNo
     <div style={{
       background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14,
       padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10, minWidth: 0,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <span style={{ color: "var(--text-dim)", fontSize: 12.5, fontWeight: 600, letterSpacing: 0.2, lineHeight: 1.3 }}>{label}</span>
@@ -162,31 +161,6 @@ function Card({ label, value, sub, tone, icon }: { label: string; value: ReactNo
       <span style={{ fontFamily: "var(--mono)", fontSize: 23, fontWeight: 700, lineHeight: 1.2, color: s ? s.text : "var(--text)", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
       {sub && <span style={{ color: "var(--text-faint)", fontSize: 12, lineHeight: 1.4 }}>{sub}</span>}
     </div>
-  );
-}
-
-function HeaderIconBtn({
-  title, onClick, disabled, active, type = "button", children,
-}: {
-  title: string; onClick?: () => void; disabled?: boolean; active?: boolean;
-  type?: "button" | "submit"; children: ReactNode;
-}) {
-  return (
-    <button
-      type={type} onClick={onClick} disabled={disabled} title={title} aria-label={title}
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "center",
-        width: 34, height: 34, borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer",
-        background: active ? "rgba(79,163,247,0.15)" : "transparent",
-        border: "1px solid " + (active ? "rgba(79,163,247,0.45)" : "transparent"),
-        color: active ? "#7FBBFA" : "var(--text-dim)",
-        opacity: disabled ? 0.4 : 1, transition: "background 0.15s, color 0.15s",
-      }}
-      onMouseEnter={(e) => { if (!disabled && !active) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "var(--text)"; } }}
-      onMouseLeave={(e) => { if (!disabled && !active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; } }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -738,83 +712,71 @@ export default function InvestmentDashboard({
         {/* App header */}
         <div style={{
           background: "linear-gradient(180deg, #131C24 0%, #0D1319 100%)",
-          borderBottom: "1px solid var(--border)", padding: "18px 20px 22px",
+          borderBottom: "1px solid var(--border)", padding: "22px 20px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16,
         }}>
-          {/* Top row: identity (right) + compact action cluster (corner) */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{
-                width: 46, height: 46, borderRadius: 12, background: "rgba(34,211,168,0.12)",
-                border: "1px solid rgba(34,211,168,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <Landmark size={22} color="var(--accent)" />
-              </div>
-              <div>
-                <h1 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
-                  ניהול סיכונים ותיק השקעות
-                </h1>
-                <p style={{ margin: "3px 0 0", color: "var(--text-faint)", fontSize: 12 }}>
-                  Professional Portfolio Dashboard · שלום, <strong style={{ color: "var(--text-dim)" }}>{userName}</strong>
-                </p>
-              </div>
-            </div>
-
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{
-              display: "flex", alignItems: "center", gap: 4,
-              background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 4,
+              width: 46, height: 46, borderRadius: 12, background: "rgba(34,211,168,0.12)",
+              border: "1px solid rgba(34,211,168,0.35)", display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <HeaderIconBtn
-                title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
-                onClick={undoLastAction} disabled={!undoSnapshot}
-              >
-                <Undo2 size={16} />
-              </HeaderIconBtn>
-              <HeaderIconBtn
-                title={privacyMode ? "כבה מצב פרטיות והצג נתונים כספיים" : "הפעל מצב פרטיות - הסתרת נתונים כספיים"}
-                onClick={() => setPrivacyMode((v) => !v)} active={privacyMode}
-              >
-                {privacyMode ? <EyeOff size={16} /> : <Eye size={16} />}
-              </HeaderIconBtn>
-              <form action={logout}>
-                <HeaderIconBtn type="submit" title="התנתקות">
-                  <LogOut size={16} />
-                </HeaderIconBtn>
-              </form>
+              <Landmark size={22} color="var(--accent)" />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
+                ניהול סיכונים ותיק השקעות - Professional Portfolio Dashboard
+              </h1>
+              <p style={{ margin: "3px 0 0", color: "var(--text-faint)", fontSize: 12.5 }}>
+                עודכן לאחרונה: 2026-07-24 · VIX 18.53
+              </p>
             </div>
           </div>
-
-          {/* Prominent portfolio value / cash strip */}
-          <div className="idash-grid2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <div style={{
-              background: "linear-gradient(135deg, rgba(34,211,168,0.16) 0%, rgba(34,211,168,0.03) 100%)",
-              border: "1px solid rgba(34,211,168,0.35)", borderRadius: 14, padding: "18px 22px",
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-            }}>
-              <div>
-                <div style={{ color: "var(--text-dim)", fontSize: 12.5, fontWeight: 600 }}>שווי תיק כולל</div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 32, fontWeight: 800, color: "#5BE39D", marginTop: 4, lineHeight: 1.2 }}>{formatMoney(total, privacyMode)}</div>
-              </div>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, background: "rgba(34,211,168,0.15)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <Wallet size={20} color="var(--accent)" />
-              </div>
+          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+            <div style={{ textAlign: "left" }}>
+              <div style={{ color: "var(--text-faint)", fontSize: 11 }}>שווי תיק כולל</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800, color: "#5BE39D" }}>{formatMoney(total, privacyMode)}</div>
             </div>
-            <div style={{
-              background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 22px",
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-            }}>
-              <div>
-                <div style={{ color: "var(--text-dim)", fontSize: 12.5, fontWeight: 600 }}>מזומן פנוי</div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 32, fontWeight: 800, color: "var(--text)", marginTop: 4, lineHeight: 1.2 }}>{formatMoney(cashFree, privacyMode)}</div>
-              </div>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, background: "rgba(79,163,247,0.15)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <PiggyBank size={20} color="#7FBBFA" />
-              </div>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <div style={{ textAlign: "left" }}>
+              <div style={{ color: "var(--text-faint)", fontSize: 11 }}>מזומן פנוי</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 25, fontWeight: 800 }}>{formatMoney(cashFree, privacyMode)}</div>
+            </div>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <button
+              type="button" className="ghost" onClick={undoLastAction} disabled={!undoSnapshot}
+              title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                opacity: undoSnapshot ? 1 : 0.45, cursor: undoSnapshot ? "pointer" : "not-allowed",
+              }}
+            >
+              <Undo2 size={14} /> בטל פעולה אחרונה{undoSnapshot ? " (" + undoSnapshot.label + ")" : ""}
+            </button>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <button
+              type="button" onClick={() => setPrivacyMode((v) => !v)}
+              title={privacyMode ? "כבה מצב פרטיות והצג נתונים כספיים" : "הפעל מצב פרטיות - הסתרת נתונים כספיים"}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                borderRadius: 10, fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+                background: privacyMode ? "rgba(79,163,247,0.15)" : "transparent",
+                border: "1px solid " + (privacyMode ? "rgba(79,163,247,0.45)" : "var(--border)"),
+                color: privacyMode ? "#7FBBFA" : "var(--text-dim)",
+              }}
+            >
+              {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
+              {privacyMode ? "מצב פרטיות פעיל" : "הסתר מידע רגיש"}
+            </button>
+            <div style={{ width: 1, height: 34, background: "var(--border)" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: "var(--text-dim)", fontSize: 13 }}>
+                שלום, <strong style={{ color: "var(--text)" }}>{userName}</strong>
+              </span>
+              <form action={logout}>
+                <button type="submit" className="ghost" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px" }}>
+                  <LogOut size={14} /> התנתקות
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -858,7 +820,7 @@ export default function InvestmentDashboard({
             </div>
           )}
 
-          <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }}>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20 }}>
             <table>
               <thead>
                 <tr>
@@ -1082,11 +1044,8 @@ export default function InvestmentDashboard({
             <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
           </div>
 
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10,
-            background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px",
-          }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <input
                 ref={fileInputRef} type="file"
                 accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
@@ -1100,17 +1059,10 @@ export default function InvestmentDashboard({
               <button className="ghost" onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Download size={15} /> ייצוא CSV
               </button>
+              <button className="primary" onClick={() => { if (showForm && editingId === null) { cancelForm(); } else { setForm(EMPTY_FORM); setEditingId(null); setShowForm(true); } }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Plus size={15} /> {showForm && editingId === null ? "סגור טופס" : "הוסף עסקה"}
+              </button>
             </div>
-            <button
-              className="primary"
-              onClick={() => { if (showForm && editingId === null) { cancelForm(); } else { setForm(EMPTY_FORM); setEditingId(null); setShowForm(true); } }}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, padding: "12px 24px", fontSize: 14.5,
-                boxShadow: "0 6px 18px rgba(34,211,168,0.35)",
-              }}
-            >
-              <Plus size={16} /> {showForm && editingId === null ? "סגור טופס" : "הוסף עסקה חדשה"}
-            </button>
           </div>
 
           {showForm && (
