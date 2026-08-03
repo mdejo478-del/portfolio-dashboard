@@ -381,6 +381,40 @@ export default function InvestmentDashboard({
   const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
   const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
+
+  // Portfolio Health: a quick-glance score built from the same status/weight
+  // rules already used per-position, just rolled up into one summary.
+  const portfolioHealth = useMemo(() => {
+    const cashPos = evaluated.find((p) => p.symbol === "CASH");
+    // HODL positions are exempt from rebalancing by design, so they're excluded
+    // from the "in target range" measure the same way they're excluded from status.
+    const rebalancable = evaluated.filter((p) => p.symbol !== "CASH" && !p.hodl);
+
+    const inRangeCount = rebalancable.filter((p) => p.weight >= p.min && p.weight <= p.max).length;
+    const rangeRatio = rebalancable.length > 0 ? inRangeCount / rebalancable.length : 1;
+
+    const cashDev = cashPos ? cashPos.dev : 0;
+    const cashHealth = cashPos ? Math.max(0, 1 - Math.abs(cashDev) / 0.15) : 1;
+
+    const diluteBreaches = rebalancable.filter((p) => p.status === "חריגה - דילול נדרש");
+    const overBreaches = rebalancable.filter((p) => p.status === "מעל היעד");
+    const weightBreaches = [...diluteBreaches, ...overBreaches];
+    const needsStrengthen = rebalancable.filter((p) => p.status === "דורש חיזוק");
+
+    const breachScore = diluteBreaches.length > 0 ? 0 : overBreaches.length > 0 ? 10 : 20;
+    const score = Math.max(0, Math.min(100, Math.round(rangeRatio * 60 + cashHealth * 20 + breachScore)));
+
+    const diversification: "טוב" | "בינוני" | "חלש" =
+      rangeRatio >= 0.8 ? "טוב" : rangeRatio >= 0.5 ? "בינוני" : "חלש";
+
+    const risk: "תקין" | "גבוה" | "נמוך" =
+      diluteBreaches.length > 0 ? "גבוה" : (cashPos && cashDev > 0.05) ? "נמוך" : "תקין";
+
+    const tone: Tone = score >= 75 ? "green" : score >= 50 ? "amber" : "red";
+    const cashTone: Tone = !cashPos ? "blue" : cashDev === 0 ? "green" : "amber";
+
+    return { score, tone, diversification, risk, cashPct: cashPos ? cashPos.weight : 0, cashTone, needsStrengthen, weightBreaches };
+  }, [evaluated]);
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
   const tableRows = useMemo(
@@ -872,6 +906,8 @@ export default function InvestmentDashboard({
             </div>
           </div>
 
+          <PortfolioHealthCard health={portfolioHealth} />
+
           <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
@@ -1327,6 +1363,74 @@ export default function InvestmentDashboard({
           onClose={closeImportModal}
         />
       )}
+    </div>
+  );
+}
+
+interface PortfolioHealthData {
+  score: number;
+  tone: Tone;
+  diversification: "טוב" | "בינוני" | "חלש";
+  risk: "תקין" | "גבוה" | "נמוך";
+  cashPct: number;
+  cashTone: Tone;
+  needsStrengthen: EvaluatedPosition[];
+  weightBreaches: EvaluatedPosition[];
+}
+
+function HealthChip({ label, value, tone }: { label: string; value: string; tone: Tone }) {
+  const s = TONE_STYLES[tone];
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5,
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 8, padding: "5px 10px", whiteSpace: "nowrap",
+    }}>
+      <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>{label}:</span>
+      <span style={{ color: s.text, fontWeight: 700 }}>{value}</span>
+    </span>
+  );
+}
+
+function PortfolioHealthCard({ health }: { health: PortfolioHealthData }) {
+  const s = TONE_STYLES[health.tone];
+  const toneIcon = health.tone === "green" ? "🟢" : health.tone === "amber" ? "🟡" : "🔴";
+  const riskTone: Tone = health.risk === "תקין" ? "green" : health.risk === "גבוה" ? "red" : "blue";
+  const diversificationTone: Tone = health.diversification === "טוב" ? "green" : health.diversification === "בינוני" ? "amber" : "red";
+
+  return (
+    <div style={{
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 14,
+      padding: "16px 20px", marginBottom: 22, display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+          <span>{toneIcon}</span> בריאות התיק
+        </div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 800, color: s.text }}>
+          ציון: {health.score}/100
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <HealthChip label="פיזור" value={health.diversification} tone={diversificationTone} />
+        <HealthChip label="סיכון" value={health.risk} tone={riskTone} />
+        <HealthChip label="Cash" value={fmtPct(health.cashPct)} tone={health.cashTone} />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12.5 }}>
+        <div>
+          <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>צריך לחזק: </span>
+          <span style={{ color: "var(--text)" }}>
+            {health.needsStrengthen.length > 0 ? health.needsStrengthen.map((p) => p.symbol).join(", ") : "אין נכסים מתחת ליעד"}
+          </span>
+        </div>
+        <div>
+          <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>חריגות משקל: </span>
+          <span style={{ color: health.weightBreaches.length > 0 ? "#FF8589" : "var(--text)" }}>
+            {health.weightBreaches.length > 0 ? health.weightBreaches.map((p) => p.symbol).join(", ") : "אין חריגות משקל"}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
