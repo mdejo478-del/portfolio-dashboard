@@ -401,7 +401,11 @@ export default function InvestmentDashboard({
     const weightBreaches = [...diluteBreaches, ...overBreaches];
     const needsStrengthen = rebalancable.filter((p) => p.status === "דורש חיזוק");
 
-    const breachScore = diluteBreaches.length > 0 ? 0 : overBreaches.length > 0 ? 10 : 20;
+    // Scales with how many breaches there are (and how severe), not just whether
+    // any exist at all - a portfolio with several breaches scores meaningfully
+    // lower than one with a single, isolated breach.
+    const breachPenalty = diluteBreaches.length * 12 + overBreaches.length * 6;
+    const breachScore = Math.max(0, 20 - breachPenalty);
     const score = Math.max(0, Math.min(100, Math.round(rangeRatio * 60 + cashHealth * 20 + breachScore)));
 
     const diversification: "טוב" | "בינוני" | "חלש" =
