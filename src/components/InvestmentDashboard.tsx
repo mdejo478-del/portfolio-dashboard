@@ -1474,6 +1474,17 @@ function EquityCurveCard({
   const tone: Tone = returnPct === null ? "blue" : returnPct >= 0 ? "green" : "red";
   const s = TONE_STYLES[tone];
 
+  // Recharts' Area only draws a curve/fill once there are 2+ points, and a
+  // single point can also get swallowed by its default entrance animation -
+  // so for a brand-new history (or a still-degenerate value range) we render
+  // an explicit "first point recorded today" state instead of an empty chart.
+  const values = data.map((p) => p.value);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const hasRange = data.length >= 2 && rawMax > rawMin;
+  const padding = hasRange ? Math.max((rawMax - rawMin) * 0.12, rawMax * 0.01, 1) : 0;
+  const yDomain: [number, number] = [rawMin - padding, rawMax + padding];
+
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 20px", marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
@@ -1492,28 +1503,39 @@ function EquityCurveCard({
       </div>
 
       <div style={{ width: "100%", height: 160 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 6 }}>
-            <defs>
-              <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="date" hide />
-            <YAxis domain={[(min: number) => min * 0.985, (max: number) => max * 1.02]} hide />
-            <ReferenceLine y={ath} stroke="var(--text-faint)" strokeDasharray="4 4" />
-            <Tooltip
-              contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-              labelFormatter={(label) => String(label)}
-              formatter={(val) => [formatMoney(Number(val), privacyMode), "שווי"]}
-            />
-            <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#equityFill)" dot={{ r: 3, fill: "var(--accent)", strokeWidth: 0 }} activeDot={{ r: 4 }} />
-          </AreaChart>
-        </ResponsiveContainer>
+        {hasRange ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 6 }}>
+              <defs>
+                <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="date" hide />
+              <YAxis domain={yDomain} hide />
+              <ReferenceLine y={ath} stroke="var(--text-faint)" strokeDasharray="4 4" />
+              <Tooltip
+                contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                labelFormatter={(label) => String(label)}
+                formatter={(val) => [formatMoney(Number(val), privacyMode), "שווי"]}
+              />
+              <Area
+                type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#equityFill)"
+                dot={{ r: 3, fill: "var(--accent)", strokeWidth: 0 }} activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: "var(--accent)", boxShadow: "0 0 0 4px rgba(34,211,168,0.15)" }} />
+            <span style={{ fontSize: 12, color: "var(--text-faint)" }}>נקודת המדידה הראשונה נרשמה היום</span>
+          </div>
+        )}
       </div>
 
-      {data.length < 2 && (
+      {!hasRange && (
         <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-faint)" }}>
           המערכת שומרת נקודת שווי יומית - הגרף יתמלא בהדרגה ככל שיעברו ימים.
         </div>
