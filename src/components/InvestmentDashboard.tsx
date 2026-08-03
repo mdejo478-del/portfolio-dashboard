@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAx
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
-  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff,
+  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff, Bell,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction, rebuildEquityHistoryAction } from "@/app/actions/portfolio";
@@ -27,6 +27,13 @@ interface PositionEval {
   dev: number;
 }
 type EvaluatedPosition = Position & PositionEval;
+
+interface Alert {
+  id: string;
+  tone: Tone;
+  title: string;
+  message: string;
+}
 
 interface TradeFormState {
   date: string;
@@ -422,6 +429,104 @@ export default function InvestmentDashboard({
 
     return { score, tone, diversification, risk, cashPct: cashPos ? cashPos.weight : 0, cashTone, needsStrengthen, weightBreaches };
   }, [evaluated]);
+
+  // Alerts: only conditions that genuinely need attention (never one per
+  // healthy position - that would be noise). Ids are deterministic and
+  // content-based (e.g. "below-min:RKLB") so dismissing one only suppresses
+  // that specific occurrence - if the same condition resolves and later
+  // recurs, it reappears as a fresh alert (handled by the GC effect below).
+  const alerts = useMemo<Alert[]>(() => {
+    const list: Alert[] = [];
+    for (const p of evaluated) {
+      if (p.hodl) continue; // HODL positions are exempt from rebalancing by design
+      const isCash = p.symbol === "CASH";
+      if (p.status === "דורש חיזוק") {
+        list.push({
+          id: "below-min:" + p.symbol, tone: "amber",
+          title: isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
+          message: p.action,
+        });
+      } else if (p.status === "חריגה - דילול נדרש") {
+        list.push({
+          id: "dilute-breach:" + p.symbol, tone: "red",
+          title: isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
+          message: p.action,
+        });
+      } else if (p.status === "מעל היעד") {
+        list.push({
+          id: "over-max:" + p.symbol, tone: "amber",
+          title: isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
+          message: p.action,
+        });
+      } else if (p.status === "✅ תקין") {
+        // A quiet positive callout: only when weight sits right at the center
+        // of the target range, not for merely "somewhere inside" it (that's
+        // the normal/expected state for most positions, and would be noise).
+        const mid = (p.min + p.max) / 2;
+        if (Math.abs(p.weight - mid) <= 0.015) {
+          list.push({
+            id: "on-target:" + p.symbol, tone: "green",
+            title: (isCash ? "אחוז המזומן" : p.symbol) + " הגיע ליעד המשקל",
+            message: "המשקל הנוכחי (" + fmtPct(p.weight) + ") קרוב מאוד ליעד האידיאלי.",
+          });
+        }
+      }
+    }
+
+    const problemCount = portfolioHealth.needsStrengthen.length + portfolioHealth.weightBreaches.length;
+    if (problemCount >= 3 || portfolioHealth.score < 50) {
+      list.push({
+        id: "rebalance-recommended", tone: portfolioHealth.tone === "red" ? "red" : "amber",
+        title: "מומלץ איזון מחדש כולל",
+        message: problemCount + " נכסים דורשים תשומת לב וציון בריאות התיק הוא " + portfolioHealth.score + "/100.",
+      });
+    }
+
+    const priority: Record<Tone, number> = { red: 0, amber: 1, blue: 2, green: 3 };
+    return list.sort((a, b) => priority[a.tone] - priority[b.tone]);
+  }, [evaluated, portfolioHealth]);
+
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
+  const [seenAlertIds, setSeenAlertIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      setDismissedAlertIds(new Set(JSON.parse(localStorage.getItem("alerts_dismissed_v1") || "[]")));
+      setSeenAlertIds(new Set(JSON.parse(localStorage.getItem("alerts_seen_v1") || "[]")));
+    } catch { /* ignore malformed/unavailable storage */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("alerts_dismissed_v1", JSON.stringify([...dismissedAlertIds])); } catch { /* ignore */ }
+  }, [dismissedAlertIds]);
+  useEffect(() => {
+    try { localStorage.setItem("alerts_seen_v1", JSON.stringify([...seenAlertIds])); } catch { /* ignore */ }
+  }, [seenAlertIds]);
+  // Garbage-collect ids for alerts whose underlying condition no longer holds,
+  // so if the same condition recurs later it shows up again instead of
+  // staying permanently suppressed by a stale dismissal.
+  useEffect(() => {
+    const currentIds = new Set(alerts.map((a) => a.id));
+    setDismissedAlertIds((prev) => new Set([...prev].filter((id) => currentIds.has(id))));
+    setSeenAlertIds((prev) => new Set([...prev].filter((id) => currentIds.has(id))));
+  }, [alerts]);
+
+  const visibleAlerts = useMemo(() => alerts.filter((a) => !dismissedAlertIds.has(a.id)), [alerts, dismissedAlertIds]);
+  const unseenAlertCount = useMemo(() => visibleAlerts.filter((a) => !seenAlertIds.has(a.id)).length, [visibleAlerts, seenAlertIds]);
+
+  function dismissAlert(id: string) {
+    setDismissedAlertIds((prev) => new Set([...prev, id]));
+  }
+  function markAlertsSeen() {
+    setSeenAlertIds((prev) => new Set([...prev, ...visibleAlerts.map((a) => a.id)]));
+  }
+
+  const [alertsOpen, setAlertsOpen] = useState<boolean>(false);
+  function toggleAlerts() {
+    setAlertsOpen((open) => {
+      const next = !open;
+      if (next) markAlertsSeen();
+      return next;
+    });
+  }
 
   // Equity curve: the server keeps one snapshot per day (see savePortfolio),
   // returned as initialEquityHistory. Here we additionally overlay today's
@@ -888,6 +993,10 @@ export default function InvestmentDashboard({
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <AlertsBell
+                alerts={visibleAlerts} unseenCount={unseenAlertCount} seenIds={seenAlertIds}
+                open={alertsOpen} onToggle={toggleAlerts} onClose={() => setAlertsOpen(false)} onDismiss={dismissAlert}
+              />
               <button
                 type="button" className="ghost" onClick={undoLastAction} disabled={!undoSnapshot}
                 title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
@@ -1426,6 +1535,78 @@ interface PortfolioHealthData {
   cashTone: Tone;
   needsStrengthen: EvaluatedPosition[];
   weightBreaches: EvaluatedPosition[];
+}
+
+function AlertsBell({
+  alerts, unseenCount, seenIds, open, onToggle, onClose, onDismiss,
+}: {
+  alerts: Alert[]; unseenCount: number; seenIds: Set<string>;
+  open: boolean; onToggle: () => void; onClose: () => void; onDismiss: (id: string) => void;
+}) {
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button" className="ghost" onClick={onToggle}
+        title="התראות"
+        style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "9px 12px" }}
+      >
+        <Bell size={15} />
+        {unseenCount > 0 && (
+          <span style={{
+            position: "absolute", top: -5, left: -5, minWidth: 16, height: 16, borderRadius: 999,
+            background: "#FF5A5F", color: "#fff", fontSize: 10, fontWeight: 800,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+          }}>
+            {unseenCount > 9 ? "9+" : unseenCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div style={{
+            position: "absolute", top: "calc(100% + 8px)", left: 0, width: 340, maxWidth: "90vw",
+            maxHeight: 420, overflowY: "auto", background: "var(--panel)", border: "1px solid var(--border)",
+            borderRadius: 12, zIndex: 50, boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+          }}>
+            <div style={{
+              padding: "12px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13.5,
+              display: "flex", alignItems: "center", gap: 8, color: "var(--text)",
+            }}>
+              <Bell size={14} color="var(--accent)" /> התראות{alerts.length > 0 ? " (" + alerts.length + ")" : ""}
+            </div>
+
+            {alerts.length === 0 ? (
+              <div style={{ padding: "20px 14px", textAlign: "center", color: "var(--text-faint)", fontSize: 12.5 }}>
+                ✅ אין התראות שדורשות תשומת לב כרגע.
+              </div>
+            ) : (
+              alerts.map((a) => {
+                const s = TONE_STYLES[a.tone];
+                const isNew = !seenIds.has(a.id);
+                return (
+                  <div key={a.id} style={{
+                    padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", gap: 9, alignItems: "flex-start",
+                    background: isNew ? "rgba(34,211,168,0.04)" : "transparent",
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, marginTop: 5, flexShrink: 0, background: s.text }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}>{a.title}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 2, lineHeight: 1.4 }}>{a.message}</div>
+                    </div>
+                    <button type="button" className="icon-btn" onClick={() => onDismiss(a.id)} title="סגור התראה" aria-label="סגור התראה">
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function HealthChip({ label, value, tone }: { label: string; value: string; tone: Tone }) {
