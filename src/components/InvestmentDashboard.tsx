@@ -67,9 +67,24 @@ interface UndoSnapshot {
   nextTradeId: number;
 }
 
+// Real brand colors where the company actually has a signature one. Palantir,
+// Rocket Lab and Apple all brand themselves in plain black/white with no
+// accent color - true black would vanish on this dark background, so those
+// get a distinct shade of gray instead, chosen so they don't collide with
+// each other. IBIT uses Bitcoin's orange (what it tracks) instead of its
+// issuer BlackRock's own black/white branding, since that's what's actually
+// recognizable at a glance.
 const SYMBOL_COLORS: Record<string, string> = {
-  NVDA: "#22D3A8", IBIT: "#4FA3F7", PLTR: "#A78BFA", TSLA: "#FF5A5F",
-  GOOG: "#F2A93B", SOFI: "#34D399", RKLB: "#FB923C", ETH: "#8B93FF", CASH: "#94A3B8",
+  NVDA: "#76B900",  // NVIDIA green
+  TSLA: "#E82127",  // Tesla red
+  GOOG: "#4285F4",  // Google blue
+  ETH: "#627EEA",   // Ethereum purple
+  SOFI: "#00A6D6",  // SoFi cyan
+  PLTR: "#F4F4F5",  // Palantir - monochrome brand, lightest gray
+  RKLB: "#A1A1AA",  // Rocket Lab - monochrome brand
+  AAPL: "#71717A",  // Apple - monochrome brand
+  IBIT: "#F7931A",  // Bitcoin orange - IBIT tracks BTC, more recognizable than BlackRock's black/white
+  CASH: "#94A3B8",
 };
 const FALLBACK_COLORS = ["#22D3A8", "#4FA3F7", "#A78BFA", "#FF5A5F", "#F2A93B", "#34D399", "#8B93FF", "#F472B6", "#60A5FA", "#FBBF24"];
 export function colorFor(symbol: string, idx: number): string {
