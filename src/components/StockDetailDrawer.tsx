@@ -123,6 +123,20 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                     <span style={{ color: "var(--text-faint)", fontWeight: 500 }}>היום</span>
                   </div>
                 )}
+                {detail?.extended && (
+                  <div style={{
+                    marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5,
+                    color: detail.extended.changePct === null ? "var(--text-faint)" : detail.extended.changePct >= 0 ? "#5BE39D" : "#FF8589",
+                  }}>
+                    <span style={{ color: "var(--text-faint)", fontWeight: 600 }}>
+                      {detail.extended.session === "pre" ? "טרום-פתיחה" : "לאחר סגירת המסחר"}:
+                    </span>
+                    <span style={{ fontFamily: "var(--mono)", direction: "ltr", fontWeight: 700 }}>
+                      {formatMoney(detail.extended.price, privacyMode, { digits: 2 })}
+                      {detail.extended.changePct !== null && " (" + (detail.extended.changePct >= 0 ? "+" : "") + fmtPct(detail.extended.changePct) + ")"}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Returns row */}

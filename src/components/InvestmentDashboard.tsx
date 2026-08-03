@@ -10,6 +10,7 @@ import {
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction, rebuildEquityHistoryAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
+import type { ExtendedQuote } from "@/lib/prices";
 import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint } from "@/lib/portfolio";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
@@ -158,6 +159,20 @@ function Badge({ tone, children }: { tone: Tone; children: ReactNode }) {
       background: s.bg, border: "1px solid " + s.border, color: s.text,
       borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
     }}>{children}</span>
+  );
+}
+
+// Pre-market/after-hours price, shown only when the market's actually in one
+// of those windows (see fetchExtendedHoursQuote) - never during the regular
+// session, where the live Finnhub price above already covers it.
+function ExtendedPriceBadge({ quote, privacyMode }: { quote: ExtendedQuote | null | undefined; privacyMode: boolean }) {
+  if (!quote) return null;
+  const tone = quote.changePct === null ? "var(--text-faint)" : quote.changePct >= 0 ? "#5BE39D" : "#FF8589";
+  return (
+    <div style={{ fontSize: 10.5, marginTop: 2, color: tone, whiteSpace: "nowrap" }}>
+      {quote.session === "pre" ? "טרום-פתיחה" : "אחרי סגירה"}: {formatMoney(quote.price, privacyMode, { digits: 2 })}
+      {quote.changePct !== null && " (" + (quote.changePct >= 0 ? "+" : "") + fmtPct(quote.changePct) + ")"}
+    </div>
   );
 }
 
@@ -350,6 +365,7 @@ export default function InvestmentDashboard({
   const [pricesLoading, setPricesLoading] = useState<boolean>(false);
   const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
   const [priceError, setPriceError] = useState<string>("");
+  const [extendedPrices, setExtendedPrices] = useState<Record<string, ExtendedQuote | null>>({});
 
   const refreshPrices = useCallback(async () => {
     const symbols = positionsRef.current.filter((p) => p.symbol !== "CASH").map((p) => p.symbol);
@@ -364,6 +380,7 @@ export default function InvestmentDashboard({
           if (newPrice == null || p.qty == null) return p;
           return { ...p, price: newPrice, value: p.qty * newPrice };
         }));
+        setExtendedPrices(result.extended);
         setLastPriceUpdate(new Date());
       }
     } catch {
@@ -1206,7 +1223,10 @@ export default function InvestmentDashboard({
                         p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
                       )}
                     </td>
-                    <td className="num" style={{ color: "var(--text-dim)" }}>{p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}</td>
+                    <td className="num" style={{ color: "var(--text-dim)" }}>
+                      {p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}
+                      <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
+                    </td>
                     <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                     <td className="num">{fmtPct(p.weight)}</td>
                     <td className="num" style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>

@@ -12,9 +12,22 @@ const SYMBOL_OVERRIDES: Record<string, string> = {
   ETH: "BINANCE:ETHUSDT",
 };
 
+export type MarketSession = "pre" | "post";
+
+export interface ExtendedQuote {
+  price: number;
+  session: MarketSession;
+  change: number | null;
+  changePct: number | null;
+}
+
 export interface QuotesResult {
   configured: boolean;
   prices: Record<string, number | null>;
+  // Only populated for symbols currently trading pre-market or after-hours -
+  // during the regular session (or when the market's fully closed) this is
+  // null, since Finnhub's quote above already covers the regular price.
+  extended: Record<string, ExtendedQuote | null>;
 }
 
 async function fetchQuote(symbol: string, apiKey: string): Promise<number | null> {
@@ -33,19 +46,88 @@ async function fetchQuote(symbol: string, apiKey: string): Promise<number | null
   }
 }
 
+interface YahooTradingPeriod { start?: number; end?: number }
+interface YahooExtendedChartResponse {
+  chart?: {
+    result?: Array<{
+      meta?: {
+        regularMarketPrice?: number;
+        previousClose?: number;
+        currentTradingPeriod?: { pre?: YahooTradingPeriod; regular?: YahooTradingPeriod; post?: YahooTradingPeriod };
+      };
+      timestamp?: number[];
+      indicators?: { quote?: Array<{ close?: (number | null)[] }> };
+    }>;
+  };
+}
+
+// Finnhub's free tier doesn't cover pre-market/after-hours trades, so this
+// pulls the latest tick from Yahoo's free, unauthenticated minute-bar chart
+// (same source already used as the historical-candle fallback) and only
+// surfaces it when that tick actually falls inside the pre or post window -
+// during the regular session this returns null and the Finnhub quote wins.
+async function fetchExtendedHoursQuote(symbol: string): Promise<ExtendedQuote | null> {
+  const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1d&interval=1m&includePrePost=true`,
+      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as YahooExtendedChartResponse;
+    const result = data.chart?.result?.[0];
+    const meta = result?.meta;
+    const timestamps = result?.timestamp;
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (!meta || !timestamps || !closes || timestamps.length === 0) return null;
+
+    let lastIdx = -1;
+    for (let i = timestamps.length - 1; i >= 0; i--) {
+      if (typeof closes[i] === "number") { lastIdx = i; break; }
+    }
+    if (lastIdx === -1) return null;
+    const lastTs = timestamps[lastIdx];
+    const lastPrice = closes[lastIdx] as number;
+
+    const inWindow = (p?: YahooTradingPeriod) =>
+      Boolean(p && typeof p.start === "number" && typeof p.end === "number" && lastTs >= p.start && lastTs < p.end);
+    const periods = meta.currentTradingPeriod;
+    const session: MarketSession | null = inWindow(periods?.pre) ? "pre" : inWindow(periods?.post) ? "post" : null;
+    if (!session) return null;
+
+    // meta.regularMarketPrice tracks the last *regular-session* close until the
+    // next regular session updates it - exactly the right base for both the
+    // pre-market change (vs. yesterday's close) and the after-hours change
+    // (vs. today's close).
+    const base = typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice
+      : typeof meta.previousClose === "number" ? meta.previousClose : null;
+    const change = base !== null ? lastPrice - base : null;
+    const changePct = base !== null && base > 0 && change !== null ? change / base : null;
+
+    return { price: lastPrice, session, change, changePct };
+  } catch {
+    return null;
+  }
+}
+
 export async function getQuotes(symbols: string[]): Promise<QuotesResult> {
   // To switch to Twelve Data instead: swap this key + fetchQuote's URL/response
   // shape for https://api.twelvedata.com/price?symbol=...&apikey=...
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) {
-    return { configured: false, prices: {} };
+    return { configured: false, prices: {}, extended: {} };
   }
 
   const uniqueSymbols = Array.from(new Set(symbols));
-  const entries = await Promise.all(
-    uniqueSymbols.map(async (symbol) => [symbol, await fetchQuote(symbol, apiKey)] as const)
-  );
-  return { configured: true, prices: Object.fromEntries(entries) };
+  const [priceEntries, extendedEntries] = await Promise.all([
+    Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchQuote(symbol, apiKey)] as const)),
+    Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchExtendedHoursQuote(symbol)] as const)),
+  ]);
+  return {
+    configured: true,
+    prices: Object.fromEntries(priceEntries),
+    extended: Object.fromEntries(extendedEntries),
+  };
 }
 
 const COMPANY_NAME_OVERRIDES: Record<string, string> = {
@@ -82,6 +164,7 @@ export interface StockDetail {
   previousClose: number | null;
   returns: StockReturns;
   historicalAvailable: boolean;
+  extended: ExtendedQuote | null;
 }
 
 interface FinnhubQuote { c?: number; d?: number; dp?: number; h?: number; l?: number; o?: number; pc?: number }
@@ -176,7 +259,7 @@ export async function getStockDetail(symbol: string): Promise<StockDetail> {
     return {
       configured: false, symbol, name: COMPANY_NAME_OVERRIDES[symbol] || null,
       price: null, change: null, changePct: null, high: null, low: null, open: null,
-      previousClose: null, returns: empty, historicalAvailable: false,
+      previousClose: null, returns: empty, historicalAvailable: false, extended: null,
     };
   }
 
@@ -189,13 +272,14 @@ export async function getStockDetail(symbol: string): Promise<StockDetail> {
   // Yahoo (the fallback) is run in parallel with it rather than after it -
   // otherwise a slow Finnhub timeout and a slow Yahoo request add up instead
   // of overlapping.
-  const [quoteRes, finnhubCandle, yahooCandle, profileRes] = await Promise.all([
+  const [quoteRes, finnhubCandle, yahooCandle, profileRes, extended] = await Promise.all([
     fetch(`${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
       .then((r) => (r.ok ? (r.json() as Promise<FinnhubQuote>) : null)).catch(() => null),
     fetchFinnhubCandle(finnhubSymbol, isCrypto, apiKey, fromSec, nowSec),
     fetchYahooCandle(symbol),
     isCrypto ? Promise.resolve(null) : fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
       .then((r) => (r.ok ? (r.json() as Promise<FinnhubProfile>) : null)).catch(() => null),
+    isCrypto ? Promise.resolve(null) : fetchExtendedHoursQuote(symbol),
   ]);
 
   const candleRes = finnhubCandle || yahooCandle;
@@ -225,6 +309,6 @@ export async function getStockDetail(symbol: string): Promise<StockDetail> {
     low: typeof quoteRes?.l === "number" ? quoteRes.l : null,
     open: typeof quoteRes?.o === "number" ? quoteRes.o : null,
     previousClose: typeof quoteRes?.pc === "number" ? quoteRes.pc : null,
-    returns, historicalAvailable,
+    returns, historicalAvailable, extended,
   };
 }
