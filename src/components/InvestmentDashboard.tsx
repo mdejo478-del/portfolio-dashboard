@@ -353,8 +353,19 @@ export default function InvestmentDashboard({
           await savePortfolioAction(data);
           setSaveStatus("idle");
         } catch (err) {
+          const message = String((err && (err as Error).message) || err);
           setSaveStatus("error");
-          setGlobalError(String((err && (err as Error).message) || err));
+          if (message === "SESSION_EXPIRED") {
+            // A generic "retry automatically" error is actively misleading here -
+            // every retry against a dead session will fail the same way, so the
+            // user needs to actually re-authenticate, not wait. Force a real
+            // navigation instead of relying on the server action's own redirect,
+            // which doesn't reliably reach the client from this non-form call.
+            setGlobalError("ההתחברות פגה - מעביר אותך להתחברות מחדש כדי שהשינויים האחרונים לא יאבדו.");
+            window.location.assign("/login");
+            return;
+          }
+          setGlobalError(message);
         }
         if (!savePending.current) break;
       }
@@ -375,6 +386,20 @@ export default function InvestmentDashboard({
     const interval = setInterval(() => { runSave(); }, 15_000);
     return () => clearInterval(interval);
   }, [runSave]);
+
+  // Warn before closing/navigating away while a save is still in flight or
+  // has failed - otherwise the tab can be closed right after an edit and the
+  // change silently never reaches disk, with no chance to notice or retry.
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (saveInFlight.current || savePending.current || saveStatus === "error") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
 
   const [pricesConfigured, setPricesConfigured] = useState<boolean | null>(null);
   const [pricesLoading, setPricesLoading] = useState<boolean>(false);

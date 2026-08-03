@@ -1,12 +1,14 @@
 "use server";
 
-import { verifySession } from "@/lib/dal";
+import { verifySession, requireSession } from "@/lib/dal";
 import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, type EquityPoint } from "@/lib/portfolio";
 import { rebuildEquityHistory } from "@/lib/equityHistory";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
 
 export async function savePortfolioAction(data: unknown): Promise<void> {
-  const session = await verifySession();
+  // requireSession (not verifySession) because this is called from autosave's
+  // own try/catch, not a form submission - see the comment on requireSession.
+  const session = await requireSession();
   if (!isValidPortfolioData(data)) {
     throw new Error("נתוני התיק שהתקבלו אינם תקינים.");
   }
