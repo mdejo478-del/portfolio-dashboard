@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAx
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
-  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff, Bell,
+  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff, Bell, FileText,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction, rebuildEquityHistoryAction } from "@/app/actions/portfolio";
@@ -665,6 +665,72 @@ export default function InvestmentDashboard({
     const deposits = trades.filter((t) => t.action === "הפקדה").reduce((a, t) => a + t.value, 0);
     return { realizedPnl, fees, buysSells, winRate, avgPnl, avgRet, sellCount: sells.length, deposits };
   }, [trades]);
+
+  // Portfolio Summary: a plain-language readout built entirely from data the
+  // system already has (weights, saved equity snapshots, the trade journal) -
+  // no live prices or external calls, so it's free and always available.
+  const portfolioSummary = useMemo<string[]>(() => {
+    const lines: string[] = [];
+
+    const first = equityChartData[0];
+    if (first && first.value > 0 && equityChartData.length > 1) {
+      const sign = equityReturn !== null && equityReturn >= 0 ? "+" : "";
+      lines.push("שווי התיק " + formatMoney(total, privacyMode) + ", שינוי של " + sign + fmtPct(equityReturn) + " מאז תחילת המעקב (" + first.date + ").");
+    } else {
+      lines.push("שווי התיק " + formatMoney(total, privacyMode) + ". המעקב אחר התפתחות התיק החל היום.");
+    }
+    const prev = equityChartData[equityChartData.length - 2];
+    if (prev && prev.value > 0) {
+      const dayChange = (total - prev.value) / prev.value;
+      lines.push("לעומת נקודת המדידה הקודמת: " + (dayChange >= 0 ? "+" : "") + fmtPct(dayChange) + ".");
+    }
+
+    const nonCash = [...evaluated].filter((p) => p.symbol !== "CASH").sort((a, b) => b.weight - a.weight);
+    if (nonCash.length > 0) {
+      const top = nonCash.slice(0, 3).map((p) => p.symbol + " (" + fmtPct(p.weight) + ")").join(", ");
+      lines.push("המרכיבים הגדולים ביותר לפי משקל בתיק: " + top + ".");
+    }
+
+    if (stats.sellCount > 0) {
+      const bySymbol = new Map<string, number>();
+      for (const t of trades) {
+        if (t.pnl === null) continue;
+        bySymbol.set(t.symbol, (bySymbol.get(t.symbol) || 0) + t.pnl);
+      }
+      const ranked = [...bySymbol.entries()].sort((a, b) => b[1] - a[1]);
+      if (ranked.length > 1 && ranked[0][1] !== ranked[ranked.length - 1][1]) {
+        const [bestSym, bestPnl] = ranked[0];
+        const [worstSym, worstPnl] = ranked[ranked.length - 1];
+        lines.push("לפי רווח/הפסד ממומש: " + bestSym + " תרמה הכי הרבה (" + formatMoney(bestPnl, privacyMode) + "), " + worstSym + " הכי פחות (" + formatMoney(worstPnl, privacyMode) + ").");
+      } else if (ranked.length === 1) {
+        lines.push("רווח/הפסד ממומש עד כה: " + ranked[0][0] + " (" + formatMoney(ranked[0][1], privacyMode) + ").");
+      }
+    }
+
+    lines.push(
+      portfolioHealth.needsStrengthen.length > 0
+        ? "נכסים שדורשים חיזוק: " + portfolioHealth.needsStrengthen.map((p) => p.symbol).join(", ") + "."
+        : "אין נכסים מתחת ליעד המינימום כרגע."
+    );
+
+    lines.push(
+      portfolioHealth.weightBreaches.length > 0
+        ? "חריגות משקל שדורשות תשומת לב: " + portfolioHealth.weightBreaches.map((p) => p.symbol).join(", ") + "."
+        : "אין חריגות משקל כרגע."
+    );
+
+    lines.push("אחוז המזומן בתיק: " + fmtPct(portfolioHealth.cashPct) + ".");
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const recentCount = trades.filter((t) => t.date >= cutoffStr).length;
+    lines.push(
+      "ב-30 הימים האחרונים בוצעו " + recentCount + " עסקאות. רווח/הפסד ממומש מצטבר: " + formatMoney(stats.realizedPnl, privacyMode) + "."
+    );
+
+    return lines;
+  }, [evaluated, portfolioHealth, stats, trades, equityChartData, equityReturn, total, privacyMode]);
 
   const cashFree = useMemo(() => {
     const cashPos = positions.find((p) => p.symbol === "CASH");
@@ -1503,6 +1569,10 @@ export default function InvestmentDashboard({
           <div style={{ marginTop: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 11.5 }}>
             כל הנתונים מבוססים על קובץ האקסל שהועלה · החישובים מתעדכנים אוטומטית עם כל עסקה שנוספה, נערכת או נמחקת
           </div>
+
+          <div style={{ marginTop: 34 }}>
+            <PortfolioSummaryCard lines={portfolioSummary} />
+          </div>
         </div>
       </div>
 
@@ -1755,6 +1825,30 @@ function EquityCurveCard({
           {rebuildWarnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}
+    </div>
+  );
+}
+
+function PortfolioSummaryCard({ lines }: { lines: string[] }) {
+  return (
+    <div style={{
+      background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14,
+      padding: "16px 20px", marginBottom: 22, display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+        <FileText size={16} color="var(--accent)" /> סיכום התיק
+      </div>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 7 }}>
+        {lines.map((line, i) => (
+          <li key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, lineHeight: 1.5 }}>
+            <span style={{ color: "var(--accent)", flexShrink: 0 }}>•</span>
+            <span style={{ color: "var(--text-dim)" }}>{line}</span>
+          </li>
+        ))}
+      </ul>
+      <div style={{ fontSize: 11, color: "var(--text-faint)", borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+        סיכום אוטומטי על בסיס נתוני המערכת בלבד · לא ייעוץ השקעות
+      </div>
     </div>
   );
 }
