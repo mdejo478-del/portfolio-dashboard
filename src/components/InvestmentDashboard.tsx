@@ -1272,10 +1272,10 @@ export default function InvestmentDashboard({
               <div style={{ flex: "0 0 auto", width: 210, height: 210 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={95} paddingAngle={2}>
+                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={95} paddingAngle={2}
+                      onClick={(data) => openDetail(String(data.name))}>
                       {pieData.map((p, i) => (
                         <Cell key={p.name} fill={colorFor(p.name, i)} stroke="var(--panel)" strokeWidth={2}
-                          onClick={() => openDetail(p.name)}
                           style={{ cursor: p.name !== "CASH" ? "pointer" : "default" }} />
                       ))}
                     </Pie>
