@@ -1,66 +1,13 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-
-export interface RawPosition {
-  symbol: string;
-  qty: number | null;
-  price: number | null;
-  value: number;
-  weight: number;
-  dev: number;
-  min: number;
-  max: number;
-  dilute: number;
-  hodl?: boolean;
-}
-export interface Position extends RawPosition {
-  id: number;
-}
-
-export interface RawTrade {
-  date: string;
-  symbol: string;
-  action: string;
-  qty: number;
-  price: number;
-  value: number;
-  fee: number;
-  pnl: number | null;
-  retPct: number | null;
-  strategy: string | null;
-  notes: string | null;
-}
-export interface Trade extends RawTrade {
-  id: number;
-}
-
-export interface LedgerEntry {
-  qty: number;
-  avgCost: number;
-}
-export type Ledger = Record<string, LedgerEntry>;
-
-export interface PortfolioData {
-  positions: Position[];
-  trades: Trade[];
-  ledger: Ledger;
-  nextPositionId: number;
-  nextTradeId: number;
-}
-
-export interface EquityPoint {
-  date: string; // YYYY-MM-DD
-  value: number;
-}
-
-// What's actually persisted to disk: client-submitted portfolio data plus a
-// server-maintained daily value history. The client never sends equityHistory
-// directly - savePortfolio derives it itself so "today" is always the
-// server's clock, not whatever the browser's is.
-export interface StoredPortfolioData extends PortfolioData {
-  equityHistory: EquityPoint[];
-}
+// This file does Node-only file I/O and must never be imported from client
+// components. cashEffect/types live in portfolioTypes.ts (no Node imports)
+// specifically so client code can import them without pulling in fs/path -
+// re-exported here so existing `from "@/lib/portfolio"` imports keep working.
+import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData } from "@/lib/portfolioTypes";
+export { cashEffect };
+export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData } from "@/lib/portfolioTypes";
 
 const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
 const MAX_EQUITY_POINTS = 3_650; // ~10 years of daily snapshots
@@ -180,10 +127,19 @@ export async function getPortfolio(userId: string): Promise<StoredPortfolioData>
   }
 }
 
-export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
+// Write to a unique temp file and rename over the target: rename is atomic on
+// the same filesystem, so a reader (or a crash mid-write) never sees a
+// truncated/partial JSON file - the old contents remain intact until the new
+// file is fully written.
+async function writeStoredPortfolio(userId: string, stored: StoredPortfolioData): Promise<void> {
   await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
   const finalPath = portfolioPath(userId);
+  const tmpPath = finalPath + "." + randomUUID() + ".tmp";
+  await fs.writeFile(tmpPath, JSON.stringify(stored, null, 2), "utf-8");
+  await fs.rename(tmpPath, finalPath);
+}
 
+export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
   // Roll in today's equity snapshot server-side (server clock, not the
   // client's) - update today's point in place if it already exists so
   // repeated saves within the same day refine it, otherwise append a new one.
@@ -199,13 +155,13 @@ export async function savePortfolio(userId: string, data: PortfolioData): Promis
     if (history.length > MAX_EQUITY_POINTS) history.splice(0, history.length - MAX_EQUITY_POINTS);
   }
 
-  const stored: StoredPortfolioData = { ...data, equityHistory: history };
+  await writeStoredPortfolio(userId, { ...data, equityHistory: history });
+}
 
-  // Write to a unique temp file and rename over the target: rename is atomic
-  // on the same filesystem, so a reader (or a crash mid-write) never sees a
-  // truncated/partial JSON file - the old contents remain intact until the
-  // new file is fully written.
-  const tmpPath = finalPath + "." + randomUUID() + ".tmp";
-  await fs.writeFile(tmpPath, JSON.stringify(stored, null, 2), "utf-8");
-  await fs.rename(tmpPath, finalPath);
+/** Overwrites just the equity history, keeping positions/trades/ledger as
+ * currently stored - used by the "rebuild from trade journal" action. */
+export async function saveEquityHistory(userId: string, history: EquityPoint[]): Promise<void> {
+  const existing = await getPortfolio(userId);
+  const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
+  await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed });
 }

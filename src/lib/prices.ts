@@ -82,9 +82,9 @@ export interface StockDetail {
 interface FinnhubQuote { c?: number; d?: number; dp?: number; h?: number; l?: number; o?: number; pc?: number }
 interface FinnhubCandle { c?: number[]; t?: number[]; s?: string; error?: string }
 interface FinnhubProfile { name?: string }
-interface DailyCloses { t: number[]; c: number[] }
+export interface DailyCloses { t: number[]; c: number[] }
 
-function closestCloseBefore(candle: DailyCloses, targetTs: number): number | null {
+export function closestCloseBefore(candle: DailyCloses, targetTs: number): number | null {
   const t = candle.t;
   const c = candle.c;
   for (let i = t.length - 1; i >= 0; i--) {
@@ -115,6 +115,24 @@ async function fetchFinnhubCandle(finnhubSymbol: string, isCrypto: boolean, apiK
 
 const YAHOO_SYMBOL_OVERRIDES: Record<string, string> = { ETH: "ETH-USD" };
 
+interface YahooChartResponse {
+  chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: (number | null)[] }> } }> };
+}
+
+function parseYahooChartResponse(data: YahooChartResponse): DailyCloses | null {
+  const result = data.chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  const closes = result?.indicators?.quote?.[0]?.close;
+  if (!timestamps || !closes || timestamps.length === 0) return null;
+  const t: number[] = [];
+  const c: number[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = closes[i];
+    if (typeof close === "number") { t.push(timestamps[i]); c.push(close); }
+  }
+  return t.length > 0 ? { t, c } : null;
+}
+
 async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
   const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
   try {
@@ -123,20 +141,24 @@ async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
       { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as {
-      chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: (number | null)[] }> } }> };
-    };
-    const result = data.chart?.result?.[0];
-    const timestamps = result?.timestamp;
-    const closes = result?.indicators?.quote?.[0]?.close;
-    if (!timestamps || !closes || timestamps.length === 0) return null;
-    const t: number[] = [];
-    const c: number[] = [];
-    for (let i = 0; i < timestamps.length; i++) {
-      const close = closes[i];
-      if (typeof close === "number") { t.push(timestamps[i]); c.push(close); }
-    }
-    return t.length > 0 ? { t, c } : null;
+    return parseYahooChartResponse(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+// Same source as fetchYahooCandle, but with an explicit date range (period1/period2)
+// instead of a relative "range" window - lets us reconstruct history as far back as a
+// portfolio's earliest trade, even if that's older than the 2y window above.
+export async function fetchYahooDailyClosesInRange(symbol: string, fromSec: number, toSec: number): Promise<DailyCloses | null> {
+  const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${fromSec}&period2=${toSec}&interval=1d`,
+      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
+    );
+    if (!res.ok) return null;
+    return parseYahooChartResponse(await res.json());
   } catch {
     return null;
   }

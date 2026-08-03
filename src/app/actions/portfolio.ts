@@ -1,7 +1,9 @@
 "use server";
 
 import { verifySession } from "@/lib/dal";
-import { savePortfolio, isValidPortfolioData } from "@/lib/portfolio";
+import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, type EquityPoint } from "@/lib/portfolio";
+import { rebuildEquityHistory } from "@/lib/equityHistory";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
 
 export async function savePortfolioAction(data: unknown): Promise<void> {
   const session = await verifySession();
@@ -9,4 +11,23 @@ export async function savePortfolioAction(data: unknown): Promise<void> {
     throw new Error("נתוני התיק שהתקבלו אינם תקינים.");
   }
   await savePortfolio(session.userId, data);
+}
+
+export interface RebuildEquityHistoryResult {
+  history: EquityPoint[];
+  warnings: string[];
+}
+
+export async function rebuildEquityHistoryAction(): Promise<RebuildEquityHistoryResult> {
+  const session = await verifySession();
+  // Fetches historical prices for every traded symbol from a free external
+  // API - cheap to call once, but worth a light limit against accidental
+  // rapid double-clicks/retries hammering it.
+  const limit = checkRateLimit("rebuild-equity:" + session.userId, 3, 10 * 60 * 1000);
+  if (!limit.allowed) throw new Error(rateLimitMessage(limit.retryAfterSeconds));
+
+  const portfolio = await getPortfolio(session.userId);
+  const { history, warnings } = await rebuildEquityHistory(portfolio.trades, portfolio.positions);
+  await saveEquityHistory(session.userId, history);
+  return { history, warnings };
 }

@@ -8,8 +8,9 @@ import {
   Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
-import { savePortfolioAction } from "@/app/actions/portfolio";
+import { savePortfolioAction, rebuildEquityHistoryAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
+import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint } from "@/lib/portfolio";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
 import TradeImportModal from "@/components/TradeImportModal";
@@ -425,10 +426,16 @@ export default function InvestmentDashboard({
   // Equity curve: the server keeps one snapshot per day (see savePortfolio),
   // returned as initialEquityHistory. Here we additionally overlay today's
   // live total so the chart's last point stays current between saves,
-  // without waiting for a round-trip to the server.
+  // without waiting for a round-trip to the server. equityHistoryOverride
+  // holds a freshly rebuilt-from-trades series after the user triggers a
+  // rebuild, without needing a full page reload.
+  const [equityHistoryOverride, setEquityHistoryOverride] = useState<EquityPoint[] | null>(null);
+  const [rebuildingEquity, setRebuildingEquity] = useState<boolean>(false);
+  const [equityRebuildWarnings, setEquityRebuildWarnings] = useState<string[]>([]);
+
   const equityChartData = useMemo<EquityPoint[]>(() => {
     const today = new Date().toISOString().slice(0, 10);
-    const history = [...initialEquityHistory];
+    const history = [...(equityHistoryOverride ?? initialEquityHistory)];
     const last = history[history.length - 1];
     if (last && last.date === today) {
       history[history.length - 1] = { date: today, value: total };
@@ -436,7 +443,7 @@ export default function InvestmentDashboard({
       history.push({ date: today, value: total });
     }
     return history;
-  }, [initialEquityHistory, total]);
+  }, [equityHistoryOverride, initialEquityHistory, total]);
 
   const equityAth = useMemo(
     () => equityChartData.reduce((max, p) => Math.max(max, p.value), 0),
@@ -446,6 +453,20 @@ export default function InvestmentDashboard({
     const first = equityChartData[0]?.value;
     return first && first > 0 ? (total - first) / first : null;
   }, [equityChartData, total]);
+
+  async function handleRebuildEquityHistory() {
+    setRebuildingEquity(true);
+    setEquityRebuildWarnings([]);
+    try {
+      const result = await rebuildEquityHistoryAction();
+      setEquityHistoryOverride(result.history);
+      setEquityRebuildWarnings(result.warnings);
+    } catch (err) {
+      setGlobalError(String((err && (err as Error).message) || err));
+    } finally {
+      setRebuildingEquity(false);
+    }
+  }
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
   const tableRows = useMemo(
@@ -545,14 +566,6 @@ export default function InvestmentDashboard({
     return cashPos ? cashPos.value : 0;
   }, [positions]);
 
-  function cashEffect(t: Trade | null | undefined): number {
-    if (!t) return 0;
-    if (t.action === "הפקדה") return t.value + (t.fee || 0);
-    if (t.action === "משיכה") return -t.value + (t.fee || 0);
-    if (t.action === "קנייה") return -t.value + (t.fee || 0);
-    if (t.action === "מכירה") return t.value + (t.fee || 0);
-    return 0;
-  }
   function applyCashDelta(delta: number) {
     if (!delta) return;
     setPositions((ps) => {
@@ -939,7 +952,11 @@ export default function InvestmentDashboard({
 
           <PortfolioHealthCard health={portfolioHealth} />
 
-          <EquityCurveCard data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} privacyMode={privacyMode} />
+          <EquityCurveCard
+            data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} privacyMode={privacyMode}
+            onRebuild={handleRebuildEquityHistory} rebuilding={rebuildingEquity} rebuildWarnings={equityRebuildWarnings}
+            canRebuild={trades.length > 0}
+          />
 
           <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
@@ -1469,8 +1486,11 @@ function PortfolioHealthCard({ health }: { health: PortfolioHealthData }) {
 }
 
 function EquityCurveCard({
-  data, total, ath, returnPct, privacyMode,
-}: { data: EquityPoint[]; total: number; ath: number; returnPct: number | null; privacyMode: boolean }) {
+  data, total, ath, returnPct, privacyMode, onRebuild, rebuilding, rebuildWarnings, canRebuild,
+}: {
+  data: EquityPoint[]; total: number; ath: number; returnPct: number | null; privacyMode: boolean;
+  onRebuild: () => void; rebuilding: boolean; rebuildWarnings: string[]; canRebuild: boolean;
+}) {
   const tone: Tone = returnPct === null ? "blue" : returnPct >= 0 ? "green" : "red";
   const s = TONE_STYLES[tone];
 
@@ -1499,6 +1519,13 @@ function EquityCurveCard({
             </span>
           )}
           <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>שיא (ATH): {formatMoney(ath, privacyMode)}</span>
+          {canRebuild && (
+            <button type="button" className="ghost" onClick={onRebuild} disabled={rebuilding}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5 }}>
+              <RefreshCw size={12} className={rebuilding ? "spin-icon" : undefined} />
+              {rebuilding ? "משחזר..." : "שחזור היסטוריה מיומן המסחר"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1537,7 +1564,14 @@ function EquityCurveCard({
 
       {!hasRange && (
         <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-faint)" }}>
-          המערכת שומרת נקודת שווי יומית - הגרף יתמלא בהדרגה ככל שיעברו ימים.
+          המערכת שומרת נקודת שווי יומית - הגרף יתמלא בהדרגה ככל שיעברו ימים
+          {canRebuild ? ", או לחץ \"שחזור היסטוריה מיומן המסחר\" כדי למלא אותו מיד לפי עסקאות העבר." : "."}
+        </div>
+      )}
+
+      {rebuildWarnings.length > 0 && (
+        <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(242,169,59,0.1)", border: "1px solid rgba(242,169,59,0.35)", borderRadius: 8, color: "#F5BE6B", fontSize: 11.5 }}>
+          {rebuildWarnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}
     </div>
