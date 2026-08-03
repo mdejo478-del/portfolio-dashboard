@@ -376,7 +376,12 @@ export default function InvestmentDashboard({
       setPricesConfigured(result.configured);
       if (result.configured) {
         setPositions((ps) => ps.map((p) => {
-          const newPrice = result.prices[p.symbol];
+          // Prefer the pre-market/after-hours tick when the market's in one of
+          // those windows, so the portfolio's value reflects the latest known
+          // price rather than freezing at the last regular-session close - the
+          // badge under the price still labels it so it reads as a thin/less
+          // reliable quote, not a regular-session price.
+          const newPrice = result.extended[p.symbol]?.price ?? result.prices[p.symbol];
           if (newPrice == null || p.qty == null) return p;
           return { ...p, price: newPrice, value: p.qty * newPrice };
         }));
