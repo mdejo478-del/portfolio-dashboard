@@ -49,7 +49,21 @@ export interface PortfolioData {
   nextTradeId: number;
 }
 
+export interface EquityPoint {
+  date: string; // YYYY-MM-DD
+  value: number;
+}
+
+// What's actually persisted to disk: client-submitted portfolio data plus a
+// server-maintained daily value history. The client never sends equityHistory
+// directly - savePortfolio derives it itself so "today" is always the
+// server's clock, not whatever the browser's is.
+export interface StoredPortfolioData extends PortfolioData {
+  equityHistory: EquityPoint[];
+}
+
 const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
+const MAX_EQUITY_POINTS = 3_650; // ~10 years of daily snapshots
 
 // userId always comes from a server-signed session token (never directly from
 // client input), but this guard is a cheap belt-and-suspenders check so a
@@ -143,8 +157,8 @@ export function isValidPortfolioData(data: unknown): data is PortfolioData {
   return true;
 }
 
-function emptyPortfolio(): PortfolioData {
-  return { positions: [], trades: [], ledger: {}, nextPositionId: 0, nextTradeId: 0 };
+function emptyPortfolio(): StoredPortfolioData {
+  return { positions: [], trades: [], ledger: {}, nextPositionId: 0, nextTradeId: 0, equityHistory: [] };
 }
 
 function portfolioPath(userId: string): string {
@@ -154,10 +168,12 @@ function portfolioPath(userId: string): string {
   return path.join(PORTFOLIOS_DIR, `${userId}.json`);
 }
 
-export async function getPortfolio(userId: string): Promise<PortfolioData> {
+export async function getPortfolio(userId: string): Promise<StoredPortfolioData> {
   try {
     const raw = await fs.readFile(portfolioPath(userId), "utf-8");
-    return JSON.parse(raw) as PortfolioData;
+    const parsed = JSON.parse(raw) as Partial<StoredPortfolioData>;
+    // Older saved files predate equityHistory - default it rather than crash.
+    return { ...emptyPortfolio(), ...parsed, equityHistory: Array.isArray(parsed.equityHistory) ? parsed.equityHistory : [] };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return emptyPortfolio();
     throw err;
@@ -167,11 +183,29 @@ export async function getPortfolio(userId: string): Promise<PortfolioData> {
 export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
   await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
   const finalPath = portfolioPath(userId);
+
+  // Roll in today's equity snapshot server-side (server clock, not the
+  // client's) - update today's point in place if it already exists so
+  // repeated saves within the same day refine it, otherwise append a new one.
+  const existing = await getPortfolio(userId);
+  const total = data.positions.reduce((sum, p) => sum + p.value, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const history = existing.equityHistory.slice();
+  const last = history[history.length - 1];
+  if (last && last.date === today) {
+    history[history.length - 1] = { date: today, value: total };
+  } else {
+    history.push({ date: today, value: total });
+    if (history.length > MAX_EQUITY_POINTS) history.splice(0, history.length - MAX_EQUITY_POINTS);
+  }
+
+  const stored: StoredPortfolioData = { ...data, equityHistory: history };
+
   // Write to a unique temp file and rename over the target: rename is atomic
   // on the same filesystem, so a reader (or a crash mid-write) never sees a
   // truncated/partial JSON file - the old contents remain intact until the
   // new file is fully written.
   const tmpPath = finalPath + "." + randomUUID() + ".tmp";
-  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+  await fs.writeFile(tmpPath, JSON.stringify(stored, null, 2), "utf-8");
   await fs.rename(tmpPath, finalPath);
 }

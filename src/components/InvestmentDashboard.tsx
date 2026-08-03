@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode, type ChangeEvent } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, ReferenceLine } from "recharts";
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
@@ -10,7 +10,7 @@ import {
 import { logout } from "@/app/actions/auth";
 import { savePortfolioAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
-import type { Position, Trade, Ledger, PortfolioData } from "@/lib/portfolio";
+import type { Position, Trade, Ledger, PortfolioData, EquityPoint } from "@/lib/portfolio";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
 import TradeImportModal from "@/components/TradeImportModal";
 import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
@@ -228,6 +228,7 @@ interface InvestmentDashboardProps {
   initialLedger: Ledger;
   initialNextPositionId: number;
   initialNextTradeId: number;
+  initialEquityHistory: EquityPoint[];
 }
 
 export default function InvestmentDashboard({
@@ -237,6 +238,7 @@ export default function InvestmentDashboard({
   initialLedger,
   initialNextPositionId,
   initialNextTradeId,
+  initialEquityHistory,
 }: InvestmentDashboardProps) {
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
   const [globalError, setGlobalError] = useState<string>("");
@@ -419,6 +421,31 @@ export default function InvestmentDashboard({
 
     return { score, tone, diversification, risk, cashPct: cashPos ? cashPos.weight : 0, cashTone, needsStrengthen, weightBreaches };
   }, [evaluated]);
+
+  // Equity curve: the server keeps one snapshot per day (see savePortfolio),
+  // returned as initialEquityHistory. Here we additionally overlay today's
+  // live total so the chart's last point stays current between saves,
+  // without waiting for a round-trip to the server.
+  const equityChartData = useMemo<EquityPoint[]>(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const history = [...initialEquityHistory];
+    const last = history[history.length - 1];
+    if (last && last.date === today) {
+      history[history.length - 1] = { date: today, value: total };
+    } else {
+      history.push({ date: today, value: total });
+    }
+    return history;
+  }, [initialEquityHistory, total]);
+
+  const equityAth = useMemo(
+    () => equityChartData.reduce((max, p) => Math.max(max, p.value), 0),
+    [equityChartData]
+  );
+  const equityReturn = useMemo(() => {
+    const first = equityChartData[0]?.value;
+    return first && first > 0 ? (total - first) / first : null;
+  }, [equityChartData, total]);
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
   const tableRows = useMemo(
@@ -911,6 +938,8 @@ export default function InvestmentDashboard({
           </div>
 
           <PortfolioHealthCard health={portfolioHealth} />
+
+          <EquityCurveCard data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} privacyMode={privacyMode} />
 
           <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
@@ -1435,6 +1464,60 @@ function PortfolioHealthCard({ health }: { health: PortfolioHealthData }) {
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EquityCurveCard({
+  data, total, ath, returnPct, privacyMode,
+}: { data: EquityPoint[]; total: number; ath: number; returnPct: number | null; privacyMode: boolean }) {
+  const tone: Tone = returnPct === null ? "blue" : returnPct >= 0 ? "green" : "red";
+  const s = TONE_STYLES[tone];
+
+  return (
+    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 20px", marginBottom: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+          <TrendingUp size={16} color="var(--accent)" /> התפתחות התיק
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 17, fontWeight: 800, color: "var(--text)" }}>{formatMoney(total, privacyMode)}</span>
+          {returnPct !== null && (
+            <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: s.text }}>
+              {returnPct >= 0 ? "+" : ""}{fmtPct(returnPct)} מצטבר
+            </span>
+          )}
+          <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>שיא (ATH): {formatMoney(ath, privacyMode)}</span>
+        </div>
+      </div>
+
+      <div style={{ width: "100%", height: 160 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 6 }}>
+            <defs>
+              <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="date" hide />
+            <YAxis domain={[(min: number) => min * 0.985, (max: number) => max * 1.02]} hide />
+            <ReferenceLine y={ath} stroke="var(--text-faint)" strokeDasharray="4 4" />
+            <Tooltip
+              contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+              labelFormatter={(label) => String(label)}
+              formatter={(val) => [formatMoney(Number(val), privacyMode), "שווי"]}
+            />
+            <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#equityFill)" dot={{ r: 3, fill: "var(--accent)", strokeWidth: 0 }} activeDot={{ r: 4 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {data.length < 2 && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-faint)" }}>
+          המערכת שומרת נקודת שווי יומית - הגרף יתמלא בהדרגה ככל שיעברו ימים.
+        </div>
+      )}
     </div>
   );
 }
