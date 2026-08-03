@@ -1,5 +1,10 @@
 const FINNHUB_BASE = "https://finnhub.io/api/v1";
 
+// Finnhub's free tier can stall instead of failing fast on endpoints it
+// doesn't grant access to (e.g. stock/candle) - bound every external call
+// so one slow provider can't hang the whole request.
+const FETCH_TIMEOUT_MS = 6000;
+
 // Finnhub uses exchange-prefixed symbols for crypto (its free-tier stock
 // quote endpoint doesn't accept plain "ETH"). Extend this map if more
 // crypto/alternate-symbol positions are added.
@@ -17,7 +22,7 @@ async function fetchQuote(symbol: string, apiKey: string): Promise<number | null
   try {
     const res = await fetch(
       `${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
     const data = (await res.json()) as { c?: number };
@@ -102,7 +107,7 @@ async function fetchFinnhubCandle(finnhubSymbol: string, isCrypto: boolean, apiK
   try {
     const res = await fetch(
       `${FINNHUB_BASE}/${candleEndpoint}?symbol=${encodeURIComponent(finnhubSymbol)}&resolution=D&from=${fromSec}&to=${toSec}&token=${apiKey}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
     const data = (await res.json()) as FinnhubCandle;
@@ -138,7 +143,7 @@ async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
   try {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d`,
-      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
+      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
     return parseYahooChartResponse(await res.json());
@@ -155,7 +160,7 @@ export async function fetchYahooDailyClosesInRange(symbol: string, fromSec: numb
   try {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${fromSec}&period2=${toSec}&interval=1d`,
-      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
+      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
     return parseYahooChartResponse(await res.json());
@@ -180,17 +185,20 @@ export async function getStockDetail(symbol: string): Promise<StockDetail> {
   const nowSec = Math.floor(Date.now() / 1000);
   const fromSec = nowSec - 400 * 24 * 3600;
 
-  const [quoteRes, finnhubCandle, profileRes] = await Promise.all([
-    fetch(`${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store" })
+  // Finnhub's candle endpoints are blocked on the free plan for this key, so
+  // Yahoo (the fallback) is run in parallel with it rather than after it -
+  // otherwise a slow Finnhub timeout and a slow Yahoo request add up instead
+  // of overlapping.
+  const [quoteRes, finnhubCandle, yahooCandle, profileRes] = await Promise.all([
+    fetch(`${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
       .then((r) => (r.ok ? (r.json() as Promise<FinnhubQuote>) : null)).catch(() => null),
     fetchFinnhubCandle(finnhubSymbol, isCrypto, apiKey, fromSec, nowSec),
-    isCrypto ? Promise.resolve(null) : fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store" })
+    fetchYahooCandle(symbol),
+    isCrypto ? Promise.resolve(null) : fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`, { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
       .then((r) => (r.ok ? (r.json() as Promise<FinnhubProfile>) : null)).catch(() => null),
   ]);
 
-  // Finnhub's candle endpoints are blocked on the free plan for this key -
-  // fall back to Yahoo Finance's free chart API rather than giving up.
-  const candleRes = finnhubCandle || (await fetchYahooCandle(symbol));
+  const candleRes = finnhubCandle || yahooCandle;
 
   const price = typeof quoteRes?.c === "number" && quoteRes.c > 0 ? quoteRes.c : null;
   const change = typeof quoteRes?.d === "number" ? quoteRes.d : null;
