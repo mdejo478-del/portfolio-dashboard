@@ -1,4 +1,5 @@
-import { Undo2, Eye, EyeOff, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Undo2, Eye, EyeOff, LogOut, Info } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
@@ -67,6 +68,17 @@ export function Header({
             alerts={visibleAlerts} unseenCount={unseenAlertCount} seenIds={seenAlertIds}
             open={alertsOpen} onToggle={toggleAlerts} onClose={closeAlerts} onDismiss={dismissAlert}
           />
+          <Link
+            href="/about" title="אודות המערכת"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 15px",
+              borderRadius: 10, fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+              background: "transparent", border: "1px solid var(--border)", color: "var(--text-dim)",
+              textDecoration: "none",
+            }}
+          >
+            <Info size={15} /> אודות
+          </Link>
           <button
             type="button" className="ghost" onClick={undoLastAction} disabled={!undoSnapshot}
             title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
