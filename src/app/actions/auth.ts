@@ -9,6 +9,7 @@ import {
   clearPendingVerification,
 } from "@/lib/pendingVerification";
 import { checkRateLimit, getClientIp, rateLimitMessage } from "@/lib/rateLimit";
+import { notifyNewUserRegistration } from "@/lib/telegram";
 
 export interface AuthFormState {
   error?: string;
@@ -41,6 +42,7 @@ export async function signup(
   try {
     const user = await createUser(name, email, password);
     await createPendingVerification(user);
+    notifyNewUserRegistration(user);
   } catch (err) {
     if (err instanceof Error && err.message === "EMAIL_TAKEN") {
       return { error: "קיים כבר משתמש עם כתובת האימייל הזו." };
