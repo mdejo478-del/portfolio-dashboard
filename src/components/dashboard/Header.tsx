@@ -20,7 +20,7 @@ export function Header({
       borderBottom: "1px solid var(--border)", padding: "16px 20px 18px",
     }}>
       {/* Compact title row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9, background: "rgba(34,211,168,0.12)",
@@ -28,12 +28,23 @@ export function Header({
           }}>
             <Landmark size={17} color="var(--accent)" />
           </div>
-          <h1 style={{ fontSize: 16.5, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
-            ניהול סיכונים ותיק השקעות
-          </h1>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <h1 style={{ fontSize: 16.5, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
+              IPMS
+            </h1>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-faint)" }}>
+              מערכת לניהול תיק השקעות
+            </span>
+          </div>
         </div>
         <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>
           שלום, <strong style={{ color: "var(--text-dim)" }}>{userName}</strong>
+        </span>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 11.5, fontStyle: "italic", color: "var(--text-faint)" }}>
+          השקעה לפי הקצאה, לא לפי רגש.
         </span>
       </div>
 

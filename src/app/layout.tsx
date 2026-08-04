@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ניהול סיכונים ותיק השקעות",
-  description: "דשבורד מקצועי לניהול תיק השקעות ויומן מסחר",
+  title: "IPMS — מערכת לניהול תיק השקעות",
+  description: "IPMS: מערכת לניהול תיק השקעות. השקעה לפי הקצאה, לא לפי רגש.",
 };
 
 export default function RootLayout({
