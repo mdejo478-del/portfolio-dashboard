@@ -32,7 +32,7 @@ export function Header({
             <h1 style={{ fontSize: 16.5, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
               IPMS
             </h1>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-faint)" }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-faint)" }}>
               מערכת לניהול תיק השקעות
             </span>
           </div>
@@ -43,7 +43,7 @@ export function Header({
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <span style={{ fontSize: 11.5, fontStyle: "italic", color: "var(--text-faint)" }}>
+        <span style={{ fontSize: 14, fontStyle: "italic", color: "var(--text-faint)" }}>
           השקעה לפי הקצאה, לא לפי רגש.
         </span>
       </div>
