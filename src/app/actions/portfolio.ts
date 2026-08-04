@@ -4,6 +4,7 @@ import { verifySession, requireSession } from "@/lib/dal";
 import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, type EquityPoint } from "@/lib/portfolio";
 import { rebuildEquityHistory } from "@/lib/equityHistory";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
+import { maybeRunBackup, runBackupNow } from "@/lib/backup";
 
 export async function savePortfolioAction(data: unknown): Promise<void> {
   // requireSession (not verifySession) because this is called from autosave's
@@ -13,6 +14,23 @@ export async function savePortfolioAction(data: unknown): Promise<void> {
     throw new Error("נתוני התיק שהתקבלו אינם תקינים.");
   }
   await savePortfolio(session.userId, data);
+  try {
+    // Best-effort: a backup hiccup should never turn a successful save into a
+    // client-visible failure. Cheap no-op unless a backup is actually due.
+    await maybeRunBackup();
+  } catch (err) {
+    console.error("[backup] post-save check failed:", err);
+  }
+}
+
+export async function backupNowAction(): Promise<{ createdAt: number }> {
+  const session = await requireSession();
+  // A manual click firing rapid, repeated full snapshots is the one thing the
+  // "keep only the last 14" rotation can't protect against - throttle it too.
+  const limit = checkRateLimit("backup-now:" + session.userId, 3, 5 * 60 * 1000);
+  if (!limit.allowed) throw new Error(rateLimitMessage(limit.retryAfterSeconds));
+  await runBackupNow();
+  return { createdAt: Date.now() };
 }
 
 export interface RebuildEquityHistoryResult {

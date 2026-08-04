@@ -5,10 +5,10 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAx
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus, ShieldCheck,
   AlertTriangle, ArrowUpCircle, ArrowDownCircle, PiggyBank, Activity, Pencil, Trash2,
-  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff, Bell, FileText,
+  Download, X, Check, Filter, Landmark, LogOut, RefreshCw, Upload, Undo2, Eye, EyeOff, Bell, FileText, Archive,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
-import { savePortfolioAction, rebuildEquityHistoryAction } from "@/app/actions/portfolio";
+import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
 import type { ExtendedQuote } from "@/lib/prices";
 import { cashEffect } from "@/lib/portfolioTypes";
@@ -400,6 +400,32 @@ export default function InvestmentDashboard({
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [saveStatus]);
+
+  const [backupRunning, setBackupRunning] = useState<boolean>(false);
+  const [backupDoneAt, setBackupDoneAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (backupDoneAt === null) return;
+    const t = setTimeout(() => setBackupDoneAt(null), 4000);
+    return () => clearTimeout(t);
+  }, [backupDoneAt]);
+
+  async function handleBackupNow() {
+    setBackupRunning(true);
+    try {
+      const result = await backupNowAction();
+      setBackupDoneAt(result.createdAt);
+    } catch (err) {
+      const message = String((err && (err as Error).message) || err);
+      if (message === "SESSION_EXPIRED") {
+        setGlobalError("ההתחברות פגה - מעביר אותך להתחברות מחדש.");
+        window.location.assign("/login");
+        return;
+      }
+      setGlobalError(message);
+    } finally {
+      setBackupRunning(false);
+    }
+  }
 
   const [pricesConfigured, setPricesConfigured] = useState<boolean | null>(null);
   const [pricesLoading, setPricesLoading] = useState<boolean>(false);
@@ -1221,6 +1247,17 @@ export default function InvestmentDashboard({
               <button type="button" className="ghost" onClick={refreshPrices} disabled={pricesLoading}
                 style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <RefreshCw size={14} className={pricesLoading ? "spin-icon" : undefined} /> רענון מחירים
+              </button>
+              <button type="button" className="ghost" onClick={handleBackupNow} disabled={backupRunning}
+                title="שומר עותק גיבוי מיידי של נתוני התיק, בנוסף לגיבוי האוטומטי"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {backupRunning ? (
+                  <><RefreshCw size={14} className="spin-icon" /> יוצר גיבוי...</>
+                ) : backupDoneAt !== null ? (
+                  <>✓ גיבוי נוצר</>
+                ) : (
+                  <><Archive size={14} /> צור גיבוי עכשיו</>
+                )}
               </button>
             </div>
           </div>
