@@ -1,4 +1,4 @@
-import { Landmark, Undo2, Eye, EyeOff, LogOut } from "lucide-react";
+import { Undo2, Eye, EyeOff, LogOut } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
@@ -22,12 +22,12 @@ export function Header({
       {/* Compact title row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9, background: "rgba(34,211,168,0.12)",
-            border: "1px solid rgba(34,211,168,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <Landmark size={17} color="var(--accent)" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.jpg"
+            alt="IPMS"
+            style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0 }}
+          />
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <h1 style={{ fontSize: 16.5, fontWeight: 800, margin: 0, letterSpacing: 0.2 }}>
               IPMS
