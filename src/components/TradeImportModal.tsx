@@ -2,7 +2,9 @@
 
 import { X, AlertTriangle, CheckCircle2, FileWarning } from "lucide-react";
 import type { ParseResult, ParsedTradeRow } from "@/lib/tradeImport";
-import { fmtUSD, TONE_STYLES, type Tone } from "@/components/InvestmentDashboard";
+import { fmtUSD } from "@/components/dashboard/format";
+import { TONE_STYLES } from "@/components/dashboard/constants";
+import type { Tone } from "@/components/dashboard/types";
 
 const ACTION_TONE: Record<string, Tone> = {
   "קנייה": "green", "מכירה": "red", "הפקדה": "blue", "משיכה": "amber",

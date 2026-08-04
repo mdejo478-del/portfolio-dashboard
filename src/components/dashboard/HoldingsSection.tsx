@@ -1,0 +1,386 @@
+import { useMemo, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle } from "lucide-react";
+import type { Position } from "@/lib/portfolio";
+import type { ExtendedQuote } from "@/lib/prices";
+import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
+import { EMPTY_POSITION_FORM } from "@/components/dashboard/constants";
+import { TONE_STYLES } from "@/components/dashboard/constants";
+import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum } from "@/components/dashboard/format";
+import { Badge } from "@/components/dashboard/ui/Badge";
+import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
+import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
+
+interface HoldingsSectionProps {
+  evaluated: EvaluatedPosition[];
+  positions: Position[];
+  setPositions: Dispatch<SetStateAction<Position[]>>;
+  nextPosIdRef: MutableRefObject<number>;
+  pushUndoSnapshot: (label: string) => void;
+  total: number;
+  privacyMode: boolean;
+  extendedPrices: Record<string, ExtendedQuote | null>;
+  openDetail: (symbol: string) => void;
+  pricesConfigured: boolean | null;
+  lastPriceUpdate: Date | null;
+  pricesLoading: boolean;
+  priceError: string;
+  refreshPrices: () => void;
+  saveStatus: "idle" | "saving" | "error";
+  backupRunning: boolean;
+  backupDoneAt: number | null;
+  onBackupNow: () => void;
+}
+
+export function HoldingsSection({
+  evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, extendedPrices, openDetail,
+  pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
+}: HoldingsSectionProps) {
+  const [editingPosId, setEditingPosId] = useState<number | null>(null);
+  const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "" });
+  const [deletePosConfirmId, setDeletePosConfirmId] = useState<number | null>(null);
+  const [showAddPosition, setShowAddPosition] = useState<boolean>(false);
+  const [posForm, setPosForm] = useState<PositionFormState>(EMPTY_POSITION_FORM);
+  const [posFormError, setPosFormError] = useState<string>("");
+
+  const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
+  const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
+
+  // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
+  // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
+  const tableRows = useMemo(
+    () => evaluated.map((p, i) => ({ p, i })).sort((a, b) => {
+      const aCash = a.p.symbol === "CASH" ? 1 : 0;
+      const bCash = b.p.symbol === "CASH" ? 1 : 0;
+      if (aCash !== bCash) return aCash - bCash;
+      return b.p.value - a.p.value;
+    }),
+    [evaluated]
+  );
+
+  function startEditPosQty(p: Position) {
+    setEditingPosId(p.id);
+    setPosEditFields({
+      qty: p.symbol === "CASH" ? String(p.value) : String(p.qty),
+      min: String(Math.round(p.min * 1000) / 10),
+      max: String(Math.round(p.max * 1000) / 10),
+      dilute: String(Math.round(p.dilute * 1000) / 10),
+    });
+  }
+  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "" }); }
+  function updatePosEditField(field: keyof PosEditFields, val: string) { setPosEditFields((f) => ({ ...f, [field]: val })); }
+  function savePosQty(p: Position) {
+    const qtyNum = parseNum(posEditFields.qty);
+    const minNum = parseNum(posEditFields.min);
+    const maxNum = parseNum(posEditFields.max);
+    const diluteNum = parseNum(posEditFields.dilute);
+    if (Number.isNaN(qtyNum) || qtyNum < 0) { cancelPosEdit(); return; }
+    pushUndoSnapshot("עריכת נכס בתיק");
+    const min = !Number.isNaN(minNum) ? minNum / 100 : p.min;
+    const max = !Number.isNaN(maxNum) ? maxNum / 100 : p.max;
+    const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : p.dilute;
+    setPositions((ps) => ps.map((row) => {
+      if (row.id !== p.id) return row;
+      const updated = { ...row, min, max, dilute };
+      if (row.symbol === "CASH") return { ...updated, value: qtyNum };
+      return { ...updated, qty: qtyNum, value: qtyNum * (row.price ?? 0) };
+    }));
+    cancelPosEdit();
+  }
+  function deletePosition(id: number) {
+    pushUndoSnapshot("מחיקת נכס מהתיק");
+    setPositions((ps) => {
+      const target = ps.find((p) => p.id === id);
+      if (target && target.symbol === "CASH") return ps;
+      return ps.filter((p) => p.id !== id);
+    });
+    setDeletePosConfirmId(null);
+  }
+  function updatePosForm(field: keyof PositionFormState, val: string) { setPosForm((f) => ({ ...f, [field]: val })); setPosFormError(""); }
+  function submitNewPosition() {
+    const symbol = (posForm.symbol || "").trim().toUpperCase();
+    const qty = parseNum(posForm.qty);
+    const price = parseNum(posForm.price);
+    if (!symbol) { setPosFormError("נא להזין סימול נכס."); return; }
+    if (Number.isNaN(qty) || qty <= 0) { setPosFormError("נא להזין כמות תקינה (מספר גדול מ-0)."); return; }
+    if (Number.isNaN(price) || price <= 0) { setPosFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
+    if (positions.some((p) => p.symbol === symbol)) { setPosFormError("נכס בסימול " + symbol + " כבר קיים בתיק. ערוך את הכמות שלו ישירות בטבלה במקום."); return; }
+    pushUndoSnapshot("הוספת נכס לתיק");
+    const value = qty * price;
+    setPositions((ps) => [...ps, {
+      id: nextPosIdRef.current++, symbol, qty, price, value, weight: 0,
+      dev: 0, min: 0, max: 1, dilute: 1.5, hodl: false,
+    }]);
+    setPosForm(EMPTY_POSITION_FORM);
+    setPosFormError("");
+    setShowAddPosition(false);
+  }
+
+  return (
+    <>
+      <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+          {pricesConfigured === false
+            ? "לא הוגדר מפתח API למחירים חיים. הוסף FINNHUB_API_KEY לקובץ .env.local כדי להפעיל עדכון אוטומטי."
+            : lastPriceUpdate
+              ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
+              : "טוען מחירים..."}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{
+            display: "flex", alignItems: "center", gap: 5, fontSize: 11.5,
+            color: saveStatus === "error" ? "#FF8589" : "var(--text-faint)",
+          }}>
+            {saveStatus === "saving" ? (
+              <><RefreshCw size={12} className="spin-icon" /> שומר...</>
+            ) : saveStatus === "error" ? (
+              <>⚠ שגיאה בשמירה - ינסה שוב אוטומטית</>
+            ) : (
+              <>✓ נשמר</>
+            )}
+          </span>
+          <button type="button" className="ghost" onClick={refreshPrices} disabled={pricesLoading}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <RefreshCw size={14} className={pricesLoading ? "spin-icon" : undefined} /> רענון מחירים
+          </button>
+          <button type="button" className="ghost" onClick={onBackupNow} disabled={backupRunning}
+            title="שומר עותק גיבוי מיידי של נתוני התיק, בנוסף לגיבוי האוטומטי"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {backupRunning ? (
+              <><RefreshCw size={14} className="spin-icon" /> יוצר גיבוי...</>
+            ) : backupDoneAt !== null ? (
+              <>✓ גיבוי נוצר</>
+            ) : (
+              <><Archive size={14} /> צור גיבוי עכשיו</>
+            )}
+          </button>
+        </div>
+      </div>
+      {priceError && (
+        <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+          {priceError}
+        </div>
+      )}
+
+      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>נכס</th><th className="num">כמות</th><th className="num">מחיר</th><th className="num">שווי</th>
+              <th className="num">משקל</th><th className="num">סטייה</th><th className="num">יעד מינימום</th>
+              <th className="num">יעד מקסימום</th><th className="num">רף דילול</th><th className="center">סטטוס</th>
+              <th className="center">עדיפות</th><th className="center">פעולה מומלצת</th><th className="center">ניהול</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map(({ p, i }) => (
+              <tr key={p.id} style={p.symbol === "CASH" ? { background: "rgba(148,163,184,0.07)", borderTop: "1px solid var(--border)" } : undefined}>
+                <td
+                  onClick={() => openDetail(p.symbol)}
+                  title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
+                  style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+                >
+                  {tradingViewUrl(p.symbol) ? (
+                    <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderBottomColor = "var(--accent)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text)"; e.currentTarget.style.borderBottomColor = "var(--text-faint)"; }}
+                      title={"פתח גרף TradingView עבור " + p.symbol}>
+                      {p.symbol}
+                    </a>
+                  ) : p.symbol}
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
+                </td>
+                <td className="num" style={{ color: "var(--text-dim)" }}>
+                  {editingPosId === p.id ? (
+                    <input type="text" inputMode="decimal" autoFocus value={posEditFields.qty} onChange={(e) => updatePosEditField("qty", e.target.value)}
+                      style={{ width: 80 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+                  ) : (
+                    p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
+                  )}
+                </td>
+                <td className="num" style={{ color: "var(--text-dim)" }}>
+                  {p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}
+                  <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
+                </td>
+                <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
+                <td className="num">{fmtPct(p.weight)}</td>
+                <td className="num" style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
+                <td className="num" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.min} onChange={(e) => updatePosEditField("min", e.target.value)}
+                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.min, 0)}
+                </td>
+                <td className="num" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.max} onChange={(e) => updatePosEditField("max", e.target.value)}
+                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.max, 0)}
+                </td>
+                <td className="num" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.dilute} onChange={(e) => updatePosEditField("dilute", e.target.value)}
+                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.dilute, 0)}
+                </td>
+                <td className="center"><Badge tone={p.tone}>{p.status}</Badge></td>
+                <td className="center"><Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"}>{p.priority}</Badge></td>
+                <td className="center">
+                  <span style={{
+                    display: "inline-block", fontWeight: 700, fontSize: 12.5,
+                    color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
+                    border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8,
+                    padding: "5px 10px", whiteSpace: "nowrap",
+                  }}>{p.action}</span>
+                </td>
+                <td className="center">
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                    {editingPosId === p.id ? (
+                      <>
+                        <button type="button" className="icon-btn" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={13} /></button>
+                        <button type="button" className="icon-btn" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={13} /></button>
+                      </>
+                    ) : (
+                      <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={13} /></button>
+                    )}
+                    {p.symbol === "CASH" ? (
+                      <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
+                    ) : deletePosConfirmId === p.id ? (
+                      <>
+                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "rgba(255,90,95,0.15)", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
+                        <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={13} /></button>
+                      </>
+                    ) : (
+                      <button type="button" className="icon-btn danger" onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={13} /></button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {evaluated.length === 0 && (
+              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--text-faint)", padding: 24 }}>אין החזקות בתיק עדיין. הוסף נכס ראשון למטה.</td></tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: "var(--panel-2)" }}>
+              <td colSpan={3} style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
+              <td className="num" style={{ fontWeight: 800, fontSize: 15.5, color: "#5BE39D", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
+              <td className="num" style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
+              <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 20 }}>
+        לחיצה על העיפרון בכל שורה מאפשרת לערוך כמות ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        {showAddPosition ? (
+          <div style={{ background: "var(--panel)", border: "1px solid rgba(34,211,168,0.4)", borderRadius: 14, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
+              </div>
+              <button type="button" className="icon-btn" onClick={() => { setShowAddPosition(false); setPosForm(EMPTY_POSITION_FORM); setPosFormError(""); }}><X size={15} /></button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }} className="idash-form-grid">
+              <Field label="סימול">
+                <input type="text" value={posForm.symbol} onChange={(e) => updatePosForm("symbol", e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="לדוגמה: AAPL" />
+              </Field>
+              <Field label="כמות יחידות">
+                <input type="text" inputMode="decimal" value={posForm.qty} onChange={(e) => updatePosForm("qty", e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0" />
+              </Field>
+              <Field label="מחיר ליחידה $">
+                <input type="text" inputMode="decimal" value={posForm.price} onChange={(e) => updatePosForm("price", e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0.00" />
+              </Field>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button type="button" onClick={submitNewPosition} className="primary" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Check size={15} /> הוסף לתיק</button>
+              </div>
+            </div>
+            {posFormError && (
+              <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+                {posFormError}
+              </div>
+            )}
+            <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-faint)" }}>
+              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. יעדי הקצאה לנכס חדש יוגדרו כברירת מחדל וניתן יהיה לעדכן בהמשך.
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button" className="primary" onClick={() => setShowAddPosition(true)}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 22px", fontSize: 14, boxShadow: "0 6px 18px rgba(34,211,168,0.35)" }}
+          >
+            <Plus size={16} /> הוסף נכס לתיק
+          </button>
+        )}
+      </div>
+
+      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 30, maxWidth: 640, marginRight: "auto", marginLeft: "auto" }}>
+        <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: 16, textAlign: "center" }}>הקצאת נכסים</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, flexWrap: "wrap" }}>
+          <div style={{ flex: "0 0 auto", width: 210, height: 210 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={95} paddingAngle={2}
+                  onClick={(data) => openDetail(String(data.name))}>
+                  {pieData.map((p, i) => (
+                    <Cell key={p.name} fill={colorFor(p.name, i)} stroke="var(--panel)" strokeWidth={2}
+                      style={{ cursor: p.name !== "CASH" ? "pointer" : "default" }} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} formatter={(val, name) => [formatMoney(Number(val), privacyMode), String(name)]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ flex: "0 1 260px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px" }}>
+            {pieData.map((p, i) => (
+              <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.name, i), flexShrink: 0 }} />
+                <span style={{ color: "var(--text-dim)" }}>{p.name}</span>
+                <span style={{ marginRight: "auto", fontFamily: "var(--mono)", color: "var(--text)", fontWeight: 600 }}>{fmtPct(p.weight)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <SectionTitle icon={<ShieldCheck size={16} />} text="המלצות Position Sizing" />
+      <div style={{ marginBottom: 34 }}>
+        {needsAction.length === 0 ? (
+          <div style={{ background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 10, color: "#5BE39D", fontSize: 13.5 }}>
+            <ShieldCheck size={18} /> כל הנכסים במשקל היעד – אין פעולות נדרשות כרגע.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+            {needsAction.map((p) => (
+              <div key={p.symbol} style={{ background: "var(--panel)", border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 14, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{p.symbol}</span>
+                  <Badge tone={p.tone}><AlertTriangle size={12} />{p.priority}</Badge>
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginBottom: 6 }}>{p.status} · משקל נוכחי: {fmtPct(p.weight)}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: TONE_STYLES[p.tone].text }}>{p.action}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

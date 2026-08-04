@@ -5,7 +5,7 @@ import { X, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
 import { getStockDetailAction } from "@/app/actions/prices";
 import type { StockDetail } from "@/lib/prices";
 import type { Position } from "@/lib/portfolio";
-import { fmtPct, colorFor, tradingViewUrl, formatMoney } from "@/components/InvestmentDashboard";
+import { fmtPct, colorFor, tradingViewUrl, formatMoney } from "@/components/dashboard/format";
 
 const RETURN_PERIODS: { key: keyof StockDetail["returns"]; label: string }[] = [
   { key: "1D", label: "1D" },

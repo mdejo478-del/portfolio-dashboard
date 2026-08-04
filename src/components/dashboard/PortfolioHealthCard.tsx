@@ -1,0 +1,60 @@
+import type { Tone, PortfolioHealthData } from "@/components/dashboard/types";
+import { TONE_STYLES } from "@/components/dashboard/constants";
+import { fmtPct } from "@/components/dashboard/format";
+
+function HealthChip({ label, value, tone }: { label: string; value: string; tone: Tone }) {
+  const s = TONE_STYLES[tone];
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5,
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 8, padding: "5px 10px", whiteSpace: "nowrap",
+    }}>
+      <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>{label}:</span>
+      <span style={{ color: s.text, fontWeight: 700 }}>{value}</span>
+    </span>
+  );
+}
+
+export function PortfolioHealthCard({ health }: { health: PortfolioHealthData }) {
+  const s = TONE_STYLES[health.tone];
+  const toneIcon = health.tone === "green" ? "🟢" : health.tone === "amber" ? "🟡" : "🔴";
+  const riskTone: Tone = health.risk === "תקין" ? "green" : health.risk === "גבוה" ? "red" : "blue";
+  const diversificationTone: Tone = health.diversification === "טוב" ? "green" : health.diversification === "בינוני" ? "amber" : "red";
+
+  return (
+    <div style={{
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 14,
+      padding: "16px 20px", marginBottom: 22, display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+          <span>{toneIcon}</span> בריאות התיק
+        </div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 800, color: s.text }}>
+          ציון: {health.score}/100
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <HealthChip label="פיזור" value={health.diversification} tone={diversificationTone} />
+        <HealthChip label="סיכון" value={health.risk} tone={riskTone} />
+        <HealthChip label="Cash" value={fmtPct(health.cashPct)} tone={health.cashTone} />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12.5 }}>
+        <div>
+          <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>צריך לחזק: </span>
+          <span style={{ color: "var(--text)" }}>
+            {health.needsStrengthen.length > 0 ? health.needsStrengthen.map((p) => p.symbol).join(", ") : "אין נכסים מתחת ליעד"}
+          </span>
+        </div>
+        <div>
+          <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>חריגות משקל: </span>
+          <span style={{ color: health.weightBreaches.length > 0 ? "#FF8589" : "var(--text)" }}>
+            {health.weightBreaches.length > 0 ? health.weightBreaches.map((p) => p.symbol).join(", ") : "אין חריגות משקל"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
