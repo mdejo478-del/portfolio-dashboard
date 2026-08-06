@@ -327,7 +327,7 @@ export function HoldingsSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)", maxHeight: 480 }}>
+      <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)" }}>
         <table>
           <colgroup>
             <col style={{ width: 100 }} /><col style={{ width: 68 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
@@ -335,7 +335,7 @@ export function HoldingsSection({
             <col style={{ width: 50 }} /><col style={{ width: 50 }} /><col style={{ width: 55 }} /><col style={{ width: 66 }} />
             <col style={{ width: 92 }} />
           </colgroup>
-          <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
+          <thead style={{ background: "var(--panel)" }}>
             <tr>
               <th>נכס</th><th className="num">כמות</th><th className="num">מחיר</th><th className="num">שווי</th>
               <th className="num">משקל</th><th className="center">סטטוס</th><th className="center">פעולה מומלצת</th>
