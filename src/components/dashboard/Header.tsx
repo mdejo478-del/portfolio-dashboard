@@ -1,11 +1,12 @@
 import { useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical } from "lucide-react";
+import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical, Sun, Moon } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
+import { useTheme } from "@/components/dashboard/useTheme";
 import { ChangePasswordModal } from "@/components/dashboard/ChangePasswordModal";
 import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
 import { SettingsMenu } from "@/components/dashboard/SettingsMenu";
@@ -25,6 +26,7 @@ export function Header({
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const moreWrapperRef = useRef<HTMLDivElement>(null);
   const morePos = usePopoverPosition(moreOpen, moreWrapperRef, 210);
+  const { theme, toggleTheme } = useTheme();
 
   // Quiet pill action (About / undo / privacy / logout) - same shape in the
   // resting and "active" (privacy-on) state, just different token colors.
@@ -79,10 +81,10 @@ export function Header({
             style={{ width: 38, height: 38, objectFit: "contain", flexShrink: 0, borderRadius: "var(--radius-sm)" }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-            <h1 style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-lg)", fontWeight: 700, margin: 0, letterSpacing: "0.1px", color: "var(--text)" }}>
+            <h1 style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-lg)", fontWeight: 700, margin: 0, letterSpacing: "var(--letter-spacing-heading)", color: "var(--text)" }}>
               IPMS
             </h1>
-            <span className="header-subtitle" style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-faint)" }}>
+            <span className="header-subtitle" style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-subtitle)", fontWeight: 600, letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
               מערכת לניהול תיק השקעות
             </span>
           </div>
@@ -140,6 +142,14 @@ export function Header({
             {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
             {privacyMode ? "מצב פרטיות פעיל" : "הסתר מידע רגיש"}
           </button>
+          <button
+            type="button" className="hdr-action" onClick={toggleTheme}
+            title={theme === "light" ? "עבור למצב כהה" : "עבור למצב בהיר"}
+            style={actionBtnStyle()}
+          >
+            {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+            {theme === "light" ? "מצב כהה" : "מצב בהיר"}
+          </button>
           <SettingsMenu
             onChangePassword={() => setChangePasswordOpen(true)}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
@@ -163,6 +173,14 @@ export function Header({
             style={iconBtnStyle(privacyMode)}
           >
             {privacyMode ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+
+          <button
+            type="button" className="hdr-icon" onClick={toggleTheme} aria-label="החלף ערכת נושא"
+            title={theme === "light" ? "עבור למצב כהה" : "עבור למצב בהיר"}
+            style={iconBtnStyle()}
+          >
+            {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
 
           <SettingsMenu
