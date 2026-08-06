@@ -1,0 +1,562 @@
+/* ==========================================================================
+   IPMS Design System — Tokens
+   ==========================================================================
+   Foundation layer only: CSS custom properties + a set of self-contained
+   `.ds-*` component classes. Nothing in this file is referenced by any
+   existing screen yet — Header, HoldingsSection, TradeJournalSection, the
+   auth pages, etc. are untouched, and every current visual stays exactly as
+   it is. This is a ready-to-adopt toolkit for future work, not a re-skin.
+
+   The core surface/text variables below (--bg, --panel, --border, --text,
+   --text-dim, --text-faint, --mono, --sans, --accent) already exist inside
+   InvestmentDashboard.tsx's own <style> block, scoped to the dashboard tree.
+   They're re-declared here with the *exact same values* so they also become
+   available globally (e.g. to /login, /register, /about, which currently
+   can't reach them) - redeclaring identical values changes nothing visually.
+   Everything past that point is net-new.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------------
+     Color — surfaces & text (values unchanged, now global)
+     --------------------------------------------------------------------- */
+  --bg: #0a0e13;
+  --bg-elevated: #131c24;      /* header/panel gradient top, e.g. linear-gradient(180deg, var(--bg-elevated), #0D1319) */
+  --panel: #10161d;
+  --panel-2: #141b23;
+  --border: #1f2a35;
+  --border-strong: #2b3947;
+  --text: #e8edf2;
+  --text-dim: #8b98ab;
+  --text-faint: #4e5a6b;
+  --mono: "SF Mono", "Consolas", "Roboto Mono", monospace;
+  --sans: "Segoe UI", "Arial", sans-serif;
+
+  /* ---------------------------------------------------------------------
+     Color — brand accent (existing teal, used for primary interactive UI)
+     --------------------------------------------------------------------- */
+  --accent: #22d3a8;
+  --accent-hover: #2ee6ba;
+  --accent-active: #1cb891;
+  --accent-on: #04342c;        /* text/icon color on top of --accent */
+  --accent-subtle: rgba(34, 211, 168, 0.12);
+  --accent-subtle-border: rgba(34, 211, 168, 0.35);
+
+  /* ---------------------------------------------------------------------
+     Color — quiet blue-violet secondary accent (new)
+     Reserved for UI chrome (links, focus rings, secondary emphasis,
+     selected tabs) so brand interactivity never reads as a P&L color.
+     --------------------------------------------------------------------- */
+  --accent-violet: #7c83fd;
+  --accent-violet-hover: #9298ff;
+  --accent-violet-on: #10123a;
+  --accent-violet-subtle: rgba(124, 131, 253, 0.12);
+  --accent-violet-subtle-border: rgba(124, 131, 253, 0.32);
+
+  /* ---------------------------------------------------------------------
+     Color — financial semantics (gain / loss), matched to values already
+     in production use across the dashboard (--gain = existing #5BE39D,
+     --loss = existing #FF8589, --loss-strong = existing #FF5A5F).
+     --------------------------------------------------------------------- */
+  --gain: #5be39d;
+  --gain-subtle: rgba(91, 227, 157, 0.12);
+  --gain-subtle-border: rgba(91, 227, 157, 0.3);
+  --loss: #ff8589;
+  --loss-strong: #ff5a5f;      /* destructive actions only, e.g. delete account */
+  --loss-subtle: rgba(255, 133, 137, 0.12);
+  --loss-subtle-border: rgba(255, 133, 137, 0.35);
+  --neutral: var(--text-dim);
+
+  /* ---------------------------------------------------------------------
+     Color — status (warning / info), matched to existing values
+     --------------------------------------------------------------------- */
+  --warning: #f5be6b;
+  --warning-subtle: rgba(245, 190, 107, 0.12);
+  --warning-subtle-border: rgba(245, 190, 107, 0.32);
+  --info: #7fbbfa;
+  --info-subtle: rgba(127, 187, 250, 0.12);
+  --info-subtle-border: rgba(127, 187, 250, 0.32);
+
+  /* ---------------------------------------------------------------------
+     Color — interaction state overlays
+     --------------------------------------------------------------------- */
+  --hover-overlay: rgba(255, 255, 255, 0.03);
+  --active-overlay: rgba(255, 255, 255, 0.06);
+  --focus-ring: rgba(34, 211, 168, 0.35);
+  --disabled-opacity: 0.45;
+
+  /* ---------------------------------------------------------------------
+     Spacing — 8px base scale
+     --------------------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* ---------------------------------------------------------------------
+     Radius — soft only
+     --------------------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 999px;
+
+  /* ---------------------------------------------------------------------
+     Shadows — soft only, tuned for a dark surface
+     --------------------------------------------------------------------- */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --shadow-focus: 0 0 0 3px var(--focus-ring);
+
+  /* ---------------------------------------------------------------------
+     Typography — Hebrew/RTL hierarchy
+     --------------------------------------------------------------------- */
+  --font-size-xs: 11px;    /* table headers, micro-labels */
+  --font-size-sm: 12.5px;  /* secondary labels, captions */
+  --font-size-base: 13.5px;/* body copy, buttons, inputs */
+  --font-size-md: 15px;    /* card titles */
+  --font-size-lg: 18px;    /* section headings */
+  --font-size-xl: 22px;    /* page headings */
+  --font-size-2xl: 28px;   /* hero financial figures */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+  --letter-spacing-label: 0.3px;
+
+  /* ---------------------------------------------------------------------
+     Motion — short and soft only
+     --------------------------------------------------------------------- */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --transition-base: all var(--duration-base) var(--ease-standard);
+  --transition-fast: all var(--duration-fast) var(--ease-standard);
+}
+
+/* ==========================================================================
+   Typography utilities (Hebrew/RTL)
+   Prefixed `.ds-` — no existing markup references these class names.
+   ========================================================================== */
+
+.ds-h1 {
+  font-family: var(--sans);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  line-height: var(--line-height-tight);
+  color: var(--text);
+  letter-spacing: 0.1px;
+}
+.ds-h2 {
+  font-family: var(--sans);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  color: var(--text);
+}
+.ds-h3 {
+  font-family: var(--sans);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  line-height: var(--line-height-normal);
+  color: var(--text);
+}
+.ds-body {
+  font-family: var(--sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--text-dim);
+}
+.ds-label {
+  font-family: var(--sans);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+}
+.ds-caption {
+  font-family: var(--sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-faint);
+}
+/* Financial figures: always LTR-laid-out digits inside an RTL document,
+   matching the pattern already used for table numeric cells. */
+.ds-numeric {
+  font-family: var(--mono);
+  direction: ltr;
+  unicode-bidi: plaintext;
+  font-variant-numeric: tabular-nums;
+}
+.ds-numeric-lg {
+  font-family: var(--mono);
+  direction: ltr;
+  unicode-bidi: plaintext;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+}
+.ds-gain { color: var(--gain); }
+.ds-loss { color: var(--loss); }
+
+/* ==========================================================================
+   Component tokens
+   Fully styled, ready to adopt — not wired into any current screen.
+   ========================================================================== */
+
+/* --- Button ------------------------------------------------------------ */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--sans);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.ds-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+.ds-btn:disabled {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
+}
+.ds-btn-primary {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.ds-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.ds-btn-primary:active:not(:disabled) { background: var(--accent-active); }
+
+.ds-btn-secondary {
+  background: var(--accent-violet-subtle);
+  color: var(--accent-violet);
+  border-color: var(--accent-violet-subtle-border);
+}
+.ds-btn-secondary:hover:not(:disabled) { background: rgba(124, 131, 253, 0.18); }
+
+.ds-btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+.ds-btn-ghost:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
+
+.ds-btn-danger {
+  background: var(--loss-strong);
+  color: #2b0b0c;
+}
+.ds-btn-danger:hover:not(:disabled) { background: #ff6c70; }
+
+.ds-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.ds-btn-icon:hover { border-color: var(--text-dim); color: var(--text); }
+.ds-btn-icon.ds-danger:hover { border-color: var(--loss); color: var(--loss); }
+
+/* --- Input --------------------------------------------------------------- */
+.ds-input,
+.ds-select,
+.ds-textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: var(--font-size-base);
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  transition: var(--transition-fast);
+}
+.ds-textarea { resize: vertical; min-height: 60px; }
+.ds-input::placeholder,
+.ds-textarea::placeholder { color: var(--text-faint); }
+.ds-input:focus,
+.ds-select:focus,
+.ds-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+.ds-input:disabled,
+.ds-select:disabled,
+.ds-textarea:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+.ds-input-error {
+  border-color: var(--loss);
+}
+.ds-input-error:focus {
+  border-color: var(--loss);
+  box-shadow: 0 0 0 3px var(--loss-subtle-border);
+}
+
+/* --- Card ----------------------------------------------------------------- */
+.ds-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.ds-card-elevated {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+.ds-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+/* --- Table ------------------------------------------------------------- */
+.ds-table { border-collapse: collapse; width: 100%; }
+.ds-table th {
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+}
+.ds-table td {
+  font-size: var(--font-size-base);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  vertical-align: middle;
+}
+.ds-table tr { transition: var(--transition-fast); }
+.ds-table tbody tr:hover td { background: var(--hover-overlay); }
+.ds-table th.ds-num,
+.ds-table td.ds-num {
+  text-align: right;
+  font-family: var(--mono);
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+/* --- Badge ------------------------------------------------------------- */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+}
+.ds-badge-neutral { background: rgba(139, 152, 171, 0.12); color: var(--text-dim); border-color: var(--border); }
+.ds-badge-gain { background: var(--gain-subtle); color: var(--gain); border-color: var(--gain-subtle-border); }
+.ds-badge-loss { background: var(--loss-subtle); color: var(--loss); border-color: var(--loss-subtle-border); }
+.ds-badge-warning { background: var(--warning-subtle); color: var(--warning); border-color: var(--warning-subtle-border); }
+.ds-badge-info { background: var(--info-subtle); color: var(--info); border-color: var(--info-subtle-border); }
+.ds-badge-accent { background: var(--accent-violet-subtle); color: var(--accent-violet); border-color: var(--accent-violet-subtle-border); }
+
+/* --- Tooltip ------------------------------------------------------------- */
+.ds-tooltip {
+  position: absolute;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 80;
+}
+
+/* --- Modal --------------------------------------------------------------- */
+.ds-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 10, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  z-index: 70;
+}
+.ds-modal {
+  width: min(440px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.ds-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  color: var(--text);
+}
+.ds-modal-body { padding: var(--space-5); }
+
+/* --- Tabs ------------------------------------------------------------- */
+.ds-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+.ds-tab {
+  font-family: var(--sans);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-3);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.ds-tab:hover { color: var(--text); }
+.ds-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* --- Alert (banner) ------------------------------------------------------ */
+.ds-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+.ds-alert-info { background: var(--info-subtle); border-color: var(--info-subtle-border); color: var(--info); }
+.ds-alert-success { background: var(--gain-subtle); border-color: var(--gain-subtle-border); color: var(--gain); }
+.ds-alert-warning { background: var(--warning-subtle); border-color: var(--warning-subtle-border); color: var(--warning); }
+.ds-alert-error { background: var(--loss-subtle); border-color: var(--loss-subtle-border); color: var(--loss); }
+
+/* --- Skeleton (loading) --------------------------------------------------- */
+.ds-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+}
+.ds-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--hover-overlay), transparent);
+  animation: ds-skeleton-sweep 1.6s var(--ease-standard) infinite;
+}
+@keyframes ds-skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton::after { animation: none; }
+}
+
+/* --- Empty state --------------------------------------------------------- */
+.ds-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-9) var(--space-5);
+  color: var(--text-faint);
+}
+.ds-empty-state-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  margin-bottom: var(--space-2);
+}
+.ds-empty-state-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text);
+}
+.ds-empty-state-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--text-faint);
+  max-width: 32ch;
+}
+
+/* --- Error state ----------------------------------------------------------- */
+.ds-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-5);
+  color: var(--loss);
+}
+.ds-error-state-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--loss-subtle);
+  color: var(--loss);
+  margin-bottom: var(--space-2);
+}
+.ds-error-state-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text);
+}
+.ds-error-state-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--text-faint);
+  max-width: 32ch;
+}
