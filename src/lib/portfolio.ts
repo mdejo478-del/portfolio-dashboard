@@ -24,7 +24,7 @@ const MAX_LEDGER_ENTRIES = 1_000;
 const MAX_SYMBOL_LEN = 20;
 const MAX_SHORT_STRING_LEN = 500;
 const MAX_NOTES_LEN = 5_000;
-const VALID_ACTIONS = new Set(["קנייה", "מכירה", "הפקדה", "משיכה"]);
+const VALID_ACTIONS = new Set(["קנייה", "מכירה", "הפקדה", "משיכה", "אחר"]);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isFiniteNumber(v: unknown): v is number {

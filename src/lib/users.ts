@@ -13,6 +13,10 @@ export interface StoredUser {
   verified: boolean;
   verificationCode: string | null;
   onboardingCompleted: boolean;
+  // Epoch ms cutoff for "log out everywhere": any session token issued before
+  // this (session.iat) is treated as revoked, even though it's still
+  // cryptographically valid and unexpired - see getSession() in session.ts.
+  sessionsValidAfter?: number;
 }
 
 async function readUsers(): Promise<StoredUser[]> {
@@ -111,6 +115,15 @@ export async function deleteUser(id: string): Promise<boolean> {
   const next = users.filter((u) => u.id !== id);
   if (next.length === users.length) return false;
   await writeUsers(next);
+  return true;
+}
+
+export async function invalidateAllSessions(id: string): Promise<boolean> {
+  const users = await readUsers();
+  const user = users.find((u) => u.id === id);
+  if (!user) return false;
+  user.sessionsValidAfter = Date.now();
+  await writeUsers(users);
   return true;
 }
 

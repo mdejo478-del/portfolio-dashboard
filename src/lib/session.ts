@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { cookies, headers } from "next/headers";
 import { encodeToken, decodeToken } from "@/lib/signedToken";
+import { findUserById } from "@/lib/users";
 
 const COOKIE_NAME = "session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -12,6 +13,12 @@ export interface SessionPayload {
   disclaimerAccepted: boolean;
   onboardingCompleted: boolean;
   exp: number;
+  // When this token was issued. Checked against the user's
+  // sessionsValidAfter cutoff in getSession() so "log out everywhere" /
+  // a password change can revoke outstanding tokens without a server-side
+  // session store - old tokens missing this field just never match a cutoff
+  // (undefined < number is always false), so they're unaffected.
+  iat: number;
   // Hash of the User-Agent that created this session. Bound in on every
   // request so a copied/stolen cookie used from a different client is
   // rejected. This is a basic tripwire, not device fingerprinting - it
@@ -43,7 +50,7 @@ async function setSessionCookie(payload: SessionPayload): Promise<void> {
 }
 
 export async function createSession(user: { id: string; name: string; email: string; onboardingCompleted?: boolean }): Promise<void> {
-  const exp = Date.now() + SESSION_TTL_MS;
+  const now = Date.now();
   const h = await headers();
   await setSessionCookie({
     userId: user.id,
@@ -51,9 +58,18 @@ export async function createSession(user: { id: string; name: string; email: str
     email: user.email,
     disclaimerAccepted: false,
     onboardingCompleted: Boolean(user.onboardingCompleted),
-    exp,
+    exp: now + SESSION_TTL_MS,
+    iat: now,
     fp: fingerprintFor(h.get("user-agent")),
   });
+}
+
+// Re-issues the current session with a fresh iat/exp, keeping this device
+// logged in even after an action (e.g. changing the password) bumps the
+// user's sessionsValidAfter cutoff and would otherwise revoke this token too.
+export async function refreshSession(session: SessionPayload): Promise<void> {
+  const now = Date.now();
+  await setSessionCookie({ ...session, iat: now, exp: now + SESSION_TTL_MS });
 }
 
 export async function acceptDisclaimer(session: SessionPayload): Promise<void> {
@@ -67,7 +83,18 @@ export async function completeOnboarding(session: SessionPayload): Promise<void>
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const h = await headers();
-  return decodeSession(cookieStore.get(COOKIE_NAME)?.value, h.get("user-agent"));
+  const session = decodeSession(cookieStore.get(COOKIE_NAME)?.value, h.get("user-agent"));
+  if (!session) return null;
+
+  // Second check beyond the signature: the account must still exist, and
+  // this token must not predate a "log out everywhere" / password-change
+  // revocation. Both require a lookup we can't do from the signed token
+  // alone.
+  const user = await findUserById(session.userId);
+  if (!user) return null;
+  if (user.sessionsValidAfter && session.iat < user.sessionsValidAfter) return null;
+
+  return session;
 }
 
 export async function deleteSession(): Promise<void> {

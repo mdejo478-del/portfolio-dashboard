@@ -1,9 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword, deleteUser } from "@/lib/users";
+import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword, deleteUser, invalidateAllSessions } from "@/lib/users";
 import {
-  createSession, deleteSession, getSession,
+  createSession, deleteSession, getSession, refreshSession,
   acceptDisclaimer as acceptDisclaimerSession,
   completeOnboarding as completeOnboardingSession,
 } from "@/lib/session";
@@ -56,7 +56,10 @@ export async function signup(
     notifyNewUserRegistration(user);
   } catch (err) {
     if (err instanceof Error && err.message === "EMAIL_TAKEN") {
-      return { error: "קיים כבר משתמש עם כתובת האימייל הזו." };
+      // Deliberately not "this email is already registered" - that lets
+      // anyone enumerate which addresses have accounts here just by trying
+      // to sign up with them.
+      return { error: "לא ניתן להשלים את ההרשמה עם הפרטים שסופקו. אם כבר יש לך חשבון, נסה להתחבר." };
     }
     return { error: "אירעה שגיאה. נסה שוב." };
   }
@@ -202,7 +205,23 @@ export async function changePassword(
   if (result === "WRONG_PASSWORD") return { error: "הסיסמה הנוכחית שגויה." };
   if (result === "NOT_FOUND") return { error: "אירעה שגיאה. נסה שוב." };
 
+  // Changing the password should kill any other active session (e.g. one an
+  // attacker who had the old password is holding). Bump the cutoff, then
+  // immediately re-issue a fresh token for this device so the person who
+  // just did this isn't logged out too.
+  await invalidateAllSessions(session.userId);
+  await refreshSession(session);
+
   return { success: true };
+}
+
+export async function logoutAllDevices(): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  await invalidateAllSessions(session.userId);
+  await deleteSession();
+  redirect("/login");
 }
 
 export async function deleteAccount(

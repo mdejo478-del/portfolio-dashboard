@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, type CSSProperties } from "react";
-import { MoreVertical, KeyRound, Trash2 } from "lucide-react";
+import { MoreVertical, KeyRound, Trash2, LogOut } from "lucide-react";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
+import { logoutAllDevices } from "@/app/actions/auth";
 
 // A dedicated "⋮ הגדרות" entry point for account-level actions (change
 // password, delete account) - kept separate from the general "עוד פעולות"
@@ -66,6 +67,19 @@ export function SettingsMenu({
             >
               <KeyRound size={15} /> שינוי סיסמה
             </button>
+            <form action={logoutAllDevices} style={{ borderBottom: "1px solid var(--border)" }}>
+              <button
+                type="submit"
+                title="מתנתק מכל המכשירים שבהם מחובר החשבון שלך, כולל זה"
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                  fontSize: 13.5, fontWeight: 600, color: "var(--text-dim)", background: "transparent",
+                  border: "none", textAlign: "right", width: "100%", cursor: "pointer",
+                }}
+              >
+                <LogOut size={15} /> התנתקות מכל המכשירים
+              </button>
+            </form>
             <button
               type="button"
               onClick={() => { onDeleteAccount(); setOpen(false); }}
