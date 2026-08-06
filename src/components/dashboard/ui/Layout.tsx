@@ -3,18 +3,17 @@ import type { ReactNode } from "react";
 export function PageBanner({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
   return (
     <div style={{
-      background: "linear-gradient(90deg, rgba(34,211,168,0.16) 0%, rgba(34,211,168,0.03) 100%)",
-      border: "1px solid rgba(34,211,168,0.35)", borderRight: "5px solid var(--accent)",
-      borderRadius: 12, padding: "20px 24px", marginBottom: 22,
-      display: "flex", alignItems: "center", gap: 14,
+      background: "var(--bg-elevated)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-lg)", padding: "var(--space-5) var(--space-6)", marginBottom: "var(--space-6)",
+      display: "flex", alignItems: "center", gap: "var(--space-4)",
     }}>
       <div style={{
         color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center",
-        width: 40, height: 40, borderRadius: 10, background: "rgba(34,211,168,0.15)", flexShrink: 0,
+        width: 40, height: 40, borderRadius: "var(--radius-sm)", background: "var(--panel-2)", flexShrink: 0,
       }}>{icon}</div>
       <div>
-        <div style={{ fontSize: 23, fontWeight: 800, color: "var(--text)", letterSpacing: 0.2, lineHeight: 1.25 }}>{title}</div>
-        <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 4, letterSpacing: 0.4 }}>{subtitle}</div>
+        <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 800, color: "var(--text)", letterSpacing: 0.2, lineHeight: "var(--line-height-tight)" }}>{title}</div>
+        <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-dim)", marginTop: 4, letterSpacing: 0.4 }}>{subtitle}</div>
       </div>
     </div>
   );

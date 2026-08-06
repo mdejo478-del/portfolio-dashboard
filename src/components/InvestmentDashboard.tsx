@@ -554,20 +554,20 @@ export default function InvestmentDashboard({
         .idash th.num, .idash td.num { text-align: right; }
         .idash td.num { font-family: var(--mono); direction: ltr; unicode-bidi: plaintext; }
         .idash th.center, .idash td.center { text-align: center; }
-        .idash tr:hover td { background: rgba(255,255,255,0.02); }
+        .idash tr:hover td { background: var(--hover-overlay); }
         .idash input, .idash select, .idash textarea {
           background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
           border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: var(--sans); width: 100%;
         }
         .idash textarea { resize: vertical; min-height: 60px; font-family: var(--sans); }
         .idash input:focus, .idash select:focus, .idash textarea:focus { outline: none; border-color: var(--accent); }
-        .idash button.primary { background: var(--accent); color: #04342C; border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
-        .idash button.primary:hover { background: #2EE6BA; }
+        .idash button.primary { background: var(--accent); color: var(--accent-on); border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
+        .idash button.primary:hover { background: var(--accent-hover); }
         .idash button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; font-weight: 600; font-size: 13.5px; cursor: pointer; }
         .idash button.ghost:hover { border-color: var(--text-dim); color: var(--text); }
         .idash button.icon-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
         .idash button.icon-btn:hover { border-color: var(--text-dim); color: var(--text); }
-        .idash button.icon-btn.danger:hover { border-color: #FF8589; color: #FF8589; }
+        .idash button.icon-btn.danger:hover { border-color: var(--loss); color: var(--loss); }
         .ticker-track { display: flex; gap: 28px; animation: ticker 32s linear infinite; white-space: nowrap; }
         .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
         @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -602,14 +602,14 @@ export default function InvestmentDashboard({
         {globalError && (
           <div style={{
             margin: "12px 20px 0", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-            background: "rgba(255,90,95,0.12)", border: "1px solid rgba(255,90,95,0.35)", color: "#FF8589", borderRadius: 10, fontSize: 13,
+            background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 10, fontSize: 13,
           }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <AlertCircle size={15} style={{ flexShrink: 0 }} /> {globalError}
             </span>
             <button
               type="button" onClick={() => setGlobalError("")}
-              style={{ background: "transparent", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+              style={{ background: "transparent", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
             >סגור</button>
           </div>
         )}
@@ -629,7 +629,7 @@ export default function InvestmentDashboard({
             border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "10px 16px", marginBottom: 24,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)", boxShadow: "0 0 0 3px rgba(34,211,168,0.18)" }} />
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.4, whiteSpace: "nowrap" }}>הקצאה חיה</span>
             </div>
             <div style={{ width: 1, height: 16, background: "var(--border)", flexShrink: 0 }} />

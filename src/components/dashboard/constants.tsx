@@ -26,10 +26,10 @@ export const FALLBACK_COLORS = ["#22D3A8", "#4FA3F7", "#A78BFA", "#FF5A5F", "#F2
 export const TRADINGVIEW_SYMBOL_MAP: Record<string, string | null> = { ETH: "ETHUSD", CASH: null };
 
 export const TONE_STYLES: Record<Tone, { bg: string; border: string; text: string }> = {
-  green: { bg: "rgba(46,204,113,0.12)", border: "rgba(46,204,113,0.35)", text: "#5BE39D" },
-  amber: { bg: "rgba(242,169,59,0.12)", border: "rgba(242,169,59,0.35)", text: "#F5BE6B" },
-  red: { bg: "rgba(255,90,95,0.12)", border: "rgba(255,90,95,0.35)", text: "#FF8589" },
-  blue: { bg: "rgba(79,163,247,0.12)", border: "rgba(79,163,247,0.35)", text: "#7FBBFA" },
+  green: { bg: "var(--gain-subtle)", border: "var(--gain-subtle-border)", text: "var(--gain)" },
+  amber: { bg: "var(--warning-subtle)", border: "var(--warning-subtle-border)", text: "var(--warning)" },
+  red: { bg: "var(--loss-subtle)", border: "var(--loss-subtle-border)", text: "var(--loss)" },
+  blue: { bg: "var(--info-subtle)", border: "var(--info-subtle-border)", text: "var(--info)" },
 };
 
 export const ACTION_LABELS: Record<string, { label: string; tone: Tone; icon: ReactNode }> = {
