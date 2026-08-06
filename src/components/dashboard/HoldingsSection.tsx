@@ -1,6 +1,6 @@
 import { useMemo, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
@@ -10,6 +10,7 @@ import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum } from 
 import { Badge } from "@/components/dashboard/ui/Badge";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
+import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface HoldingsSectionProps {
   evaluated: EvaluatedPosition[];
@@ -36,6 +37,7 @@ export function HoldingsSection({
   evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, extendedPrices, openDetail,
   pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
 }: HoldingsSectionProps) {
+  const isMobile = useIsMobile();
   const [editingPosId, setEditingPosId] = useState<number | null>(null);
   const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "" });
   const [deletePosConfirmId, setDeletePosConfirmId] = useState<number | null>(null);
@@ -164,7 +166,10 @@ export function HoldingsSection({
         </div>
       )}
 
-      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20 }}>
+      <div className="idash-scroll-hint">
+        <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
+      </div>
+      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20 }}>
         <table>
           <thead>
             <tr>
@@ -295,7 +300,7 @@ export function HoldingsSection({
               </div>
               <button type="button" className="icon-btn" onClick={() => { setShowAddPosition(false); setPosForm(EMPTY_POSITION_FORM); setPosFormError(""); }}><X size={15} /></button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }} className="idash-form-grid">
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12 }}>
               <Field label="סימול">
                 <input type="text" value={posForm.symbol} onChange={(e) => updatePosForm("symbol", e.target.value.toUpperCase())}
                   onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="לדוגמה: AAPL" />

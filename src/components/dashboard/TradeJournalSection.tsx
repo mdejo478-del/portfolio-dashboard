@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus,
-  Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity,
+  Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity, ArrowLeftRight,
 } from "lucide-react";
 import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
@@ -13,6 +13,7 @@ import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
 import TradeImportModal from "@/components/TradeImportModal";
 import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
+import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface TradeStats {
   realizedPnl: number; fees: number; buysSells: number; winRate: number;
@@ -46,6 +47,8 @@ export function TradeJournalSection({
   const [importFileName, setImportFileName] = useState<string>("");
   const [importLoading, setImportLoading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isMobile = useIsMobile();
 
   const [fSymbol, setFSymbol] = useState<string>("הכל");
   const [fAction, setFAction] = useState<string>("הכל");
@@ -262,7 +265,7 @@ export function TradeJournalSection({
       {/* Trade journal banner */}
       <PageBanner icon={<ListChecks size={20} />} title="יומן מסחר חכם ומקצועי (Smart Trade Log)" subtitle="כל העסקאות, הסיכומים והפעולות במקום אחד" />
 
-      <div className="idash-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 22 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 22 }}>
         <Card label="מזומן פנוי" value={formatMoney(cashFree, privacyMode)} icon={<Wallet size={15} color="#8B98AB" />} />
         <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
         <Card label="אחוז הצלחה" value={fmtPct(stats.winRate)} sub={stats.sellCount + " עסקאות מכירה"} icon={<Percent size={15} color="#8B98AB" />} />
@@ -301,7 +304,7 @@ export function TradeJournalSection({
             </div>
             <button type="button" className="icon-btn" onClick={cancelForm}><X size={15} /></button>
           </div>
-          <div className="idash-form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12 }}>
             <Field label="תאריך"><input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} /></Field>
             <Field label="נכס / סימול">
               <input type="text" list="symbol-suggestions" value={form.symbol} onChange={(e) => updateForm("symbol", e.target.value.toUpperCase())}
@@ -334,7 +337,7 @@ export function TradeJournalSection({
                 {STRATEGY_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
-            <div style={{ gridColumn: "span 2" }}>
+            <div style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
               <Field label="הערות"><textarea value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} placeholder="פרטים נוספים, סיבה, הקשר..." /></Field>
             </div>
           </div>
@@ -370,15 +373,15 @@ export function TradeJournalSection({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button type="button" onClick={submitTrade} className="primary" style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={15} /> {editingId !== null ? "עדכן עסקה" : "שמור עסקה"}</button>
+          <div className="idash-form-actions" style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button type="button" onClick={submitTrade} className="primary" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Check size={15} /> {editingId !== null ? "עדכן עסקה" : "שמור עסקה"}</button>
             <button type="button" className="ghost" onClick={cancelForm}>ביטול</button>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="idash-filters" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(5, 1fr)", gap: 10, marginBottom: 14, alignItems: "end" }}>
         <Field label={<span style={{ display: "flex", alignItems: "center", gap: 5 }}><Filter size={12} />סינון לפי נכס</span>}>
           <select value={fSymbol} onChange={(e) => setFSymbol(e.target.value)}>
             <option value="הכל">כל הנכסים</option>
@@ -397,7 +400,10 @@ export function TradeJournalSection({
       </div>
       <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>מציג {sortedTrades.length} מתוך {trades.length} עסקאות</div>
 
-      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", maxHeight: 480 }}>
+      <div className="idash-scroll-hint">
+        <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
+      </div>
+      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", maxHeight: 480 }}>
         <table>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>

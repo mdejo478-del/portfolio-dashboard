@@ -553,11 +553,23 @@ export default function InvestmentDashboard({
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .idash ::-webkit-scrollbar { height: 8px; width: 8px; }
         .idash ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        .idash-scroll-table { -webkit-overflow-scrolling: touch; }
+        .idash-scroll-hint { display: none; align-items: center; gap: 6px; font-size: 11px; color: var(--text-faint); margin-bottom: 8px; }
+        .header-actions-compact { display: none; }
         @media (max-width: 860px) {
           .idash-grid2 { grid-template-columns: 1fr !important; }
-          .idash-kpis { grid-template-columns: repeat(2, 1fr) !important; }
-          .idash-form-grid { grid-template-columns: 1fr 1fr !important; }
-          .idash-filters { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 640px) {
+          .idash-content { padding: 14px 12px 0 !important; }
+          .idash-scroll-hint { display: flex !important; }
+          .idash button.icon-btn { width: 34px !important; height: 34px !important; }
+          .idash button.primary, .idash button.ghost { min-height: 42px; }
+          .idash-form-actions { flex-direction: column !important; }
+          .idash-form-actions button { width: 100%; }
+          .header-subtitle { display: none; }
+          .header-greeting { font-size: 11.5px !important; }
+          .header-actions-full { display: none !important; }
+          .header-actions-compact { display: flex !important; }
         }
       `}</style>
 
@@ -577,7 +589,7 @@ export default function InvestmentDashboard({
           undoSnapshot={undoSnapshot} undoLastAction={undoLastAction}
         />
 
-        <div style={{ padding: "20px 20px 0" }}>
+        <div className="idash-content" style={{ padding: "20px 20px 0" }}>
 
           {/* Ticker */}
           <div className="ticker-wrap" style={{
