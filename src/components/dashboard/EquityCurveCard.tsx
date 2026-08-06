@@ -27,7 +27,7 @@ export function EquityCurveCard({
   const yDomain: [number, number] = [rawMin - padding, rawMax + padding];
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 20px", marginBottom: 22 }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "var(--shadow-sm)", padding: "16px 20px", marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
           <TrendingUp size={16} color="var(--accent)" /> התפתחות התיק

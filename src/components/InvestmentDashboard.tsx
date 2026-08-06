@@ -545,7 +545,7 @@ export default function InvestmentDashboard({
         .idash th { text-align: right; font-size: 11.5px; color: var(--text-faint); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }
         .idash td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: right; vertical-align: middle; }
         .idash th.num, .idash td.num { text-align: right; }
-        .idash td.num { font-family: var(--mono); direction: ltr; unicode-bidi: plaintext; }
+        .idash td.num { font-family: var(--mono); direction: ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums; }
         .idash th.center, .idash td.center { text-align: center; }
         .idash tr:hover td { background: var(--hover-overlay); }
         .idash input, .idash select, .idash textarea {

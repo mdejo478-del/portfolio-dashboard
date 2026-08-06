@@ -23,7 +23,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
 
   return (
     <div style={{
-      background: s.bg, border: "1px solid " + s.border, borderRadius: 14,
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 14, boxShadow: "var(--shadow-sm)",
       padding: "16px 20px", marginBottom: 22, display: "flex", flexDirection: "column", gap: 12,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
