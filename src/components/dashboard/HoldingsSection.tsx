@@ -350,7 +350,7 @@ export function HoldingsSection({
                 <td
                   onClick={() => openDetail(p.symbol)}
                   title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
-                  style={{ fontWeight: 700, display: "flex", alignItems: "flex-start", justifyContent: "flex-end", gap: "var(--space-2)", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+                  style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "var(--space-2)", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
                 >
                   {tradingViewUrl(p.symbol) ? (
                     <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
