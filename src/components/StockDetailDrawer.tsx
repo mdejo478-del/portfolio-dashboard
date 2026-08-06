@@ -78,6 +78,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.22s ease", overflowY: "auto",
           display: "flex", flexDirection: "column",
+          paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         {symbol && (

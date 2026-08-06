@@ -564,6 +564,8 @@ export default function InvestmentDashboard({
           .idash-scroll-hint { display: flex !important; }
           .idash button.icon-btn { width: 34px !important; height: 34px !important; }
           .idash button.primary, .idash button.ghost { min-height: 42px; }
+          /* iOS Safari auto-zooms the page on focus for any input under 16px - only visible on a real device, not in Chrome devtools emulation. */
+          .idash input, .idash select, .idash textarea { font-size: 16px !important; }
           .idash-form-actions { flex-direction: column !important; }
           .idash-form-actions button { width: 100%; }
           .header-subtitle { display: none; }

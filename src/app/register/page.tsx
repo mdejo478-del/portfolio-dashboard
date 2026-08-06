@@ -26,7 +26,7 @@ export default function RegisterPage() {
               type="text"
               required
               autoComplete="name"
-              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-sm text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
+              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-base text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
             />
           </div>
           <div>
@@ -39,7 +39,7 @@ export default function RegisterPage() {
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-sm text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
+              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-base text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
             />
           </div>
           <div>
@@ -53,7 +53,7 @@ export default function RegisterPage() {
               required
               autoComplete="new-password"
               minLength={6}
-              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-sm text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
+              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-base text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
             />
             <p className="mt-1 text-xs text-[#4E5A6B]">לפחות 6 תווים</p>
           </div>
