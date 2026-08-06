@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { Bell, X } from "lucide-react";
 import type { Alert } from "@/components/dashboard/types";
 import { TONE_STYLES } from "@/components/dashboard/constants";
+import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 
 export function AlertsBell({
   alerts, unseenCount, seenIds, open, onToggle, onClose, onDismiss,
@@ -8,8 +10,11 @@ export function AlertsBell({
   alerts: Alert[]; unseenCount: number; seenIds: Set<string>;
   open: boolean; onToggle: () => void; onClose: () => void; onDismiss: (id: string) => void;
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const { left, width } = usePopoverPosition(open, wrapperRef, 340);
+
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={wrapperRef} style={{ position: "relative" }}>
       <button
         type="button" className="ghost" onClick={onToggle}
         title="התראות"
@@ -31,7 +36,7 @@ export function AlertsBell({
         <>
           <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
           <div style={{
-            position: "absolute", top: "calc(100% + 8px)", left: 0, width: 340, maxWidth: "90vw",
+            position: "absolute", top: "calc(100% + 8px)", left, width,
             maxHeight: 420, overflowY: "auto", background: "var(--panel)", border: "1px solid var(--border)",
             borderRadius: 12, zIndex: 50, boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
           }}>

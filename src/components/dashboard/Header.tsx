@@ -1,10 +1,11 @@
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
+import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
@@ -17,6 +18,8 @@ export function Header({
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreWrapperRef = useRef<HTMLDivElement>(null);
+  const morePos = usePopoverPosition(moreOpen, moreWrapperRef, 200);
 
   const ghostBtnStyle: CSSProperties = {
     display: "flex", alignItems: "center", gap: 6, padding: "9px 15px",
@@ -132,7 +135,7 @@ export function Header({
             {privacyMode ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
 
-          <div style={{ position: "relative" }}>
+          <div ref={moreWrapperRef} style={{ position: "relative" }}>
             <button
               type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="עוד פעולות" title="עוד פעולות"
               style={{
@@ -148,7 +151,7 @@ export function Header({
               <>
                 <div onClick={() => setMoreOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
                 <div style={{
-                  position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 200, zIndex: 50,
+                  position: "absolute", top: "calc(100% + 8px)", left: morePos.left, width: morePos.width, zIndex: 50,
                   background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12,
                   boxShadow: "0 12px 32px rgba(0,0,0,0.45)", overflow: "hidden", display: "flex", flexDirection: "column",
                 }}>
