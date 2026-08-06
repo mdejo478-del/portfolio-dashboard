@@ -66,9 +66,11 @@
   --gain-subtle-border: rgba(91, 227, 157, 0.3);
   --loss: #ff8589;
   --loss-strong: #ff5a5f;      /* destructive actions only, e.g. delete account */
+  --loss-on: #2b0b0c;          /* text/icon color on top of --loss-strong */
   --loss-subtle: rgba(255, 133, 137, 0.12);
   --loss-subtle-border: rgba(255, 133, 137, 0.35);
   --neutral: var(--text-dim);
+  --scrim: rgba(4, 7, 10, 0.6); /* modal/drawer backdrop */
 
   /* ---------------------------------------------------------------------
      Color — status (warning / info), matched to existing values
@@ -207,6 +209,7 @@
   --row-highlight: rgba(91, 100, 114, 0.08);
   --row-alt: rgba(20, 24, 31, 0.018);
   --focus-ring: rgba(14, 143, 115, 0.35);
+  --scrim: rgba(20, 24, 31, 0.4);
 
   --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
   --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
@@ -252,6 +255,7 @@
     --row-highlight: rgba(91, 100, 114, 0.08);
     --row-alt: rgba(20, 24, 31, 0.018);
     --focus-ring: rgba(14, 143, 115, 0.35);
+    --scrim: rgba(20, 24, 31, 0.4);
     --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
     --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
     --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.12);

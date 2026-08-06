@@ -18,7 +18,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
       className="ds-modal-scrim-in"
       style={{
-        position: "fixed", inset: 0, zIndex: 70, background: "rgba(4,7,10,0.6)",
+        position: "fixed", inset: 0, zIndex: 70, background: "var(--scrim)",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       }}
     >
@@ -70,7 +70,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
               type="submit" disabled={!isConfirmed || pending}
               style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: isConfirmed ? "var(--loss-strong)" : "var(--loss-subtle)", color: "#2B0B0C",
+                background: isConfirmed ? "var(--loss-strong)" : "var(--loss-subtle)", color: "var(--loss-on)",
                 border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, fontSize: 13.5,
                 cursor: isConfirmed && !pending ? "pointer" : "not-allowed",
               }}

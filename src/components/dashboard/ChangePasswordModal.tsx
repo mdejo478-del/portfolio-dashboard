@@ -23,7 +23,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
       className="ds-modal-scrim-in"
       style={{
-        position: "fixed", inset: 0, zIndex: 70, background: "rgba(4,7,10,0.6)",
+        position: "fixed", inset: 0, zIndex: 70, background: "var(--scrim)",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       }}
     >

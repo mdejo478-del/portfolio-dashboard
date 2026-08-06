@@ -56,7 +56,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
   const isOpen = Boolean(symbol);
   const livePrice = position && position.symbol !== "CASH" ? position.price : (detail ? detail.price : null);
-  const dot = symbol ? colorFor(symbol, colorIndex) : "#94A3B8";
+  const dot = symbol ? colorFor(symbol, colorIndex) : "var(--text-faint)";
   const tvUrl = symbol ? tradingViewUrl(symbol) : null;
 
   return (
@@ -64,7 +64,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
       <div
         onClick={onClose}
         style={{
-          position: "fixed", inset: 0, background: "rgba(4,7,10,0.55)", zIndex: 60,
+          position: "fixed", inset: 0, background: "var(--scrim)", zIndex: 60,
           opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? "auto" : "none",
           transition: "opacity 0.2s ease",
         }}

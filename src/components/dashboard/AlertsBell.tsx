@@ -25,7 +25,7 @@ export function AlertsBell({
         {unseenCount > 0 && (
           <span style={{
             position: "absolute", top: -5, left: -5, minWidth: 16, height: 16, borderRadius: 999,
-            background: "var(--loss-strong)", color: "#fff", fontSize: 10, fontWeight: 700,
+            background: "var(--loss-strong)", color: "var(--loss-on)", fontSize: 10, fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
           }}>
             {unseenCount > 9 ? "9+" : unseenCount}
