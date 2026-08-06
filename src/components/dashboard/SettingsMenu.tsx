@@ -52,7 +52,7 @@ export function SettingsMenu({
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-          <div style={{
+          <div className="ds-popover-in" style={{
             position: "absolute", top: "calc(100% + 8px)", left: pos.left, width: pos.width, zIndex: 50,
             background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12,
             boxShadow: "var(--shadow-md)", overflow: "hidden", display: "flex", flexDirection: "column",

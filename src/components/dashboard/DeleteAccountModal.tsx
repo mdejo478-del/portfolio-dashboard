@@ -16,6 +16,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
     <div
       dir="rtl"
       onClick={onClose}
+      className="ds-modal-scrim-in"
       style={{
         position: "fixed", inset: 0, zIndex: 70, background: "rgba(4,7,10,0.6)",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
@@ -23,6 +24,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="ds-modal-panel-in"
         style={{
           background: "var(--panel)", border: "1px solid var(--loss-subtle-border)", borderRadius: 16,
           width: "min(440px, 100%)", boxShadow: "var(--shadow-lg)",

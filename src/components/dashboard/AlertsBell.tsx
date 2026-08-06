@@ -36,7 +36,7 @@ export function AlertsBell({
       {open && (
         <>
           <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-          <div style={{
+          <div className="ds-popover-in" style={{
             position: "absolute", top: "calc(100% + 8px)", left, width,
             maxHeight: 420, overflowY: "auto", background: "var(--panel)", border: "1px solid var(--border)",
             borderRadius: 12, zIndex: 50, boxShadow: "var(--shadow-md)",
