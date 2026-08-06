@@ -276,12 +276,12 @@ export function TradeJournalSection({
       <PageBanner icon={<ListChecks size={20} />} title="יומן מסחר חכם ומקצועי (Smart Trade Log)" subtitle="כל העסקאות, הסיכומים והפעולות במקום אחד" />
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 22 }}>
-        <Card label="מזומן פנוי" value={formatMoney(cashFree, privacyMode)} icon={<Wallet size={15} color="#8B98AB" />} />
-        <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
-        <Card label="אחוז הצלחה" value={fmtPct(stats.winRate)} sub={stats.sellCount + " עסקאות מכירה"} icon={<Percent size={15} color="#8B98AB" />} />
-        <Card label="מספר עסקאות" value={fmtNum(stats.buysSells)} sub={trades.length + " שורות כולל"} icon={<Activity size={15} color="#8B98AB" />} />
-        <Card label="סך עמלות" value={formatMoney(stats.fees, privacyMode)} tone="red" icon={<Receipt size={15} color="#FF8589" />} />
-        <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
+        <Card label="מזומן פנוי" value={formatMoney(cashFree, privacyMode)} icon={<Wallet size={15} color="var(--text-dim)" />} />
+        <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="var(--gain)" /> : <TrendingDown size={15} color="var(--loss)" />} />
+        <Card label="אחוז הצלחה" value={fmtPct(stats.winRate)} sub={stats.sellCount + " עסקאות מכירה"} icon={<Percent size={15} color="var(--text-dim)" />} />
+        <Card label="מספר עסקאות" value={fmtNum(stats.buysSells)} sub={trades.length + " שורות כולל"} icon={<Activity size={15} color="var(--text-dim)" />} />
+        <Card label="סך עמלות" value={formatMoney(stats.fees, privacyMode)} tone="red" icon={<Receipt size={15} color="var(--loss)" />} />
+        <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="var(--gain)" /> : <TrendingDown size={15} color="var(--loss)" />} />
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
@@ -306,10 +306,10 @@ export function TradeJournalSection({
       </div>
 
       {showForm && (
-        <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "rgba(79,163,247,0.4)" : "var(--border)"), borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "var(--info-subtle-border)" : "var(--border)"), borderRadius: 14, padding: 18, marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 14.5, display: "flex", alignItems: "center", gap: 8 }}>
-              {editingId !== null ? <Pencil size={15} color="#7FBBFA" /> : <Plus size={15} color="var(--accent)" />}
+              {editingId !== null ? <Pencil size={15} color="var(--info)" /> : <Plus size={15} color="var(--accent)" />}
               {editingId !== null ? "עריכת עסקה" : "עסקה חדשה"}
             </div>
             <button type="button" className="icon-btn" onClick={cancelForm}><X size={15} /></button>
@@ -360,13 +360,13 @@ export function TradeJournalSection({
             {form.action === "מכירה" && (
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-faint)" }}>רווח/הפסד ממומש {form.pnlManual !== "" ? "(ידני)" : "(מוצע אוטומטית)"}</div>
-                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectivePnl == null ? "var(--text)" : effectivePnl >= 0 ? "#5BE39D" : "#FF8589" }}>{effectivePnl !== null ? fmtUSD(effectivePnl) : "-"}</div>
+                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectivePnl == null ? "var(--text)" : effectivePnl >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectivePnl !== null ? fmtUSD(effectivePnl) : "-"}</div>
               </div>
             )}
             {form.action === "מכירה" && (
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-faint)" }}>אחוז ממומש מהעסקה</div>
-                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectiveRetPct == null ? "var(--text)" : effectiveRetPct >= 0 ? "#5BE39D" : "#FF8589" }}>{effectiveRetPct !== null ? fmtPct(effectiveRetPct) : "-"}</div>
+                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectiveRetPct == null ? "var(--text)" : effectiveRetPct >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectiveRetPct !== null ? fmtPct(effectiveRetPct) : "-"}</div>
               </div>
             )}
             {previewAvgCost !== null && form.action === "מכירה" && (
@@ -378,7 +378,7 @@ export function TradeJournalSection({
           </div>
 
           {tradeFormError && (
-            <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+            <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
               {tradeFormError}
             </div>
           )}
@@ -444,7 +444,7 @@ export function TradeJournalSection({
           </thead>
           <tbody>
             {sortedTrades.map((t) => (
-              <tr key={t.id} style={deleteConfirmId === t.id ? { background: "rgba(255,90,95,0.06)" } : undefined}>
+              <tr key={t.id} style={deleteConfirmId === t.id ? { background: "var(--loss-subtle)" } : undefined}>
                 <td className="num" style={{ color: "var(--text-dim)" }}>{t.date}</td>
                 <td style={{ fontWeight: 700 }}>{t.symbol}</td>
                 <td className="center"><ActionBadge action={t.action} /></td>
@@ -452,8 +452,8 @@ export function TradeJournalSection({
                 <td className="num">{formatMoney(t.price, privacyMode, { digits: 2 })}</td>
                 <td className="num">{formatMoney(t.value, privacyMode)}</td>
                 <td className="num" style={{ color: "var(--text-faint)" }}>{formatMoney(t.fee, privacyMode)}</td>
-                <td className="num" style={{ fontWeight: 600, color: t.pnl == null ? "var(--text-faint)" : t.pnl >= 0 ? "#5BE39D" : "#FF8589" }}>{t.pnl == null ? "-" : formatMoney(t.pnl, privacyMode)}</td>
-                <td className="num" style={{ color: t.retPct == null ? "var(--text-faint)" : t.retPct >= 0 ? "#5BE39D" : "#FF8589" }}>{t.retPct == null ? "-" : fmtPct(t.retPct)}</td>
+                <td className="num" style={{ fontWeight: 600, color: t.pnl == null ? "var(--text-faint)" : t.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>{t.pnl == null ? "-" : formatMoney(t.pnl, privacyMode)}</td>
+                <td className="num" style={{ color: t.retPct == null ? "var(--text-faint)" : t.retPct >= 0 ? "var(--gain)" : "var(--loss)" }}>{t.retPct == null ? "-" : fmtPct(t.retPct)}</td>
                 <td style={{ color: "var(--text-dim)" }}>{t.strategy}</td>
                 <td style={{ color: "var(--text-faint)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.notes || ""}>{t.notes || "-"}</td>
                 <td className="center">
@@ -461,7 +461,7 @@ export function TradeJournalSection({
                     <button type="button" className="icon-btn" onClick={() => startEdit(t)} aria-label="עריכה" title="עריכה"><Pencil size={13} /></button>
                     {deleteConfirmId === t.id ? (
                       <>
-                        <button type="button" onClick={() => deleteTrade(t.id)} style={{ background: "rgba(255,90,95,0.15)", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
+                        <button type="button" onClick={() => deleteTrade(t.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
                         <button type="button" className="icon-btn" onClick={() => setDeleteConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={13} /></button>
                       </>
                     ) : (

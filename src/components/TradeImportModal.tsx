@@ -35,7 +35,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
         style={{
           background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16,
           width: "min(920px, 100%)", maxHeight: "88vh", display: "flex", flexDirection: "column",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+          boxShadow: "var(--shadow-lg)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
@@ -50,7 +50,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
           {result.fileError ? (
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
-              background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 10, color: "#FF8589", fontSize: 13.5, lineHeight: 1.6,
+              background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 10, color: "var(--loss)", fontSize: 13.5, lineHeight: 1.6,
             }}>
               <FileWarning size={18} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>{result.fileError}</span>
@@ -58,11 +58,11 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
           ) : (
             <>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#5BE39D", fontSize: 13, fontWeight: 700 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--gain)", fontSize: 13, fontWeight: 700 }}>
                   <CheckCircle2 size={15} /> {validRows.length} עסקאות תקינות יתווספו ליומן
                 </div>
                 {errorRows.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#F5BE6B", fontSize: 13, fontWeight: 700 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
                     <AlertTriangle size={15} /> {errorRows.length} שורות עם שגיאה יידלגו
                   </div>
                 )}
@@ -79,7 +79,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
                   </thead>
                   <tbody>
                     {result.rows.map((row) => (
-                      <tr key={row.rowNumber} style={row.error ? { background: "rgba(255,90,95,0.06)" } : undefined}>
+                      <tr key={row.rowNumber} style={row.error ? { background: "var(--loss-subtle)" } : undefined}>
                         <td className="num" style={{ color: "var(--text-faint)" }}>{row.rowNumber}</td>
                         <td className="num" style={{ color: "var(--text-dim)" }}>{row.date || "-"}</td>
                         <td style={{ fontWeight: 700 }}>{row.symbol || "-"}</td>
@@ -99,11 +99,11 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
                         <td className="num" style={{ color: "var(--text-faint)" }}>{row.pnlOverride !== null ? fmtUSD(row.pnlOverride) : "-"}</td>
                         <td style={{ maxWidth: 260 }}>
                           {row.error ? (
-                            <span style={{ color: "#FF8589", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ color: "var(--loss)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
                               <AlertTriangle size={12} style={{ flexShrink: 0 }} /> {row.error}
                             </span>
                           ) : (
-                            <span style={{ color: "#5BE39D", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ color: "var(--gain)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
                               <CheckCircle2 size={12} /> תקין
                             </span>
                           )}
