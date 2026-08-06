@@ -11,6 +11,7 @@ import { fmtUSD, fmtPct, fmtNum, formatMoney, parseNum, csvEscape, mapStrategyTo
 import { ActionBadge } from "@/components/dashboard/ui/Badge";
 import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
+import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import TradeImportModal from "@/components/TradeImportModal";
 import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
@@ -47,6 +48,14 @@ export function TradeJournalSection({
   const [importFileName, setImportFileName] = useState<string>("");
   const [importLoading, setImportLoading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  function openAddTradeForm() {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(true);
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
 
   const isMobile = useIsMobile();
 
@@ -296,7 +305,7 @@ export function TradeJournalSection({
       </div>
 
       {showForm && (
-        <div style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "rgba(79,163,247,0.4)" : "var(--border)"), borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "rgba(79,163,247,0.4)" : "var(--border)"), borderRadius: 14, padding: 18, marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 14.5, display: "flex", alignItems: "center", gap: 8 }}>
               {editingId !== null ? <Pencil size={15} color="#7FBBFA" /> : <Plus size={15} color="var(--accent)" />}
@@ -400,6 +409,26 @@ export function TradeJournalSection({
       </div>
       <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>מציג {sortedTrades.length} מתוך {trades.length} עסקאות</div>
 
+      {sortedTrades.length === 0 ? (
+        trades.length === 0 ? (
+          <EmptyState
+            icon={<ListChecks size={24} />}
+            title="עדיין אין עסקאות"
+            subtitle="כל קנייה, מכירה, הפקדה או משיכה יופיעו כאן"
+            actionLabel="+ הוסף עסקה ראשונה"
+            onAction={openAddTradeForm}
+          />
+        ) : (
+          <EmptyState
+            compact
+            icon={<Filter size={18} />}
+            title="לא נמצאו עסקאות תואמות לסינון"
+            actionLabel="נקה סינון"
+            onAction={() => { setFSymbol("הכל"); setFAction("הכל"); setFFrom(""); setFTo(""); }}
+          />
+        )
+      ) : (
+      <>
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
@@ -441,12 +470,11 @@ export function TradeJournalSection({
                 </td>
               </tr>
             ))}
-            {sortedTrades.length === 0 && (
-              <tr><td colSpan={12} style={{ textAlign: "center", color: "var(--text-faint)", padding: 24 }}>לא נמצאו עסקאות תואמות לסינון</td></tr>
-            )}
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       <div style={{ marginTop: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 11.5 }}>
         כל הנתונים מבוססים על קובץ האקסל שהועלה · החישובים מתעדכנים אוטומטית עם כל עסקה שנוספה, נערכת או נמחקת

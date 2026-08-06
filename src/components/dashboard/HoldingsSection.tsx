@@ -1,6 +1,6 @@
-import { useMemo, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight } from "lucide-react";
+import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, PieChart as PieChartIcon } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
@@ -9,6 +9,7 @@ import { TONE_STYLES } from "@/components/dashboard/constants";
 import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum } from "@/components/dashboard/format";
 import { Badge } from "@/components/dashboard/ui/Badge";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
+import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
@@ -44,6 +45,12 @@ export function HoldingsSection({
   const [showAddPosition, setShowAddPosition] = useState<boolean>(false);
   const [posForm, setPosForm] = useState<PositionFormState>(EMPTY_POSITION_FORM);
   const [posFormError, setPosFormError] = useState<string>("");
+  const addPositionRef = useRef<HTMLDivElement>(null);
+
+  function openAddPositionForm() {
+    setShowAddPosition(true);
+    requestAnimationFrame(() => addPositionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
 
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
   const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
@@ -295,9 +302,13 @@ export function HoldingsSection({
         <div style={{ marginBottom: 20 }}>
           {tableRows.map(({ p, i }) => renderPositionCard(p, i))}
           {evaluated.length === 0 && (
-            <div style={{ textAlign: "center", color: "var(--text-faint)", padding: 24, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14 }}>
-              אין החזקות בתיק עדיין. הוסף נכס ראשון למטה.
-            </div>
+            <EmptyState
+              icon={<Inbox size={24} />}
+              title="עדיין אין פוזיציות בתיק"
+              subtitle="התחל בהוספת מניה או הפקדת מזומן"
+              actionLabel="+ הוסף פוזיציה ראשונה"
+              onAction={openAddPositionForm}
+            />
           )}
           {evaluated.length > 0 && (
             <div style={{
@@ -418,7 +429,15 @@ export function HoldingsSection({
               </tr>
             ))}
             {evaluated.length === 0 && (
-              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--text-faint)", padding: 24 }}>אין החזקות בתיק עדיין. הוסף נכס ראשון למטה.</td></tr>
+              <tr><td colSpan={13} style={{ padding: 0, border: "none" }}>
+                <EmptyState
+                  icon={<Inbox size={24} />}
+                  title="עדיין אין פוזיציות בתיק"
+                  subtitle="התחל בהוספת מניה או הפקדת מזומן"
+                  actionLabel="+ הוסף פוזיציה ראשונה"
+                  onAction={openAddPositionForm}
+                />
+              </td></tr>
             )}
           </tbody>
           <tfoot>
@@ -440,7 +459,7 @@ export function HoldingsSection({
 
       <div style={{ marginBottom: 20 }}>
         {showAddPosition ? (
-          <div style={{ background: "var(--panel)", border: "1px solid rgba(34,211,168,0.4)", borderRadius: 14, padding: 16 }}>
+          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid rgba(34,211,168,0.4)", borderRadius: 14, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
@@ -475,7 +494,7 @@ export function HoldingsSection({
           </div>
         ) : (
           <button
-            type="button" className="primary" onClick={() => setShowAddPosition(true)}
+            type="button" className="primary" onClick={openAddPositionForm}
             style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 22px", fontSize: 14, boxShadow: "0 6px 18px rgba(34,211,168,0.35)" }}
           >
             <Plus size={16} /> הוסף נכס לתיק
@@ -485,6 +504,14 @@ export function HoldingsSection({
 
       <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 30, maxWidth: 640, marginRight: "auto", marginLeft: "auto" }}>
         <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: 16, textAlign: "center" }}>הקצאת נכסים</div>
+        {pieData.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<PieChartIcon size={18} />}
+            title="אין עדיין נתונים להצגה"
+            subtitle="ברגע שתוסיף פוזיציה, הקצאת התיק תופיע כאן כגרף עוגה"
+          />
+        ) : (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 auto", width: 210, height: 210 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -510,11 +537,19 @@ export function HoldingsSection({
             ))}
           </div>
         </div>
+        )}
       </div>
 
       <SectionTitle icon={<ShieldCheck size={16} />} text="המלצות Position Sizing" />
       <div style={{ marginBottom: 34 }}>
-        {needsAction.length === 0 ? (
+        {evaluated.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<ShieldCheck size={18} />}
+            title="אין עדיין המלצות"
+            subtitle="המלצות לאיזון והתאמת פוזיציות יופיעו כאן ברגע שיתווספו נכסים לתיק"
+          />
+        ) : needsAction.length === 0 ? (
           <div style={{ background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 10, color: "#5BE39D", fontSize: 13.5 }}>
             <ShieldCheck size={18} /> כל הנכסים במשקל היעד – אין פעולות נדרשות כרגע.
           </div>
