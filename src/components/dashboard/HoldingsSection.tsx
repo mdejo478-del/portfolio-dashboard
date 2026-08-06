@@ -156,13 +156,13 @@ export function HoldingsSection({
 
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>שווי</div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי</div>
             <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
               {formatMoney(p.value, privacyMode)}
             </div>
           </div>
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>משקל</div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>משקל</div>
             <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700 }}>{fmtPct(p.weight)}</div>
           </div>
         </div>

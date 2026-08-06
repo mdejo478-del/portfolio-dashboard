@@ -95,7 +95,7 @@ export function Header({
       </div>
 
       <div className="header-slogan" style={{ marginBottom: "var(--space-3)" }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontStyle: "italic", color: "var(--text-faint)" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-subtitle)", fontWeight: 500, fontStyle: "italic", letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
           השקעה לפי הקצאה, לא לפי רגש.
         </span>
       </div>
@@ -104,14 +104,14 @@ export function Header({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-4)" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-5)", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
-            <span style={{ fontFamily: "var(--sans)", color: "var(--text-faint)", fontSize: "var(--font-size-sm)" }}>שווי תיק כולל</span>
+            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "var(--font-size-sm)" }}>שווי תיק כולל</span>
             <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--gain)", direction: "ltr", unicodeBidi: "plaintext" }}>
               {formatMoney(total, privacyMode)}
             </span>
           </div>
           <div style={{ width: 1, height: 22, background: "var(--border)" }} />
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
-            <span style={{ fontFamily: "var(--sans)", color: "var(--text-faint)", fontSize: "var(--font-size-sm)" }}>מזומן פנוי</span>
+            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "var(--font-size-sm)" }}>מזומן פנוי</span>
             <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", direction: "ltr", unicodeBidi: "plaintext" }}>
               {formatMoney(cashFree, privacyMode)}
             </span>

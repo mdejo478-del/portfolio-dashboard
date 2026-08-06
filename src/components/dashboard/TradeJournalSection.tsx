@@ -354,24 +354,24 @@ export function TradeJournalSection({
 
           <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, display: "flex", gap: 24, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>שווי כולל משוער</div>
+              <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי כולל משוער</div>
               <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{previewValue !== null ? fmtUSD(previewValue) : "-"}</div>
             </div>
             {form.action === "מכירה" && (
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>רווח/הפסד ממומש {form.pnlManual !== "" ? "(ידני)" : "(מוצע אוטומטית)"}</div>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>רווח/הפסד ממומש {form.pnlManual !== "" ? "(ידני)" : "(מוצע אוטומטית)"}</div>
                 <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectivePnl == null ? "var(--text)" : effectivePnl >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectivePnl !== null ? fmtUSD(effectivePnl) : "-"}</div>
               </div>
             )}
             {form.action === "מכירה" && (
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>אחוז ממומש מהעסקה</div>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>אחוז ממומש מהעסקה</div>
                 <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectiveRetPct == null ? "var(--text)" : effectiveRetPct >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectiveRetPct !== null ? fmtPct(effectiveRetPct) : "-"}</div>
               </div>
             )}
             {previewAvgCost !== null && form.action === "מכירה" && (
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>עלות ממוצעת נוכחית (למעקב בלבד)</div>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>עלות ממוצעת נוכחית (למעקב בלבד)</div>
                 <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{fmtUSD(previewAvgCost, { digits: 2 })}</div>
               </div>
             )}
