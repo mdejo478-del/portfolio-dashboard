@@ -157,13 +157,13 @@ export function HoldingsSection({
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-faint)" }}>שווי</div>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 800, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
               {formatMoney(p.value, privacyMode)}
             </div>
           </div>
           <div style={{ textAlign: "left" }}>
             <div style={{ fontSize: 11, color: "var(--text-faint)" }}>משקל</div>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 800 }}>{fmtPct(p.weight)}</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700 }}>{fmtPct(p.weight)}</div>
           </div>
         </div>
 
@@ -317,8 +317,8 @@ export function HoldingsSection({
               display: "flex", alignItems: "center", justifyContent: "space-between",
               background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 14, padding: "13px 16px",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 14.5 }}>סך הכל התיק</span>
-              <span style={{ fontFamily: "var(--mono)", fontWeight: 800, fontSize: 16, color: "var(--gain)" }}>{formatMoney(total, privacyMode)}</span>
+              <span style={{ fontWeight: 700, fontSize: 14.5 }}>סך הכל התיק</span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: "var(--gain)" }}>{formatMoney(total, privacyMode)}</span>
             </div>
           )}
         </div>
@@ -371,7 +371,7 @@ export function HoldingsSection({
                     : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
                   <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
                 </td>
-                <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
+                <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 700 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                 <td className="num">{fmtPct(p.weight)}</td>
                 <td className="num" style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
                 <td className="num" style={{ color: "var(--text-faint)" }}>
@@ -446,9 +446,9 @@ export function HoldingsSection({
           </tbody>
           <tfoot>
             <tr style={{ background: "var(--panel-2)" }}>
-              <td colSpan={3} style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
-              <td className="num" style={{ fontWeight: 800, fontSize: 15.5, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
-              <td className="num" style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
+              <td colSpan={3} style={{ fontWeight: 700, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
+              <td className="num" style={{ fontWeight: 700, fontSize: 15.5, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
+              <td className="num" style={{ fontWeight: 700, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
               <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
             </tr>
           </tfoot>

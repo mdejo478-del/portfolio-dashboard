@@ -10,7 +10,7 @@ export default function DisclaimerForm() {
 
   return (
     <AuthShell maxWidth={672}>
-      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0, marginBottom: "var(--space-6)" }}>
+      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", margin: 0, marginBottom: "var(--space-6)" }}>
         כתב ויתור והצהרה משפטית
       </h1>
 

@@ -79,7 +79,7 @@ export function Header({
             style={{ width: 38, height: 38, objectFit: "contain", flexShrink: 0, borderRadius: "var(--radius-sm)" }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-            <h1 style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-lg)", fontWeight: 800, margin: 0, letterSpacing: "0.1px", color: "var(--text)" }}>
+            <h1 style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-lg)", fontWeight: 700, margin: 0, letterSpacing: "0.1px", color: "var(--text)" }}>
               IPMS
             </h1>
             <span className="header-subtitle" style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-faint)" }}>
@@ -103,7 +103,7 @@ export function Header({
         <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-5)", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
             <span style={{ fontFamily: "var(--sans)", color: "var(--text-faint)", fontSize: "var(--font-size-sm)" }}>שווי תיק כולל</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-xl)", fontWeight: 800, color: "var(--gain)", direction: "ltr", unicodeBidi: "plaintext" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--gain)", direction: "ltr", unicodeBidi: "plaintext" }}>
               {formatMoney(total, privacyMode)}
             </span>
           </div>

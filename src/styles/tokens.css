@@ -17,6 +17,8 @@
    ========================================================================== */
 
 :root {
+  color-scheme: dark;
+
   /* ---------------------------------------------------------------------
      Color — surfaces & text (values unchanged, now global)
      --------------------------------------------------------------------- */
@@ -29,8 +31,9 @@
   --text: #e8edf2;
   --text-dim: #8b98ab;
   --text-faint: #4e5a6b;
-  --mono: "SF Mono", "Consolas", "Roboto Mono", monospace;
-  --sans: "Segoe UI", "Arial", sans-serif;
+  /* --mono / --sans are defined by next/font's `variable` classes on <html>
+     (see layout.tsx) - not redeclared here, so there's a single source of
+     truth instead of two :root blocks racing on cascade order. */
 
   /* ---------------------------------------------------------------------
      Color — brand accent (existing teal, used for primary interactive UI)
@@ -121,15 +124,19 @@
      --------------------------------------------------------------------- */
   --font-size-xs: 11px;    /* table headers, micro-labels */
   --font-size-sm: 12.5px;  /* secondary labels, captions */
+  --font-size-subtitle: 14px; /* dedicated subtitle-under-a-heading role */
   --font-size-base: 13.5px;/* body copy, buttons, inputs */
   --font-size-md: 15px;    /* card titles */
   --font-size-lg: 18px;    /* section headings */
-  --font-size-xl: 22px;    /* page headings */
-  --font-size-2xl: 28px;   /* hero financial figures */
+  --font-size-xl: 23px;    /* page headings */
+  --font-size-2xl: 30px;   /* hero financial figures */
   --line-height-tight: 1.25;
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.7;
   --letter-spacing-label: 0.3px;
+  --letter-spacing-subtitle: 0.2px;
+  --letter-spacing-heading: -0.2px;
+  --letter-spacing-numeric-lg: -0.5px;
 
   /* ---------------------------------------------------------------------
      Motion — short and soft only
@@ -144,6 +151,108 @@
 }
 
 /* ==========================================================================
+   Light theme
+   ==========================================================================
+   Not a naive invert: --gain/--loss/--warning/--info/--accent/--accent-violet
+   are used directly as text/icon color throughout the app (not just fills),
+   so their dark-mode hex values would fail WCAG AA against a white page -
+   each is darkened here to hit ~4.5:1+ as text. --accent-on/--loss-strong
+   stay unchanged since those pairings (dark ink on a solid fill) are
+   background-independent. Applied via an explicit user choice
+   (data-theme, set by the inline script in layout.tsx before first paint)
+   or, absent one, the visitor's OS-level preference.
+   ========================================================================== */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f5f6f8;
+  --bg-elevated: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f0f2f5;
+  --border: #e3e6eb;
+  --border-strong: #cbd1db;
+  --text: #14181f;
+  --text-dim: #5b6472;
+  --text-faint: #8a93a3;
+
+  --accent: #0e8f73;
+  --accent-hover: #0aa383;
+  --accent-active: #0c7a61;
+  --accent-subtle: rgba(14, 143, 115, 0.12);
+  --accent-subtle-border: rgba(14, 143, 115, 0.35);
+
+  --accent-violet: #5458d4;
+  --accent-violet-hover: #6468e0;
+  --accent-violet-subtle: rgba(84, 88, 212, 0.12);
+  --accent-violet-subtle-border: rgba(84, 88, 212, 0.32);
+
+  --gain: #12875a;
+  --gain-subtle: rgba(18, 135, 90, 0.12);
+  --gain-subtle-border: rgba(18, 135, 90, 0.3);
+  --loss: #d93b3f;
+  --loss-subtle: rgba(217, 59, 63, 0.12);
+  --loss-subtle-border: rgba(217, 59, 63, 0.35);
+
+  --warning: #a6620a;
+  --warning-subtle: rgba(166, 98, 10, 0.12);
+  --warning-subtle-border: rgba(166, 98, 10, 0.32);
+  --info: #1d6fc7;
+  --info-subtle: rgba(29, 111, 199, 0.12);
+  --info-subtle-border: rgba(29, 111, 199, 0.32);
+
+  --hover-overlay: rgba(20, 24, 31, 0.04);
+  --active-overlay: rgba(20, 24, 31, 0.07);
+  --focus-ring: rgba(14, 143, 115, 0.35);
+
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.12);
+}
+
+/* First-time visitor, before any explicit toggle - defer to OS preference. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: #f5f6f8;
+    --bg-elevated: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f0f2f5;
+    --border: #e3e6eb;
+    --border-strong: #cbd1db;
+    --text: #14181f;
+    --text-dim: #5b6472;
+    --text-faint: #8a93a3;
+    --accent: #0e8f73;
+    --accent-hover: #0aa383;
+    --accent-active: #0c7a61;
+    --accent-subtle: rgba(14, 143, 115, 0.12);
+    --accent-subtle-border: rgba(14, 143, 115, 0.35);
+    --accent-violet: #5458d4;
+    --accent-violet-hover: #6468e0;
+    --accent-violet-subtle: rgba(84, 88, 212, 0.12);
+    --accent-violet-subtle-border: rgba(84, 88, 212, 0.32);
+    --gain: #12875a;
+    --gain-subtle: rgba(18, 135, 90, 0.12);
+    --gain-subtle-border: rgba(18, 135, 90, 0.3);
+    --loss: #d93b3f;
+    --loss-subtle: rgba(217, 59, 63, 0.12);
+    --loss-subtle-border: rgba(217, 59, 63, 0.35);
+    --warning: #a6620a;
+    --warning-subtle: rgba(166, 98, 10, 0.12);
+    --warning-subtle-border: rgba(166, 98, 10, 0.32);
+    --info: #1d6fc7;
+    --info-subtle: rgba(29, 111, 199, 0.12);
+    --info-subtle-border: rgba(29, 111, 199, 0.32);
+    --hover-overlay: rgba(20, 24, 31, 0.04);
+    --active-overlay: rgba(20, 24, 31, 0.07);
+    --focus-ring: rgba(14, 143, 115, 0.35);
+    --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
+    --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.12);
+  }
+}
+
+/* ==========================================================================
    Typography utilities (Hebrew/RTL)
    Prefixed `.ds-` — no existing markup references these class names.
    ========================================================================== */
@@ -151,10 +260,10 @@
 .ds-h1 {
   font-family: var(--sans);
   font-size: var(--font-size-xl);
-  font-weight: 800;
+  font-weight: 700;
   line-height: var(--line-height-tight);
   color: var(--text);
-  letter-spacing: 0.1px;
+  letter-spacing: var(--letter-spacing-heading);
 }
 .ds-h2 {
   font-family: var(--sans);
@@ -190,6 +299,14 @@
   font-size: var(--font-size-sm);
   color: var(--text-faint);
 }
+.ds-subtitle {
+  font-family: var(--sans);
+  font-size: var(--font-size-subtitle);
+  font-weight: 600;
+  letter-spacing: var(--letter-spacing-subtitle);
+  line-height: var(--line-height-normal);
+  color: var(--text-dim);
+}
 /* Financial figures: always LTR-laid-out digits inside an RTL document,
    matching the pattern already used for table numeric cells. */
 .ds-numeric {
@@ -204,7 +321,8 @@
   unicode-bidi: plaintext;
   font-variant-numeric: tabular-nums;
   font-size: var(--font-size-2xl);
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-numeric-lg);
 }
 .ds-gain { color: var(--gain); }
 .ds-loss { color: var(--loss); }
@@ -429,7 +547,7 @@
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
   font-size: var(--font-size-md);
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
 }
 .ds-modal-body { padding: var(--space-5); }

@@ -30,7 +30,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
           <span>{toneIcon}</span> בריאות התיק
         </div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 800, color: s.text }}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 700, color: s.text }}>
           ציון: {health.score}/100
         </div>
       </div>

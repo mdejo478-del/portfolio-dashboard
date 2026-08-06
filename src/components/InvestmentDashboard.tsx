@@ -540,13 +540,6 @@ export default function InvestmentDashboard({
   return (
     <div dir="rtl" style={{ fontFamily: "var(--sans)", background: "var(--bg)", color: "var(--text)", minHeight: "100%", width: "100%", boxSizing: "border-box" }}>
       <style>{`
-        :root {
-          --bg: #0A0E13; --panel: #10161D; --panel-2: #141B23; --border: #1F2A35;
-          --text: #E8EDF2; --text-dim: #8B98AB; --text-faint: #4E5A6B;
-          --mono: 'SF Mono','Consolas','Roboto Mono',monospace;
-          --sans: 'Segoe UI', 'Arial', sans-serif;
-          --accent: #22D3A8;
-        }
         * { box-sizing: border-box; }
         .idash table { border-collapse: collapse; width: 100%; }
         .idash th { text-align: right; font-size: 11.5px; color: var(--text-faint); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }

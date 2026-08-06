@@ -29,7 +29,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 800, color: "var(--loss)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--loss)" }}>
             <AlertTriangle size={18} /> מחיקת חשבון
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></button>

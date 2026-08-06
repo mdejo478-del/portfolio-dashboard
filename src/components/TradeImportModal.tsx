@@ -40,7 +40,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>תצוגה מקדימה — ייבוא עסקאות מקובץ</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>תצוגה מקדימה — ייבוא עסקאות מקובץ</div>
             <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 3 }}>{fileName}</div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="סגור" title="סגור"><X size={16} /></button>

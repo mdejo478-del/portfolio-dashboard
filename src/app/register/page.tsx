@@ -19,7 +19,7 @@ export default function RegisterPage() {
 
   return (
     <AuthShell>
-      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0, marginBottom: "var(--space-1)" }}>
+      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", margin: 0, marginBottom: "var(--space-1)" }}>
         הרשמה
       </h1>
       <p style={{ fontSize: "var(--font-size-base)", color: "var(--text-dim)", margin: 0, marginBottom: "var(--space-6)" }}>

@@ -87,7 +87,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 999, background: dot, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontFamily: "var(--mono)" }}>{symbol}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--mono)" }}>{symbol}</div>
                   <div style={{ fontSize: 12, color: "var(--text-faint)" }}>{detail?.name || (loading ? "טוען..." : "-")}</div>
                 </div>
               </div>
@@ -106,7 +106,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               {/* Live price */}
               <div>
                 <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 4 }}>מחיר חי</div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 32, fontWeight: 800, color: "var(--text)", direction: "ltr", textAlign: "right" }}>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 32, fontWeight: 700, color: "var(--text)", direction: "ltr", textAlign: "right" }}>
                   {livePrice !== null && livePrice !== undefined ? formatMoney(livePrice, privacyMode, { digits: 2 }) : "-"}
                 </div>
                 {detail && detail.change !== null && detail.changePct !== null && (

@@ -12,7 +12,7 @@ export default function VerifyForm({ email, code, fromLogin }: { email: string; 
 
   return (
     <AuthShell>
-      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0, marginBottom: "var(--space-1)" }}>
+      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", margin: 0, marginBottom: "var(--space-1)" }}>
         אימות חשבון
       </h1>
       <p style={{ fontSize: "var(--font-size-base)", color: "var(--text-dim)", margin: 0, marginBottom: "var(--space-6)" }}>
@@ -36,7 +36,7 @@ export default function VerifyForm({ email, code, fromLogin }: { email: string; 
         <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-dim)", marginBottom: "var(--space-1)" }}>
           קוד לדוגמה (בשלב זה אין שליחת מייל בפועל)
         </div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-2xl)", fontWeight: 800, letterSpacing: "0.3em", color: "var(--gain)" }}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-2xl)", fontWeight: 700, letterSpacing: "0.3em", color: "var(--gain)" }}>
           {code}
         </div>
       </div>

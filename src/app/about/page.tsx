@@ -38,7 +38,7 @@ export default function AboutPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.jpg" alt="IPMS" style={{ height: 40, width: 40, flexShrink: 0, objectFit: "contain" }} />
             <div>
-              <h1 style={{ fontSize: "var(--font-size-md)", fontWeight: 800, color: "var(--text)", margin: 0 }}>מה זה IPMS?</h1>
+              <h1 style={{ fontSize: "var(--font-size-md)", fontWeight: 700, color: "var(--text)", margin: 0 }}>מה זה IPMS?</h1>
               <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-dim)", margin: 0 }}>מערכת לניהול תיק השקעות</p>
             </div>
           </div>

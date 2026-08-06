@@ -33,7 +33,7 @@ export function EquityCurveCard({
           <TrendingUp size={16} color="var(--accent)" /> התפתחות התיק
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "var(--mono)", fontSize: 17, fontWeight: 800, color: "var(--text)" }}>{formatMoney(total, privacyMode)}</span>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>{formatMoney(total, privacyMode)}</span>
           {returnPct !== null && (
             <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: s.text }}>
               {returnPct >= 0 ? "+" : ""}{fmtPct(returnPct)} מצטבר

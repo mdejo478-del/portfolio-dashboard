@@ -68,7 +68,7 @@ export default function OnboardingForm() {
         }}>
           {current.icon}
         </div>
-        <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0 }}>{current.title}</h1>
+        <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", margin: 0 }}>{current.title}</h1>
         <p style={{ fontSize: "var(--font-size-base)", lineHeight: "var(--line-height-relaxed)", color: "var(--text-dim)", margin: 0 }}>
           {current.description}
         </p>
