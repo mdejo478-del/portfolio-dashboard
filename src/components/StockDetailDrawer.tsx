@@ -98,7 +98,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
             <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
               {error && (
-                <div style={{ padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+                <div style={{ padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
                   {error}
                 </div>
               )}
@@ -112,7 +112,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 {detail && detail.change !== null && detail.changePct !== null && (
                   <div style={{
                     marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6,
-                    color: detail.change >= 0 ? "#5BE39D" : "#FF8589", fontSize: 14, fontWeight: 700,
+                    color: detail.change >= 0 ? "var(--gain)" : "var(--loss)", fontSize: 14, fontWeight: 700,
                   }}>
                     {detail.change >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                     <span style={{ fontFamily: "var(--mono)", direction: "ltr" }}>
@@ -127,7 +127,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 {detail?.extended && (
                   <div style={{
                     marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5,
-                    color: detail.extended.changePct === null ? "var(--text-faint)" : detail.extended.changePct >= 0 ? "#5BE39D" : "#FF8589",
+                    color: detail.extended.changePct === null ? "var(--text-faint)" : detail.extended.changePct >= 0 ? "var(--gain)" : "var(--loss)",
                   }}>
                     <span style={{ color: "var(--text-faint)", fontWeight: 600 }}>
                       {detail.extended.session === "pre" ? "טרום-פתיחה" : "לאחר סגירת המסחר"}:
@@ -146,7 +146,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                   {RETURN_PERIODS.map(({ key, label }) => {
                     const val = detail?.returns?.[key] ?? null;
-                    const tone = val === null ? "var(--text-faint)" : val >= 0 ? "#5BE39D" : "#FF8589";
+                    const tone = val === null ? "var(--text-faint)" : val >= 0 ? "var(--gain)" : "var(--loss)";
                     return (
                       <div key={key} style={{
                         background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10,
@@ -192,7 +192,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               )}
 
               {detail && !detail.configured && (
-                <div style={{ padding: "8px 12px", background: "rgba(242,169,59,0.1)", border: "1px solid rgba(242,169,59,0.35)", borderRadius: 8, color: "#F5BE6B", fontSize: 12.5 }}>
+                <div style={{ padding: "8px 12px", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 12.5 }}>
                   לא הצלחנו לעדכן מחירים כרגע.
                 </div>
               )}
