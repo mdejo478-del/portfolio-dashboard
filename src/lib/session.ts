@@ -10,6 +10,7 @@ export interface SessionPayload {
   name: string;
   email: string;
   disclaimerAccepted: boolean;
+  onboardingCompleted: boolean;
   exp: number;
   // Hash of the User-Agent that created this session. Bound in on every
   // request so a copied/stolen cookie used from a different client is
@@ -41,7 +42,7 @@ async function setSessionCookie(payload: SessionPayload): Promise<void> {
   });
 }
 
-export async function createSession(user: { id: string; name: string; email: string }): Promise<void> {
+export async function createSession(user: { id: string; name: string; email: string; onboardingCompleted?: boolean }): Promise<void> {
   const exp = Date.now() + SESSION_TTL_MS;
   const h = await headers();
   await setSessionCookie({
@@ -49,6 +50,7 @@ export async function createSession(user: { id: string; name: string; email: str
     name: user.name,
     email: user.email,
     disclaimerAccepted: false,
+    onboardingCompleted: Boolean(user.onboardingCompleted),
     exp,
     fp: fingerprintFor(h.get("user-agent")),
   });
@@ -56,6 +58,10 @@ export async function createSession(user: { id: string; name: string; email: str
 
 export async function acceptDisclaimer(session: SessionPayload): Promise<void> {
   await setSessionCookie({ ...session, disclaimerAccepted: true });
+}
+
+export async function completeOnboarding(session: SessionPayload): Promise<void> {
+  await setSessionCookie({ ...session, onboardingCompleted: true });
 }
 
 export async function getSession(): Promise<SessionPayload | null> {

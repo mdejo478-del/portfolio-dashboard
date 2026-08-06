@@ -12,6 +12,7 @@ export interface StoredUser {
   createdAt: string;
   verified: boolean;
   verificationCode: string | null;
+  onboardingCompleted: boolean;
 }
 
 async function readUsers(): Promise<StoredUser[]> {
@@ -72,6 +73,7 @@ export async function createUser(name: string, email: string, password: string):
     createdAt: new Date().toISOString(),
     verified: false,
     verificationCode: generateVerificationCode(),
+    onboardingCompleted: false,
   };
   users.push(user);
   await writeUsers(users);
@@ -91,6 +93,15 @@ export async function markUserVerified(id: string): Promise<boolean> {
   if (!user) return false;
   user.verified = true;
   user.verificationCode = null;
+  await writeUsers(users);
+  return true;
+}
+
+export async function markOnboardingCompleted(id: string): Promise<boolean> {
+  const users = await readUsers();
+  const user = users.find((u) => u.id === id);
+  if (!user) return false;
+  user.onboardingCompleted = true;
   await writeUsers(users);
   return true;
 }

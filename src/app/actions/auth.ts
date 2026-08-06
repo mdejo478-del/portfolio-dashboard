@@ -1,8 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, verifyCredentials, findUserById, markUserVerified } from "@/lib/users";
-import { createSession, deleteSession, getSession, acceptDisclaimer as acceptDisclaimerSession } from "@/lib/session";
+import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted } from "@/lib/users";
+import {
+  createSession, deleteSession, getSession,
+  acceptDisclaimer as acceptDisclaimerSession,
+  completeOnboarding as completeOnboardingSession,
+} from "@/lib/session";
 import {
   createPendingVerification,
   getPendingVerification,
@@ -130,4 +134,16 @@ export async function acceptDisclaimer(): Promise<void> {
 
   await acceptDisclaimerSession(session);
   redirect("/");
+}
+
+export async function completeOnboarding(): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  await markOnboardingCompleted(session.userId);
+  await completeOnboardingSession(session);
+  // No redirect() here - it doesn't reliably reach the client when the action
+  // is invoked directly from an event handler instead of a <form> submission
+  // (see the requireSession comment in dal.ts). The caller navigates itself
+  // once this resolves.
 }

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent, type Dispatch, type Mutabl
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus,
   Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity, ArrowLeftRight,
+  PiggyBank, ArrowDownCircle, Scale,
 } from "lucide-react";
 import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
@@ -10,7 +11,7 @@ import { ACTION_OPTS, STRATEGY_OPTS, SYMOPTS, EMPTY_FORM } from "@/components/da
 import { fmtUSD, fmtPct, fmtNum, formatMoney, parseNum, csvEscape, mapStrategyToOption } from "@/components/dashboard/format";
 import { ActionBadge } from "@/components/dashboard/ui/Badge";
 import { Card } from "@/components/dashboard/ui/Card";
-import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
+import { PageBanner, Field, SectionTitle } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import TradeImportModal from "@/components/TradeImportModal";
 import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
@@ -19,6 +20,7 @@ import { useIsMobile } from "@/components/dashboard/useIsMobile";
 interface TradeStats {
   realizedPnl: number; fees: number; buysSells: number; winRate: number;
   avgPnl: number; avgRet: number; sellCount: number; deposits: number;
+  withdrawals: number; netPnl: number;
 }
 
 interface TradeJournalSectionProps {
@@ -281,6 +283,15 @@ export function TradeJournalSection({
         <Card label="מספר עסקאות" value={fmtNum(stats.buysSells)} sub={trades.length + " שורות כולל"} icon={<Activity size={15} color="#8B98AB" />} />
         <Card label="סך עמלות" value={formatMoney(stats.fees, privacyMode)} tone="red" icon={<Receipt size={15} color="#FF8589" />} />
         <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
+      </div>
+
+      <SectionTitle icon={<Scale size={16} />} text="סיכום ביצועים כספיים" />
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 22 }}>
+        <Card label="סה״כ הפקדות" value={formatMoney(stats.deposits, privacyMode)} tone="blue" icon={<PiggyBank size={15} color="#7FBBFA" />} />
+        <Card label="סה״כ משיכות" value={formatMoney(stats.withdrawals, privacyMode)} tone="amber" icon={<ArrowDownCircle size={15} color="#F5BE6B" />} />
+        <Card label="סה״כ עמלות ששולמו" value={formatMoney(stats.fees, privacyMode)} tone="red" icon={<Receipt size={15} color="#FF8589" />} />
+        <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="#5BE39D" /> : <TrendingDown size={15} color="#FF8589" />} />
+        <Card label="Net P&L" value={formatMoney(stats.netPnl, privacyMode)} tone={stats.netPnl >= 0 ? "green" : "red"} sub="רווח/הפסד ממומש בניכוי עמלות" icon={<Scale size={15} color={stats.netPnl >= 0 ? "#5BE39D" : "#FF8589"} />} />
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>

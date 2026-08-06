@@ -91,6 +91,7 @@ const ACTION_KEYWORDS: Record<string, string[]> = {
   "מכירה": ["מכירה", "sell", "sale"],
   "הפקדה": ["הפקדה", "deposit"],
   "משיכה": ["משיכה", "withdraw", "withdrawal"],
+  "אחר": ["אחר", "other", "misc", "adjustment"],
 };
 
 function normalizeAction(raw: string): string | null {

@@ -7,7 +7,7 @@ import { TONE_STYLES } from "@/components/dashboard/constants";
 import type { Tone } from "@/components/dashboard/types";
 
 const ACTION_TONE: Record<string, Tone> = {
-  "קנייה": "green", "מכירה": "red", "הפקדה": "blue", "משיכה": "amber",
+  "קנייה": "green", "מכירה": "red", "הפקדה": "blue", "משיכה": "amber", "אחר": "blue",
 };
 
 interface TradeImportModalProps {

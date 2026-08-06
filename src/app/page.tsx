@@ -6,6 +6,7 @@ import { getPortfolio } from "@/lib/portfolio";
 export default async function Home() {
   const session = await verifySession();
   if (!session.disclaimerAccepted) redirect("/disclaimer");
+  if (!session.onboardingCompleted) redirect("/onboarding");
 
   const portfolio = await getPortfolio(session.userId);
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowUpCircle, ArrowDownCircle, PiggyBank } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, PiggyBank, MoreHorizontal } from "lucide-react";
 import type { Tone, TradeFormState, PositionFormState } from "./types";
 
 // Real brand colors where the company actually has a signature one. Palantir,
@@ -37,6 +37,7 @@ export const ACTION_LABELS: Record<string, { label: string; tone: Tone; icon: Re
   "מכירה": { label: "מכירה", tone: "red", icon: <ArrowDownCircle size={14} /> },
   "הפקדה": { label: "הפקדה", tone: "blue", icon: <PiggyBank size={14} /> },
   "משיכה": { label: "משיכה", tone: "amber", icon: <ArrowDownCircle size={14} /> },
+  "אחר": { label: "אחר", tone: "blue", icon: <MoreHorizontal size={14} /> },
 };
 
 export const SYMOPTS = ["NVDA", "IBIT", "PLTR", "TSLA", "GOOG", "SOFI", "RKLB", "ETH", "CASH", "AMAT", "HOOD", "DUOL", "MSTR", "AMZN", "CIBR", "META", "PANW", "OKLO", "CRWD", "IREN", "NFLX"];
@@ -46,7 +47,7 @@ export const STRATEGY_OPTS = [
   "➕ הפקדה",
   "⚙️ אחר",
 ];
-export const ACTION_OPTS = ["קנייה", "מכירה", "הפקדה", "משיכה"];
+export const ACTION_OPTS = ["קנייה", "מכירה", "הפקדה", "משיכה", "אחר"];
 
 export const EMPTY_FORM: TradeFormState = {
   date: new Date().toISOString().slice(0, 10),

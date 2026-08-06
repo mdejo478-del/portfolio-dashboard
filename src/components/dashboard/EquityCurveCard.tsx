@@ -13,6 +13,7 @@ export function EquityCurveCard({
 }) {
   const tone: Tone = returnPct === null ? "blue" : returnPct >= 0 ? "green" : "red";
   const s = TONE_STYLES[tone];
+  const drawdown = ath > 0 ? (total - ath) / ath : 0;
 
   // Recharts' Area only draws a curve/fill once there are 2+ points, and a
   // single point can also get swallowed by its default entrance animation -
@@ -39,6 +40,9 @@ export function EquityCurveCard({
             </span>
           )}
           <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>שיא (ATH): {formatMoney(ath, privacyMode)}</span>
+          <span style={{ fontSize: 11.5, color: drawdown < 0 ? "#FF8589" : "var(--text-faint)" }}>
+            Drawdown: {drawdown === 0 ? "0.00%" : fmtPct(drawdown)}
+          </span>
           {canRebuild && (
             <button type="button" className="ghost" onClick={onRebuild} disabled={rebuilding}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5 }}>

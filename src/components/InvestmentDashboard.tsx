@@ -425,7 +425,11 @@ export default function InvestmentDashboard({
     const rets = sells.filter((t) => t.retPct !== null).map((t) => t.retPct as number);
     const avgRet = rets.length ? rets.reduce((a, r) => a + r, 0) / rets.length : 0;
     const deposits = trades.filter((t) => t.action === "הפקדה").reduce((a, t) => a + t.value, 0);
-    return { realizedPnl, fees, buysSells, winRate, avgPnl, avgRet, sellCount: sells.length, deposits };
+    const withdrawals = trades.filter((t) => t.action === "משיכה").reduce((a, t) => a + t.value, 0);
+    // fees are stored as negative amounts (a cost), so adding them to realizedPnl
+    // already subtracts the fee total - no sign-flip needed.
+    const netPnl = realizedPnl + fees;
+    return { realizedPnl, fees, buysSells, winRate, avgPnl, avgRet, sellCount: sells.length, deposits, withdrawals, netPnl };
   }, [trades]);
 
   // Portfolio Summary: a plain-language readout built entirely from data the

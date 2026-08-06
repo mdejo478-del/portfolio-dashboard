@@ -72,5 +72,9 @@ export function cashEffect(t: Trade | null | undefined): number {
   if (t.action === "משיכה") return -t.value + (t.fee || 0);
   if (t.action === "קנייה") return -t.value + (t.fee || 0);
   if (t.action === "מכירה") return t.value + (t.fee || 0);
+  // "אחר" (other) is a catch-all for cash-positive entries that don't fit the
+  // other categories (dividends, interest, adjustments) - the fee still
+  // reduces cash the same way it does for every other action type.
+  if (t.action === "אחר") return t.value + (t.fee || 0);
   return 0;
 }
