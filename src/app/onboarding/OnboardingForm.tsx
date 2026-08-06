@@ -3,6 +3,7 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { Sparkles, Wallet, ListChecks } from "lucide-react";
 import { completeOnboarding } from "@/app/actions/auth";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 interface Step {
   icon: ReactNode;
@@ -47,47 +48,54 @@ export default function OnboardingForm() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen flex items-center justify-center bg-[#0A0E13] px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#1F2A35] bg-[#10161D] p-8">
-        <div className="flex justify-center gap-2 mb-8">
-          {STEPS.map((_, i) => (
-            <span
-              key={i}
-              className={
-                "h-1.5 rounded-full transition-all " +
-                (i === step ? "w-7 bg-[#22D3A8]" : "w-1.5 bg-[#1F2A35]")
-              }
-            />
-          ))}
-        </div>
-
-        <div className="flex flex-col items-center text-center gap-4 mb-10">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#22D3A8]/12 text-[#22D3A8]">
-            {current.icon}
-          </div>
-          <h1 className="text-xl font-bold text-[#E8EDF2]">{current.title}</h1>
-          <p className="text-sm leading-relaxed text-[#8B98AB]">{current.description}</p>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={finish}
-            disabled={pending}
-            className="flex-1 rounded-lg border border-[#1F2A35] bg-transparent px-4 py-2.5 text-sm font-semibold text-[#8B98AB] hover:border-[#8B98AB] hover:text-[#E8EDF2] disabled:opacity-60"
-          >
-            דלג
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            disabled={pending}
-            className="flex-1 rounded-lg bg-[#22D3A8] px-4 py-2.5 text-sm font-bold text-[#04342C] hover:bg-[#2EE6BA] disabled:opacity-60"
-          >
-            {pending ? "רגע..." : isLast ? "התחל" : "הבא"}
-          </button>
-        </div>
+    <AuthShell maxWidth={448}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-2)", marginBottom: "var(--space-8)" }}>
+        {STEPS.map((_, i) => (
+          <span
+            key={i}
+            style={{
+              height: 6, borderRadius: "var(--radius-full)", transition: "all 200ms ease",
+              width: i === step ? 28 : 6, background: i === step ? "var(--accent)" : "var(--border)",
+            }}
+          />
+        ))}
       </div>
-    </div>
+
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "var(--space-4)", marginBottom: "var(--space-9)" }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center", width: 56, height: 56,
+          borderRadius: "var(--radius-full)", background: "var(--accent-subtle)", color: "var(--accent)",
+        }}>
+          {current.icon}
+        </div>
+        <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0 }}>{current.title}</h1>
+        <p style={{ fontSize: "var(--font-size-base)", lineHeight: "var(--line-height-relaxed)", color: "var(--text-dim)", margin: 0 }}>
+          {current.description}
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: "var(--space-3)" }}>
+        <button
+          type="button" onClick={finish} disabled={pending} className="auth-btn-ghost"
+          style={{
+            flex: 1, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "transparent",
+            padding: "var(--space-3) var(--space-4)", fontSize: "var(--font-size-base)", fontWeight: 600,
+            color: "var(--text-dim)", cursor: "pointer",
+          }}
+        >
+          דלג
+        </button>
+        <button
+          type="button" onClick={next} disabled={pending} className="auth-btn-primary"
+          style={{
+            flex: 1, borderRadius: "var(--radius-sm)", background: "var(--accent)", border: "none",
+            padding: "var(--space-3) var(--space-4)", fontSize: "var(--font-size-base)", fontWeight: 700,
+            color: "var(--accent-on)", cursor: "pointer",
+          }}
+        >
+          {pending ? "רגע..." : isLast ? "התחל" : "הבא"}
+        </button>
+      </div>
+    </AuthShell>
   );
 }

@@ -2,8 +2,13 @@ import { AlertCircle } from "lucide-react";
 
 export function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-[#FF8589]/35 bg-[#FF8589]/10 px-3 py-2.5 text-sm text-[#FF8589]">
-      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: "var(--space-2)",
+      borderRadius: "var(--radius-md)", border: "1px solid var(--loss-subtle-border)",
+      background: "var(--loss-subtle)", color: "var(--loss)",
+      padding: "var(--space-3) var(--space-3)", fontSize: "var(--font-size-base)",
+    }}>
+      <AlertCircle size={16} style={{ marginTop: 2, flexShrink: 0 }} />
       <span>{message}</span>
     </div>
   );

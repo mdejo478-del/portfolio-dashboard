@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { verifyCode, type AuthFormState } from "@/app/actions/auth";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 const initialState: AuthFormState = {};
 
@@ -10,54 +11,64 @@ export default function VerifyForm({ email, code, fromLogin }: { email: string; 
   const [state, formAction, pending] = useActionState(verifyCode, initialState);
 
   return (
-    <div dir="rtl" className="min-h-screen flex items-center justify-center bg-[#0A0E13] px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-[#1F2A35] bg-[#10161D] p-8">
-        <h1 className="text-xl font-bold text-[#E8EDF2] mb-1">אימות חשבון</h1>
-        <p className="text-sm text-[#8B98AB] mb-6">
-          נשלח קוד אימות בן 6 ספרות לכתובת{" "}
-          <strong className="text-[#E8EDF2]">{email}</strong>
-        </p>
+    <AuthShell>
+      <h1 style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, color: "var(--text)", margin: 0, marginBottom: "var(--space-1)" }}>
+        אימות חשבון
+      </h1>
+      <p style={{ fontSize: "var(--font-size-base)", color: "var(--text-dim)", margin: 0, marginBottom: "var(--space-6)" }}>
+        נשלח קוד אימות בן 6 ספרות לכתובת{" "}
+        <strong style={{ color: "var(--text)" }}>{email}</strong>
+      </p>
 
-        {fromLogin && (
-          <div className="mb-6 rounded-lg border border-[#4FA3F7]/35 bg-[#4FA3F7]/10 px-3 py-2.5 text-sm text-[#7FBBFA]">
-            יש לאמת את כתובת האימייל שלך לפני ההתחברות. הזן את הקוד שקיבלת כדי להמשיך.
-          </div>
-        )}
+      {fromLogin && (
+        <div style={{
+          marginBottom: "var(--space-6)", borderRadius: "var(--radius-sm)", border: "1px solid var(--info-subtle-border)",
+          background: "var(--info-subtle)", padding: "var(--space-3) var(--space-3)", fontSize: "var(--font-size-base)", color: "var(--info)",
+        }}>
+          יש לאמת את כתובת האימייל שלך לפני ההתחברות. הזן את הקוד שקיבלת כדי להמשיך.
+        </div>
+      )}
 
-        <div className="mb-6 rounded-lg border border-[#22D3A8] border-opacity-35 bg-[#22D3A8] bg-opacity-10 px-4 py-3 text-center">
-          <div className="text-xs text-[#8B98AB] mb-1">קוד לדוגמה (בשלב זה אין שליחת מייל בפועל)</div>
-          <div className="font-mono text-2xl font-bold tracking-[0.3em] text-[#5BE39D]">{code}</div>
+      <div style={{
+        marginBottom: "var(--space-6)", borderRadius: "var(--radius-sm)", border: "1px solid var(--accent-subtle-border)",
+        background: "var(--accent-subtle)", padding: "var(--space-4) var(--space-4)", textAlign: "center",
+      }}>
+        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-dim)", marginBottom: "var(--space-1)" }}>
+          קוד לדוגמה (בשלב זה אין שליחת מייל בפועל)
+        </div>
+        <div style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-2xl)", fontWeight: 800, letterSpacing: "0.3em", color: "var(--gain)" }}>
+          {code}
+        </div>
+      </div>
+
+      <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <div>
+          <label htmlFor="code" style={{ display: "block", fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-dim)", marginBottom: "var(--space-2)" }}>
+            קוד אימות
+          </label>
+          <input
+            id="code" name="code" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
+            required autoComplete="one-time-code"
+            style={{
+              width: "100%", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--panel-2)",
+              padding: "var(--space-3) var(--space-3)", textAlign: "center", fontSize: "var(--font-size-lg)", letterSpacing: "0.4em", color: "var(--text)",
+            }}
+          />
         </div>
 
-        <form action={formAction} className="flex flex-col gap-4">
-          <div>
-            <label htmlFor="code" className="block text-xs font-semibold text-[#8B98AB] mb-1.5">
-              קוד אימות
-            </label>
-            <input
-              id="code"
-              name="code"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              required
-              autoComplete="one-time-code"
-              className="w-full rounded-lg border border-[#1F2A35] bg-[#141B23] px-3 py-2.5 text-center text-lg tracking-[0.4em] text-[#E8EDF2] outline-none focus:border-[#22D3A8]"
-            />
-          </div>
+        {state?.error && <ErrorBanner message={state.error} />}
 
-          {state?.error && <ErrorBanner message={state.error} />}
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="mt-2 rounded-lg bg-[#22D3A8] px-4 py-2.5 text-sm font-bold text-[#04342C] hover:bg-[#2EE6BA] disabled:opacity-60"
-          >
-            {pending ? "מאמת..." : "אימות"}
-          </button>
-        </form>
-      </div>
-    </div>
+        <button
+          type="submit" disabled={pending} className="auth-btn-primary"
+          style={{
+            marginTop: "var(--space-2)", borderRadius: "var(--radius-sm)", background: "var(--accent)",
+            padding: "var(--space-3) var(--space-4)", fontSize: "var(--font-size-base)", fontWeight: 700,
+            color: "var(--accent-on)", border: "none", cursor: "pointer",
+          }}
+        >
+          {pending ? "מאמת..." : "אימות"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

@@ -6,42 +6,57 @@ export const metadata: Metadata = {
   title: "אודות — IPMS",
 };
 
+const dividerStyle = { margin: "var(--space-6) 0", height: 1, background: "var(--border)" };
+const sectionTitleStyle = {
+  marginBottom: "var(--space-3)", display: "flex", alignItems: "center", gap: "var(--space-2)",
+  fontSize: "var(--font-size-base)", fontWeight: 700, color: "var(--text)",
+};
+const bodyListStyle = { display: "flex", flexDirection: "column" as const, gap: "var(--space-2)", fontSize: "var(--font-size-base)", lineHeight: "var(--line-height-relaxed)", color: "var(--text-dim)" };
+
 export default function AboutPage() {
   return (
-    <div dir="rtl" className="min-h-screen bg-[#0A0E13] px-4 py-8 sm:py-10">
-      <div className="mx-auto w-full max-w-2xl">
+    <div dir="rtl" style={{ minHeight: "100vh", background: "var(--bg)", padding: "var(--space-8) var(--space-4)" }}>
+      <style>{`
+        .about-back-link { transition: color 140ms ease; }
+        .about-back-link:hover { color: var(--text); }
+      `}</style>
+      <div style={{ margin: "0 auto", width: "100%", maxWidth: 672 }}>
         <Link
           href="/"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-[#8B98AB] hover:text-[#E8EDF2] transition-colors"
+          className="about-back-link"
+          style={{
+            marginBottom: "var(--space-6)", display: "inline-flex", alignItems: "center", gap: "var(--space-2)",
+            fontSize: "var(--font-size-base)", color: "var(--text-dim)", textDecoration: "none",
+          }}
         >
           <ArrowRight size={16} />
           חזרה לדשבורד
         </Link>
 
-        <div className="rounded-2xl border border-[#1F2A35] bg-[#10161D] p-6 sm:p-8">
-          <div className="mb-6 flex items-center gap-3">
+        <div style={{ borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", background: "var(--panel)", padding: "var(--space-6) var(--space-8)" }}>
+          <div style={{ marginBottom: "var(--space-6)", display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.jpg" alt="IPMS" className="h-10 w-10 flex-shrink-0 object-contain" />
+            <img src="/logo.jpg" alt="IPMS" style={{ height: 40, width: 40, flexShrink: 0, objectFit: "contain" }} />
             <div>
-              <h1 className="text-lg font-extrabold text-[#E8EDF2]">מה זה IPMS?</h1>
-              <p className="text-xs font-semibold text-[#8B98AB]">מערכת לניהול תיק השקעות</p>
+              <h1 style={{ fontSize: "var(--font-size-md)", fontWeight: 800, color: "var(--text)", margin: 0 }}>מה זה IPMS?</h1>
+              <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-dim)", margin: 0 }}>מערכת לניהול תיק השקעות</p>
             </div>
           </div>
 
-          <p className="text-sm leading-7 text-[#B7C2CE]">
+          <p style={{ fontSize: "var(--font-size-base)", lineHeight: "var(--line-height-relaxed)", color: "var(--text-dim)" }}>
             IPMS היא מערכת אישית למעקב וניהול תיק השקעות.
             <br />
             המטרה: סדר, שקיפות ושליטה על העסקאות וההקצאות — במקום אקסל מפוזר.
           </p>
 
-          <div className="my-6 h-px bg-[#1F2A35]" />
+          <div style={dividerStyle} />
 
           <section>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#E8EDF2]">
-              <ListChecks size={16} className="text-[#22D3A8]" />
+            <h2 style={sectionTitleStyle}>
+              <ListChecks size={16} color="var(--accent)" />
               מה אפשר לעשות
             </h2>
-            <ul className="space-y-2 text-sm leading-6 text-[#B7C2CE]">
+            <ul style={{ ...bodyListStyle, listStyle: "none", margin: 0, padding: 0 }}>
               {[
                 "ניהול פוזיציות ואחוזי אחזקה",
                 "יומן מסחר מפורט",
@@ -49,30 +64,34 @@ export default function AboutPage() {
                 "עדכון מחירים",
                 "תמונת מצב ברורה של התיק",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#22D3A8]" />
+                <li key={item} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
+                  <span style={{ marginTop: 8, height: 6, width: 6, flexShrink: 0, borderRadius: "var(--radius-full)", background: "var(--accent)" }} />
                   {item}
                 </li>
               ))}
             </ul>
           </section>
 
-          <div className="my-6 h-px bg-[#1F2A35]" />
+          <div style={dividerStyle} />
 
           <section>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#E8EDF2]">
-              <Rocket size={16} className="text-[#22D3A8]" />
+            <h2 style={sectionTitleStyle}>
+              <Rocket size={16} color="var(--accent)" />
               איך מתחילים
             </h2>
-            <ol className="space-y-2 text-sm leading-6 text-[#B7C2CE]">
+            <ol style={{ ...bodyListStyle, listStyle: "none", margin: 0, padding: 0 }}>
               {[
                 "נרשמים ומתחברים",
                 "מאשרים את כתב הוויתור",
                 "מוסיפים פוזיציות / עסקאות",
                 "עוקבים אחרי התיק",
               ].map((item, i) => (
-                <li key={item} className="flex items-start gap-2.5">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#141B23] border border-[#1F2A35] text-[11px] font-bold text-[#22D3A8]">
+                <li key={item} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-3)" }}>
+                  <span style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    height: 20, width: 20, borderRadius: "var(--radius-full)", background: "var(--panel-2)",
+                    border: "1px solid var(--border)", fontSize: 11, fontWeight: 700, color: "var(--accent)",
+                  }}>
                     {i + 1}
                   </span>
                   {item}
@@ -81,14 +100,14 @@ export default function AboutPage() {
             </ol>
           </section>
 
-          <div className="my-6 h-px bg-[#1F2A35]" />
+          <div style={dividerStyle} />
 
-          <section className="rounded-lg border border-[#1F2A35] bg-[#141B23] p-4">
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-[#E8EDF2]">
-              <ShieldAlert size={16} className="text-[#FF8589]" />
+          <section style={{ borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--panel-2)", padding: "var(--space-4)" }}>
+            <h2 style={sectionTitleStyle}>
+              <ShieldAlert size={16} color="var(--loss)" />
               חשוב לדעת
             </h2>
-            <p className="text-sm leading-6 text-[#8B98AB]">
+            <p style={{ fontSize: "var(--font-size-base)", lineHeight: "var(--line-height-relaxed)", color: "var(--text-dim)", margin: 0 }}>
               הכלי מיועד למעקב אישי ולימודי בלבד.
               <br />
               אינו ייעוץ השקעות ואינו המלצה לקנייה, מכירה או דילול.
