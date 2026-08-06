@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
@@ -118,6 +118,131 @@ export function HoldingsSection({
     setShowAddPosition(false);
   }
 
+  // Mobile: one card per position instead of a 13-column table you have to
+  // scroll sideways through to compare numbers - same data/actions, just
+  // stacked so everything for one holding is visible at a glance.
+  function renderPositionCard(p: EvaluatedPosition, i: number) {
+    const isEditing = editingPosId === p.id;
+    return (
+      <div key={p.id} style={{
+        background: p.symbol === "CASH" ? "rgba(148,163,184,0.07)" : "var(--panel)",
+        border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+          <div
+            onClick={() => openDetail(p.symbol)}
+            style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 15, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.symbol, i), flexShrink: 0 }} />
+            {tradingViewUrl(p.symbol) ? (
+              <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}>
+                {p.symbol}
+              </a>
+            ) : p.symbol}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Badge tone={p.tone}>{p.status}</Badge>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>שווי</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 800, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
+              {formatMoney(p.value, privacyMode)}
+            </div>
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>משקל</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 800 }}>{fmtPct(p.weight)}</div>
+          </div>
+        </div>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 14px", fontSize: 12.5,
+          paddingTop: 10, borderTop: "1px solid var(--border)",
+        }}>
+          <CardStat label="כמות">
+            {isEditing ? (
+              <input type="text" inputMode="decimal" autoFocus value={posEditFields.qty} onChange={(e) => updatePosEditField("qty", e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+            ) : (
+              p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
+            )}
+          </CardStat>
+          <CardStat label="מחיר">
+            {p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}
+            <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
+          </CardStat>
+          <CardStat label="סטייה">
+            <span style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</span>
+          </CardStat>
+          <CardStat label="עדיפות">
+            <Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"}>{p.priority}</Badge>
+          </CardStat>
+          {isEditing ? (
+            <>
+              <CardStat label="יעד מינימום">
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <input type="text" inputMode="decimal" value={posEditFields.min} onChange={(e) => updatePosEditField("min", e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                </span>
+              </CardStat>
+              <CardStat label="יעד מקסימום">
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <input type="text" inputMode="decimal" value={posEditFields.max} onChange={(e) => updatePosEditField("max", e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                </span>
+              </CardStat>
+              <CardStat label="רף דילול">
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <input type="text" inputMode="decimal" value={posEditFields.dilute} onChange={(e) => updatePosEditField("dilute", e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                </span>
+              </CardStat>
+            </>
+          ) : (
+            <>
+              <CardStat label="יעד">{fmtPct(p.min, 0)} – {fmtPct(p.max, 0)}</CardStat>
+              <CardStat label="רף דילול">{fmtPct(p.dilute, 0)}</CardStat>
+            </>
+          )}
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <span style={{
+            display: "block", fontWeight: 700, fontSize: 12.5, textAlign: "center",
+            color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
+            border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8, padding: "7px 10px",
+          }}>{p.action}</span>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+          {isEditing ? (
+            <>
+              <button type="button" className="icon-btn" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={15} /></button>
+              <button type="button" className="icon-btn" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={15} /></button>
+            </>
+          ) : (
+            <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={15} /></button>
+          )}
+          {p.symbol === "CASH" ? (
+            <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
+          ) : deletePosConfirmId === p.id ? (
+            <>
+              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "rgba(255,90,95,0.15)", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={13} /> אישור</button>
+              <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={15} /></button>
+            </>
+          ) : (
+            <button type="button" className="icon-btn danger" onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={15} /></button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
@@ -166,6 +291,26 @@ export function HoldingsSection({
         </div>
       )}
 
+      {isMobile ? (
+        <div style={{ marginBottom: 20 }}>
+          {tableRows.map(({ p, i }) => renderPositionCard(p, i))}
+          {evaluated.length === 0 && (
+            <div style={{ textAlign: "center", color: "var(--text-faint)", padding: 24, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14 }}>
+              אין החזקות בתיק עדיין. הוסף נכס ראשון למטה.
+            </div>
+          )}
+          {evaluated.length > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 14, padding: "13px 16px",
+            }}>
+              <span style={{ fontWeight: 800, fontSize: 14.5 }}>סך הכל התיק</span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 800, fontSize: 16, color: "#5BE39D" }}>{formatMoney(total, privacyMode)}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
@@ -286,9 +431,11 @@ export function HoldingsSection({
           </tfoot>
         </table>
       </div>
+      </>
+      )}
 
       <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 20 }}>
-        לחיצה על העיפרון בכל שורה מאפשרת לערוך כמות ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
+        לחיצה על העיפרון {isMobile ? "" : "בכל שורה "}מאפשרת לערוך כמות ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
       </div>
 
       <div style={{ marginBottom: 20 }}>
@@ -387,5 +534,14 @@ export function HoldingsSection({
         )}
       </div>
     </>
+  );
+}
+
+function CardStat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <span style={{ color: "var(--text-faint)", fontSize: 11 }}>{label}</span>
+      <span style={{ color: "var(--text)", fontFamily: "var(--mono)" }}>{children}</span>
+    </div>
   );
 }
