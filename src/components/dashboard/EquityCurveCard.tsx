@@ -40,7 +40,7 @@ export function EquityCurveCard({
             </span>
           )}
           <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>שיא (ATH): {formatMoney(ath, privacyMode)}</span>
-          <span style={{ fontSize: 11.5, color: drawdown < 0 ? "#FF8589" : "var(--text-faint)" }}>
+          <span style={{ fontSize: 11.5, color: drawdown < 0 ? "var(--loss)" : "var(--text-faint)" }}>
             Drawdown: {drawdown === 0 ? "0.00%" : fmtPct(drawdown)}
           </span>
           {canRebuild && (
@@ -80,7 +80,7 @@ export function EquityCurveCard({
           </ResponsiveContainer>
         ) : (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: "var(--accent)", boxShadow: "0 0 0 4px rgba(34,211,168,0.15)" }} />
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: "var(--accent)" }} />
             <span style={{ fontSize: 12, color: "var(--text-faint)" }}>נקודת המדידה הראשונה נרשמה היום</span>
           </div>
         )}
@@ -94,7 +94,7 @@ export function EquityCurveCard({
       )}
 
       {rebuildWarnings.length > 0 && (
-        <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(242,169,59,0.1)", border: "1px solid rgba(242,169,59,0.35)", borderRadius: 8, color: "#F5BE6B", fontSize: 11.5 }}>
+        <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 11.5 }}>
           {rebuildWarnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}
