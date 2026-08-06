@@ -546,8 +546,10 @@ export default function InvestmentDashboard({
         .idash td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: right; vertical-align: middle; }
         .idash th.num, .idash td.num { text-align: right; }
         .idash td.num { font-family: var(--mono); direction: ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums; }
-        .idash .holdings-table th { font-size: 12.5px; }
-        .idash .holdings-table td { font-size: 14.5px; padding: 11px 12px; }
+        .idash .holdings-table table { table-layout: fixed; }
+        .idash .holdings-table th { font-size: 12.5px; padding: 8px 8px; overflow: hidden; text-overflow: ellipsis; }
+        .idash .holdings-table td { font-size: 14.5px; padding: 10px 8px; overflow: hidden; text-overflow: ellipsis; }
+        .idash .holdings-table th.tight, .idash .holdings-table td.tight { padding-left: 5px; padding-right: 5px; }
         .idash th.center, .idash td.center { text-align: center; }
         .idash tr:nth-child(even) td { background: var(--row-alt); }
         .idash tr.row-cash td { background: var(--row-highlight); }

@@ -329,12 +329,19 @@ export function HoldingsSection({
       </div>
       <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)", maxHeight: 480 }}>
         <table>
+          <colgroup>
+            <col style={{ width: 100 }} /><col style={{ width: 68 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
+            <col style={{ width: 58 }} /><col style={{ width: 145 }} /><col style={{ width: 181 }} /><col style={{ width: 52 }} />
+            <col style={{ width: 50 }} /><col style={{ width: 50 }} /><col style={{ width: 55 }} /><col style={{ width: 66 }} />
+            <col style={{ width: 92 }} />
+          </colgroup>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
               <th>נכס</th><th className="num">כמות</th><th className="num">מחיר</th><th className="num">שווי</th>
-              <th className="num">משקל</th><th className="num">סטייה</th><th className="num">יעד מינימום</th>
-              <th className="num">יעד מקסימום</th><th className="num">רף דילול</th><th className="center">סטטוס</th>
-              <th className="center">עדיפות</th><th className="center">פעולה מומלצת</th><th className="center">ניהול</th>
+              <th className="num">משקל</th><th className="center">סטטוס</th><th className="center">פעולה מומלצת</th>
+              <th className="num tight">סטייה</th><th className="num tight" title="יעד מינימום">מינ&apos;</th>
+              <th className="num tight" title="יעד מקסימום">מקס&apos;</th><th className="num tight" title="רף דילול">דילול</th>
+              <th className="center tight">עדיפות</th><th className="center">ניהול</th>
             </tr>
           </thead>
           <tbody>
@@ -358,7 +365,7 @@ export function HoldingsSection({
                 <td className="num" style={{ color: "var(--text-dim)" }}>
                   {editingPosId === p.id ? (
                     <input type="text" inputMode="decimal" autoFocus value={posEditFields.qty} onChange={(e) => updatePosEditField("qty", e.target.value)}
-                      style={{ width: 80 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+                      style={{ width: 56 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
                   ) : (
                     p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
                   )}
@@ -371,41 +378,42 @@ export function HoldingsSection({
                 </td>
                 <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 700 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                 <td className="num">{fmtPct(p.weight)}</td>
-                <td className="num" style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
-                <td className="num" style={{ color: "var(--text-faint)" }}>
-                  {editingPosId === p.id ? (
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
-                      <input type="text" inputMode="decimal" value={posEditFields.min} onChange={(e) => updatePosEditField("min", e.target.value)}
-                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
-                    </span>
-                  ) : fmtPct(p.min, 0)}
-                </td>
-                <td className="num" style={{ color: "var(--text-faint)" }}>
-                  {editingPosId === p.id ? (
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
-                      <input type="text" inputMode="decimal" value={posEditFields.max} onChange={(e) => updatePosEditField("max", e.target.value)}
-                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
-                    </span>
-                  ) : fmtPct(p.max, 0)}
-                </td>
-                <td className="num" style={{ color: "var(--text-faint)" }}>
-                  {editingPosId === p.id ? (
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
-                      <input type="text" inputMode="decimal" value={posEditFields.dilute} onChange={(e) => updatePosEditField("dilute", e.target.value)}
-                        style={{ width: 50 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
-                    </span>
-                  ) : fmtPct(p.dilute, 0)}
-                </td>
                 <td className="center"><Badge tone={p.tone} size="md">{p.status}</Badge></td>
-                <td className="center"><Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"} size="md">{p.priority}</Badge></td>
                 <td className="center">
-                  <span style={{
-                    display: "inline-block", fontWeight: 700, fontSize: 14,
+                  <span title={p.action} style={{
+                    display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
+                    fontWeight: 700, fontSize: 14,
                     color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
                     border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8,
                     padding: "6px 11px", whiteSpace: "nowrap",
                   }}>{p.action}</span>
                 </td>
+                <td className="num tight" style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
+                <td className="num tight" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.min} onChange={(e) => updatePosEditField("min", e.target.value)}
+                        style={{ width: 34, padding: "6px 3px", textAlign: "center" }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.min, 0)}
+                </td>
+                <td className="num tight" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.max} onChange={(e) => updatePosEditField("max", e.target.value)}
+                        style={{ width: 34, padding: "6px 3px", textAlign: "center" }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.max, 0)}
+                </td>
+                <td className="num tight" style={{ color: "var(--text-faint)" }}>
+                  {editingPosId === p.id ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                      <input type="text" inputMode="decimal" value={posEditFields.dilute} onChange={(e) => updatePosEditField("dilute", e.target.value)}
+                        style={{ width: 34, padding: "6px 3px", textAlign: "center" }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />%
+                    </span>
+                  ) : fmtPct(p.dilute, 0)}
+                </td>
+                <td className="center tight"><Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"} size="md">{p.priority}</Badge></td>
                 <td className="center">
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
                     {editingPosId === p.id ? (
