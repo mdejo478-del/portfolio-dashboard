@@ -36,7 +36,15 @@ export function SettingsMenu({
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-label="הגדרות" title="הגדרות" style={triggerStyle}>
+      <style>{`
+        .settings-menu-trigger { transition: border-color 140ms ease, background 140ms ease, color 140ms ease; }
+        .settings-menu-trigger:hover { border-color: var(--border-strong); background: var(--hover-overlay); color: var(--text); }
+        .settings-menu-trigger:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+        .settings-menu-item { transition: background 140ms ease, color 140ms ease; }
+        .settings-menu-item:hover { background: var(--hover-overlay); }
+        .settings-menu-item:focus-visible { outline: none; background: var(--hover-overlay); box-shadow: inset var(--shadow-focus); }
+      `}</style>
+      <button type="button" className="settings-menu-trigger" onClick={() => setOpen((v) => !v)} aria-label="הגדרות" title="הגדרות" style={triggerStyle}>
         <MoreVertical size={compact ? 17 : 15} />
         {!compact && "הגדרות"}
       </button>
@@ -57,6 +65,7 @@ export function SettingsMenu({
             </div>
             <button
               type="button"
+              className="settings-menu-item"
               onClick={() => { onChangePassword(); setOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
@@ -70,6 +79,7 @@ export function SettingsMenu({
             <form action={logoutAllDevices} style={{ borderBottom: "1px solid var(--border)" }}>
               <button
                 type="submit"
+                className="settings-menu-item"
                 title="מתנתק מכל המכשירים שבהם מחובר החשבון שלך, כולל זה"
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
@@ -82,6 +92,7 @@ export function SettingsMenu({
             </form>
             <button
               type="button"
+              className="settings-menu-item"
               onClick={() => { onDeleteAccount(); setOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",

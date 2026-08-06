@@ -348,9 +348,7 @@ export function HoldingsSection({
                   {tradingViewUrl(p.symbol) ? (
                     <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderBottomColor = "var(--accent)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text)"; e.currentTarget.style.borderBottomColor = "var(--text-faint)"; }}
+                      className="symbol-link"
                       title={"פתח גרף TradingView עבור " + p.symbol}>
                       {p.symbol}
                     </a>

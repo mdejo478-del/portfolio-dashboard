@@ -553,7 +553,17 @@ export default function InvestmentDashboard({
           border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: var(--sans); width: 100%;
         }
         .idash textarea { resize: vertical; min-height: 60px; font-family: var(--sans); }
-        .idash input:focus, .idash select:focus, .idash textarea:focus { outline: none; border-color: var(--accent); }
+        .idash input:focus, .idash select:focus, .idash textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--shadow-focus); }
+        .idash button.primary, .idash button.ghost, .idash button.icon-btn {
+          transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 80ms ease;
+        }
+        .idash button.primary:active, .idash button.ghost:active, .idash button.icon-btn:active { transform: scale(0.97); }
+        .idash button.primary:focus-visible, .idash button.ghost:focus-visible, .idash button.icon-btn:focus-visible {
+          outline: none; box-shadow: var(--shadow-focus);
+        }
+        .idash button.primary:disabled, .idash button.ghost:disabled, .idash button.icon-btn:disabled {
+          opacity: 0.5; cursor: not-allowed; pointer-events: none;
+        }
         .idash button.primary { background: var(--accent); color: var(--accent-on); border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
         .idash button.primary:hover { background: var(--accent-hover); }
         .idash button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; font-weight: 600; font-size: 13.5px; cursor: pointer; }
@@ -561,6 +571,9 @@ export default function InvestmentDashboard({
         .idash button.icon-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
         .idash button.icon-btn:hover { border-color: var(--text-dim); color: var(--text); }
         .idash button.icon-btn.danger:hover { border-color: var(--loss); color: var(--loss); }
+        .idash a.symbol-link { color: var(--text); text-decoration: none; border-bottom: 1px dashed var(--text-faint); transition: color 140ms ease, border-color 140ms ease; }
+        .idash a.symbol-link:hover, .idash a.symbol-link:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
+        .idash a.symbol-link:focus-visible { outline: none; }
         .ticker-track { display: flex; gap: 28px; animation: ticker 32s linear infinite; white-space: nowrap; }
         .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
         @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
