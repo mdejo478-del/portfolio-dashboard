@@ -24,10 +24,10 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
   return (
     <div style={{
       background: s.bg, border: "1px solid " + s.border, borderRadius: 14, boxShadow: "var(--shadow-sm)",
-      padding: "16px 20px", marginBottom: 22, display: "flex", flexDirection: "column", gap: 12,
+      padding: "var(--space-4) var(--space-5)", marginBottom: 22, display: "flex", flexDirection: "column", gap: "var(--space-3)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
           <span>{toneIcon}</span> בריאות התיק
         </div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 700, color: s.text }}>
@@ -35,7 +35,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
         </div>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
         <HealthChip label="פיזור" value={health.diversification} tone={diversificationTone} />
         <HealthChip label="סיכון" value={health.risk} tone={riskTone} />
         <HealthChip label="Cash" value={fmtPct(health.cashPct)} tone={health.cashTone} />

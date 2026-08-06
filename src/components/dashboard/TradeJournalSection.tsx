@@ -284,7 +284,7 @@ export function TradeJournalSection({
         <Card label="ממוצע רווח לעסקה" value={formatMoney(stats.avgPnl, privacyMode)} tone={stats.avgPnl >= 0 ? "green" : "red"} sub={fmtPct(stats.avgRet) + " תשואה ממוצעת"} icon={stats.avgPnl >= 0 ? <TrendingUp size={15} color="var(--gain)" /> : <TrendingDown size={15} color="var(--loss)" />} />
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "var(--space-3)", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <input
             ref={fileInputRef} type="file"
@@ -352,7 +352,7 @@ export function TradeJournalSection({
             </div>
           </div>
 
-          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, display: "flex", gap: "var(--space-6)", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי כולל משוער</div>
               <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{previewValue !== null ? fmtUSD(previewValue) : "-"}</div>
@@ -378,7 +378,7 @@ export function TradeJournalSection({
           </div>
 
           {tradeFormError && (
-            <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
+            <div style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
               {tradeFormError}
             </div>
           )}
@@ -477,7 +477,7 @@ export function TradeJournalSection({
       </>
       )}
 
-      <div style={{ marginTop: 20, textAlign: "center", color: "var(--text-faint)", fontSize: 11.5 }}>
+      <div style={{ marginTop: "var(--space-5)", textAlign: "center", color: "var(--text-faint)", fontSize: 11.5 }}>
         כל הנתונים מבוססים על קובץ האקסל שהועלה · החישובים מתעדכנים אוטומטית עם כל עסקה שנוספה, נערכת או נמחקת
       </div>
 

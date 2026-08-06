@@ -27,9 +27,9 @@ export function EquityCurveCard({
   const yDomain: [number, number] = [rawMin - padding, rawMax + padding];
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "var(--shadow-sm)", padding: "16px 20px", marginBottom: 22 }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "var(--shadow-sm)", padding: "var(--space-4) var(--space-5)", marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
           <TrendingUp size={16} color="var(--accent)" /> התפתחות התיק
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
@@ -94,7 +94,7 @@ export function EquityCurveCard({
       )}
 
       {rebuildWarnings.length > 0 && (
-        <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 11.5 }}>
+        <div style={{ marginTop: 10, padding: "var(--space-2) var(--space-3)", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 11.5 }}>
           {rebuildWarnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}

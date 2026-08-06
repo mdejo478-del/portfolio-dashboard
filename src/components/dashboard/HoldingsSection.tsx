@@ -135,10 +135,10 @@ export function HoldingsSection({
         background: p.symbol === "CASH" ? "var(--row-highlight)" : "var(--panel)",
         border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
       }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-2)", marginBottom: 10 }}>
           <div
             onClick={() => openDetail(p.symbol)}
-            style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 15, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+            style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontWeight: 700, fontSize: 15, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
           >
             <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.symbol, i), flexShrink: 0 }} />
             {tradingViewUrl(p.symbol) ? (
@@ -228,7 +228,7 @@ export function HoldingsSection({
           }}>{p.action}</span>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: 10 }}>
           {isEditing ? (
             <>
               <button type="button" className="icon-btn" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={15} /></button>
@@ -241,7 +241,7 @@ export function HoldingsSection({
             <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
           ) : deletePosConfirmId === p.id ? (
             <>
-              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={13} /> אישור</button>
+              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-1)" }}><Check size={13} /> אישור</button>
               <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={15} /></button>
             </>
           ) : (
@@ -256,8 +256,8 @@ export function HoldingsSection({
     <>
       <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 11.5, color: "var(--text-faint)", display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: "var(--space-3)" }}>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
           {pricesConfigured === false
             ? "לא הצלחנו לעדכן מחירים כרגע."
             : lastPriceUpdate
@@ -295,13 +295,13 @@ export function HoldingsSection({
         </div>
       </div>
       {priceError && (
-        <div style={{ marginBottom: 12, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
+        <div style={{ marginBottom: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
           {priceError}
         </div>
       )}
 
       {isMobile ? (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: "var(--space-5)" }}>
           {tableRows.map(({ p, i }) => renderPositionCard(p, i))}
           {evaluated.length === 0 && (
             <EmptyState
@@ -327,7 +327,7 @@ export function HoldingsSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20, maxHeight: 480 }}>
+      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)", maxHeight: 480 }}>
         <table>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
@@ -343,7 +343,7 @@ export function HoldingsSection({
                 <td
                   onClick={() => openDetail(p.symbol)}
                   title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
-                  style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+                  style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "var(--space-2)", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
                 >
                   {tradingViewUrl(p.symbol) ? (
                     <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
@@ -420,7 +420,7 @@ export function HoldingsSection({
                       <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
                     ) : deletePosConfirmId === p.id ? (
                       <>
-                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
+                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-1)" }}><Check size={12} /> אישור</button>
                         <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={13} /></button>
                       </>
                     ) : (
@@ -455,20 +455,20 @@ export function HoldingsSection({
       </>
       )}
 
-      <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 20 }}>
+      <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: "var(--space-5)" }}>
         לחיצה על העיפרון {isMobile ? "" : "בכל שורה "}מאפשרת לערוך כמות ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
       </div>
 
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: "var(--space-5)" }}>
         {showAddPosition ? (
-          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid var(--accent-subtle-border)", borderRadius: 14, padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid var(--accent-subtle-border)", borderRadius: 14, padding: "var(--space-4)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-3)" }}>
+              <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
               </div>
               <button type="button" className="icon-btn" onClick={() => { setShowAddPosition(false); setPosForm(EMPTY_POSITION_FORM); setPosFormError(""); }}><X size={15} /></button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: "var(--space-3)" }}>
               <Field label="סימול">
                 <input type="text" value={posForm.symbol} onChange={(e) => updatePosForm("symbol", e.target.value.toUpperCase())}
                   onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="לדוגמה: AAPL" />
@@ -486,7 +486,7 @@ export function HoldingsSection({
               </div>
             </div>
             {posFormError && (
-              <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
+              <div style={{ marginTop: 10, padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
                 {posFormError}
               </div>
             )}
@@ -505,7 +505,7 @@ export function HoldingsSection({
       </div>
 
       <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 30, maxWidth: 640, marginRight: "auto", marginLeft: "auto" }}>
-        <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: 16, textAlign: "center" }}>הקצאת נכסים</div>
+        <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: "var(--space-4)", textAlign: "center" }}>הקצאת נכסים</div>
         {pieData.length === 0 ? (
           <EmptyState
             compact
@@ -552,14 +552,14 @@ export function HoldingsSection({
             subtitle="המלצות לאיזון והתאמת פוזיציות יופיעו כאן ברגע שיתווספו נכסים לתיק"
           />
         ) : needsAction.length === 0 ? (
-          <div style={{ background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 10, color: "var(--gain)", fontSize: 13.5 }}>
+          <div style={{ background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", borderRadius: 14, padding: "var(--space-4)", display: "flex", alignItems: "center", gap: 10, color: "var(--gain)", fontSize: 13.5 }}>
             <ShieldCheck size={18} /> כל הנכסים במשקל היעד – אין פעולות נדרשות כרגע.
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "var(--space-3)" }}>
             {needsAction.map((p) => (
               <div key={p.symbol} style={{ background: "var(--panel)", border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 14, padding: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                   <span style={{ fontWeight: 700, fontSize: 14 }}>{p.symbol}</span>
                   <Badge tone={p.tone}><AlertTriangle size={12} />{p.priority}</Badge>
                 </div>
