@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, PieChart as PieChartIcon } from "lucide-react";
+import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, PieChart as PieChartIcon, Lock } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
@@ -132,7 +132,7 @@ export function HoldingsSection({
     const isEditing = editingPosId === p.id;
     return (
       <div key={p.id} style={{
-        background: p.symbol === "CASH" ? "rgba(148,163,184,0.07)" : "var(--panel)",
+        background: p.symbol === "CASH" ? "var(--row-highlight)" : "var(--panel)",
         border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
       }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
@@ -238,7 +238,7 @@ export function HoldingsSection({
             <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={15} /></button>
           )}
           {p.symbol === "CASH" ? (
-            <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
+            <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
           ) : deletePosConfirmId === p.id ? (
             <>
               <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={13} /> אישור</button>
@@ -327,9 +327,9 @@ export function HoldingsSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20 }}>
+      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: 20, maxHeight: 480 }}>
         <table>
-          <thead>
+          <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
               <th>נכס</th><th className="num">כמות</th><th className="num">מחיר</th><th className="num">שווי</th>
               <th className="num">משקל</th><th className="num">סטייה</th><th className="num">יעד מינימום</th>
@@ -339,7 +339,7 @@ export function HoldingsSection({
           </thead>
           <tbody>
             {tableRows.map(({ p, i }) => (
-              <tr key={p.id} style={p.symbol === "CASH" ? { background: "rgba(148,163,184,0.07)", borderTop: "1px solid var(--border)" } : undefined}>
+              <tr key={p.id} className={p.symbol === "CASH" ? "row-cash" : undefined}>
                 <td
                   onClick={() => openDetail(p.symbol)}
                   title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
@@ -417,7 +417,7 @@ export function HoldingsSection({
                       <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={13} /></button>
                     )}
                     {p.symbol === "CASH" ? (
-                      <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
+                      <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
                     ) : deletePosConfirmId === p.id ? (
                       <>
                         <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>

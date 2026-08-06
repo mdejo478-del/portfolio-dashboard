@@ -85,6 +85,8 @@
      --------------------------------------------------------------------- */
   --hover-overlay: rgba(255, 255, 255, 0.03);
   --active-overlay: rgba(255, 255, 255, 0.06);
+  --row-highlight: rgba(148, 163, 184, 0.07);
+  --row-alt: rgba(255, 255, 255, 0.015);
   --focus-ring: rgba(34, 211, 168, 0.35);
   --disabled-opacity: 0.45;
 
@@ -202,6 +204,8 @@
 
   --hover-overlay: rgba(20, 24, 31, 0.04);
   --active-overlay: rgba(20, 24, 31, 0.07);
+  --row-highlight: rgba(91, 100, 114, 0.08);
+  --row-alt: rgba(20, 24, 31, 0.018);
   --focus-ring: rgba(14, 143, 115, 0.35);
 
   --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
@@ -245,6 +249,8 @@
     --info-subtle-border: rgba(29, 111, 199, 0.32);
     --hover-overlay: rgba(20, 24, 31, 0.04);
     --active-overlay: rgba(20, 24, 31, 0.07);
+    --row-highlight: rgba(91, 100, 114, 0.08);
+    --row-alt: rgba(20, 24, 31, 0.018);
     --focus-ring: rgba(14, 143, 115, 0.35);
     --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
     --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
