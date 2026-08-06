@@ -186,7 +186,7 @@ export function HoldingsSection({
             <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
           </CardStat>
           <CardStat label="סטייה">
-            <span style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</span>
+            <span style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</span>
           </CardStat>
           <CardStat label="עדיפות">
             <Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"}>{p.priority}</Badge>
@@ -241,7 +241,7 @@ export function HoldingsSection({
             <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
           ) : deletePosConfirmId === p.id ? (
             <>
-              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "rgba(255,90,95,0.15)", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={13} /> אישור</button>
+              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={13} /> אישור</button>
               <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={15} /></button>
             </>
           ) : (
@@ -267,7 +267,7 @@ export function HoldingsSection({
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{
             display: "flex", alignItems: "center", gap: 5, fontSize: 11.5,
-            color: saveStatus === "error" ? "#FF8589" : "var(--text-faint)",
+            color: saveStatus === "error" ? "var(--loss)" : "var(--text-faint)",
           }}>
             {saveStatus === "saving" ? (
               <><RefreshCw size={12} className="spin-icon" /> שומר...</>
@@ -295,7 +295,7 @@ export function HoldingsSection({
         </div>
       </div>
       {priceError && (
-        <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+        <div style={{ marginBottom: 12, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
           {priceError}
         </div>
       )}
@@ -318,7 +318,7 @@ export function HoldingsSection({
               background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 14, padding: "13px 16px",
             }}>
               <span style={{ fontWeight: 800, fontSize: 14.5 }}>סך הכל התיק</span>
-              <span style={{ fontFamily: "var(--mono)", fontWeight: 800, fontSize: 16, color: "#5BE39D" }}>{formatMoney(total, privacyMode)}</span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 800, fontSize: 16, color: "var(--gain)" }}>{formatMoney(total, privacyMode)}</span>
             </div>
           )}
         </div>
@@ -373,7 +373,7 @@ export function HoldingsSection({
                 </td>
                 <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                 <td className="num">{fmtPct(p.weight)}</td>
-                <td className="num" style={{ color: p.dev < 0 ? "#FF8589" : p.dev > 0 ? "#5BE39D" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
+                <td className="num" style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
                 <td className="num" style={{ color: "var(--text-faint)" }}>
                   {editingPosId === p.id ? (
                     <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
@@ -422,7 +422,7 @@ export function HoldingsSection({
                       <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה">🔒</span>
                     ) : deletePosConfirmId === p.id ? (
                       <>
-                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "rgba(255,90,95,0.15)", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
+                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
                         <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={13} /></button>
                       </>
                     ) : (
@@ -447,7 +447,7 @@ export function HoldingsSection({
           <tfoot>
             <tr style={{ background: "var(--panel-2)" }}>
               <td colSpan={3} style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
-              <td className="num" style={{ fontWeight: 800, fontSize: 15.5, color: "#5BE39D", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
+              <td className="num" style={{ fontWeight: 800, fontSize: 15.5, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
               <td className="num" style={{ fontWeight: 800, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
               <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
             </tr>
@@ -463,7 +463,7 @@ export function HoldingsSection({
 
       <div style={{ marginBottom: 20 }}>
         {showAddPosition ? (
-          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid rgba(34,211,168,0.4)", borderRadius: 14, padding: 16 }}>
+          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid var(--accent-subtle-border)", borderRadius: 14, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
@@ -488,7 +488,7 @@ export function HoldingsSection({
               </div>
             </div>
             {posFormError && (
-              <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)", borderRadius: 8, color: "#FF8589", fontSize: 12.5 }}>
+              <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
                 {posFormError}
               </div>
             )}
@@ -499,7 +499,7 @@ export function HoldingsSection({
         ) : (
           <button
             type="button" className="primary" onClick={openAddPositionForm}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 22px", fontSize: 14, boxShadow: "0 6px 18px rgba(34,211,168,0.35)" }}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 22px", fontSize: 14 }}
           >
             <Plus size={16} /> הוסף נכס לתיק
           </button>
@@ -554,7 +554,7 @@ export function HoldingsSection({
             subtitle="המלצות לאיזון והתאמת פוזיציות יופיעו כאן ברגע שיתווספו נכסים לתיק"
           />
         ) : needsAction.length === 0 ? (
-          <div style={{ background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 10, color: "#5BE39D", fontSize: 13.5 }}>
+          <div style={{ background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 10, color: "var(--gain)", fontSize: 13.5 }}>
             <ShieldCheck size={18} /> כל הנכסים במשקל היעד – אין פעולות נדרשות כרגע.
           </div>
         ) : (
