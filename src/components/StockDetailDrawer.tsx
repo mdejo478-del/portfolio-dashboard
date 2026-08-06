@@ -193,7 +193,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
               {detail && !detail.configured && (
                 <div style={{ padding: "8px 12px", background: "rgba(242,169,59,0.1)", border: "1px solid rgba(242,169,59,0.35)", borderRadius: 8, color: "#F5BE6B", fontSize: 12.5 }}>
-                  לא הוגדר מפתח API למחירים חיים (FINNHUB_API_KEY).
+                  לא הצלחנו לעדכן מחירים כרגע.
                 </div>
               )}
 

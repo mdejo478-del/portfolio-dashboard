@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { AlertCircle } from "lucide-react";
 import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
 import type { ExtendedQuote } from "@/lib/prices";
@@ -17,6 +18,16 @@ import { TradeJournalSection } from "@/components/dashboard/TradeJournalSection"
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
 import { EquityCurveCard } from "@/components/dashboard/EquityCurveCard";
 import { PortfolioSummaryCard } from "@/components/dashboard/PortfolioSummaryCard";
+
+// Errors we throw ourselves (validation messages, rate limits, "session
+// expired", etc.) are already clear Hebrew sentences - safe to show as-is.
+// Anything else (network failures, unexpected server/runtime errors) is
+// usually raw English and would read like a stack trace to the user, so it
+// falls back to a friendly, context-specific message instead.
+function toUserMessage(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  return /[֐-׿]/.test(raw) ? raw : fallback;
+}
 
 interface InvestmentDashboardProps {
   userName: string;
@@ -40,8 +51,9 @@ export default function InvestmentDashboard({
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
   const [globalError, setGlobalError] = useState<string>("");
   useEffect(() => {
-    function onError(e: ErrorEvent) { setGlobalError(String((e && e.message) || e)); }
-    function onRejection(e: PromiseRejectionEvent) { setGlobalError(String((e && e.reason && e.reason.message) || (e && e.reason) || e)); }
+    const fallback = "אירעה שגיאה בלתי צפויה. נסה לרענן את הדף.";
+    function onError(e: ErrorEvent) { setGlobalError(toUserMessage(e && e.message, fallback)); }
+    function onRejection(e: PromiseRejectionEvent) { setGlobalError(toUserMessage(e && e.reason && e.reason.message, fallback)); }
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     return () => {
@@ -96,7 +108,7 @@ export default function InvestmentDashboard({
           await savePortfolioAction(data);
           setSaveStatus("idle");
         } catch (err) {
-          const message = String((err && (err as Error).message) || err);
+          const message = err instanceof Error ? err.message : String(err);
           setSaveStatus("error");
           if (message === "SESSION_EXPIRED") {
             // A generic "retry automatically" error is actively misleading here -
@@ -108,7 +120,7 @@ export default function InvestmentDashboard({
             window.location.assign("/login");
             return;
           }
-          setGlobalError(message);
+          setGlobalError(toUserMessage(err, "השמירה נכשלה. נסה שוב."));
         }
         if (!savePending.current) break;
       }
@@ -158,13 +170,13 @@ export default function InvestmentDashboard({
       const result = await backupNowAction();
       setBackupDoneAt(result.createdAt);
     } catch (err) {
-      const message = String((err && (err as Error).message) || err);
+      const message = err instanceof Error ? err.message : String(err);
       if (message === "SESSION_EXPIRED") {
         setGlobalError("ההתחברות פגה - מעביר אותך להתחברות מחדש.");
         window.location.assign("/login");
         return;
       }
-      setGlobalError(message);
+      setGlobalError(toUserMessage(err, "יצירת הגיבוי נכשלה. נסה שוב."));
     } finally {
       setBackupRunning(false);
     }
@@ -198,7 +210,7 @@ export default function InvestmentDashboard({
         setLastPriceUpdate(new Date());
       }
     } catch {
-      setPriceError("שגיאה בעדכון מחירים. נסה שוב.");
+      setPriceError("לא הצלחנו לעדכן מחירים כרגע. ננסה שוב אוטומטית.");
     } finally {
       setPricesLoading(false);
     }
@@ -391,7 +403,13 @@ export default function InvestmentDashboard({
       setEquityHistoryOverride(result.history);
       setEquityRebuildWarnings(result.warnings);
     } catch (err) {
-      setGlobalError(String((err && (err as Error).message) || err));
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "SESSION_EXPIRED") {
+        setGlobalError("ההתחברות פגה - מעביר אותך להתחברות מחדש.");
+        window.location.assign("/login");
+        return;
+      }
+      setGlobalError(toUserMessage(err, "שחזור ההיסטוריה נכשל. נסה שוב."));
     } finally {
       setRebuildingEquity(false);
     }
@@ -578,9 +596,17 @@ export default function InvestmentDashboard({
       <div className="idash" style={{ padding: "0 0 40px" }}>
 
         {globalError && (
-          <div style={{ background: "#7A1F24", color: "#FFD5D7", padding: "10px 20px", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <span>שגיאה טכנית: {globalError}</span>
-            <button type="button" onClick={() => setGlobalError("")} style={{ background: "transparent", border: "1px solid #FFD5D7", color: "#FFD5D7", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12 }}>סגור</button>
+          <div style={{
+            margin: "12px 20px 0", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            background: "rgba(255,90,95,0.12)", border: "1px solid rgba(255,90,95,0.35)", color: "#FF8589", borderRadius: 10, fontSize: 13,
+          }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} /> {globalError}
+            </span>
+            <button
+              type="button" onClick={() => setGlobalError("")}
+              style={{ background: "transparent", border: "1px solid rgba(255,90,95,0.4)", color: "#FF8589", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+            >סגור</button>
           </div>
         )}
 

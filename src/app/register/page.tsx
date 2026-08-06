@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { signup, type AuthFormState } from "@/app/actions/auth";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 const initialState: AuthFormState = {};
 
@@ -58,7 +59,7 @@ export default function RegisterPage() {
             <p className="mt-1 text-xs text-[#4E5A6B]">לפחות 6 תווים</p>
           </div>
 
-          {state?.error && <p className="text-sm text-[#FF8589]">{state.error}</p>}
+          {state?.error && <ErrorBanner message={state.error} />}
 
           <button
             type="submit"

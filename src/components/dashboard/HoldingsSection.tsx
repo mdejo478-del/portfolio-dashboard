@@ -180,7 +180,9 @@ export function HoldingsSection({
             )}
           </CardStat>
           <CardStat label="מחיר">
-            {p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}
+            {p.price !== null && p.price !== undefined
+              ? formatMoney(p.price, privacyMode, { digits: 2 })
+              : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
             <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
           </CardStat>
           <CardStat label="סטייה">
@@ -257,7 +259,7 @@ export function HoldingsSection({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
         <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
           {pricesConfigured === false
-            ? "לא הוגדר מפתח API למחירים חיים. הוסף FINNHUB_API_KEY לקובץ .env.local כדי להפעיל עדכון אוטומטי."
+            ? "לא הצלחנו לעדכן מחירים כרגע."
             : lastPriceUpdate
               ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
               : "טוען מחירים..."}
@@ -364,7 +366,9 @@ export function HoldingsSection({
                   )}
                 </td>
                 <td className="num" style={{ color: "var(--text-dim)" }}>
-                  {p.price !== null && p.price !== undefined ? formatMoney(p.price, privacyMode, { digits: 2 }) : "-"}
+                  {p.price !== null && p.price !== undefined
+                    ? formatMoney(p.price, privacyMode, { digits: 2 })
+                    : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
                   <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
                 </td>
                 <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 800 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>

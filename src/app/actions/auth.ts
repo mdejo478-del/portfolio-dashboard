@@ -77,7 +77,7 @@ export async function login(
 
   if (!user.verified) {
     await createPendingVerification(user);
-    redirect("/verify");
+    redirect("/verify?reason=login");
   }
 
   await createSession(user);

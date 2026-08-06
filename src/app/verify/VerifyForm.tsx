@@ -2,10 +2,11 @@
 
 import { useActionState } from "react";
 import { verifyCode, type AuthFormState } from "@/app/actions/auth";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 const initialState: AuthFormState = {};
 
-export default function VerifyForm({ email, code }: { email: string; code: string }) {
+export default function VerifyForm({ email, code, fromLogin }: { email: string; code: string; fromLogin?: boolean }) {
   const [state, formAction, pending] = useActionState(verifyCode, initialState);
 
   return (
@@ -16,6 +17,12 @@ export default function VerifyForm({ email, code }: { email: string; code: strin
           נשלח קוד אימות בן 6 ספרות לכתובת{" "}
           <strong className="text-[#E8EDF2]">{email}</strong>
         </p>
+
+        {fromLogin && (
+          <div className="mb-6 rounded-lg border border-[#4FA3F7]/35 bg-[#4FA3F7]/10 px-3 py-2.5 text-sm text-[#7FBBFA]">
+            יש לאמת את כתובת האימייל שלך לפני ההתחברות. הזן את הקוד שקיבלת כדי להמשיך.
+          </div>
+        )}
 
         <div className="mb-6 rounded-lg border border-[#22D3A8] border-opacity-35 bg-[#22D3A8] bg-opacity-10 px-4 py-3 text-center">
           <div className="text-xs text-[#8B98AB] mb-1">קוד לדוגמה (בשלב זה אין שליחת מייל בפועל)</div>
@@ -40,7 +47,7 @@ export default function VerifyForm({ email, code }: { email: string; code: strin
             />
           </div>
 
-          {state?.error && <p className="text-sm text-[#FF8589]">{state.error}</p>}
+          {state?.error && <ErrorBanner message={state.error} />}
 
           <button
             type="submit"
