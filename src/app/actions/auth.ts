@@ -12,7 +12,7 @@ import {
   getPendingVerification,
   clearPendingVerification,
 } from "@/lib/pendingVerification";
-import { checkRateLimit, getClientIp, rateLimitMessage } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, rateLimitMessage, checkLoginLock, recordLoginFailure, resetLoginFailures } from "@/lib/rateLimit";
 import { notifyNewUserRegistration } from "@/lib/telegram";
 import { deletePortfolio } from "@/lib/portfolio";
 import { deleteUserPortfolioBackups } from "@/lib/backup";
@@ -72,11 +72,18 @@ export async function login(
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
 
-  const ipLimit = checkRateLimit("login-ip:" + ip, 20, 10 * 60 * 1000); // 20 attempts / 10 min / IP
-  if (!ipLimit.allowed) return { error: rateLimitMessage(ipLimit.retryAfterSeconds) };
-  if (email) {
-    const emailLimit = checkRateLimit("login-email:" + email, 8, 10 * 60 * 1000); // 8 attempts / 10 min / email
-    if (!emailLimit.allowed) return { error: rateLimitMessage(emailLimit.retryAfterSeconds) };
+  const ipKey = "login-ip:" + ip;
+  const emailKey = email ? "login-email:" + email : null;
+
+  // 5 failed attempts / 10 min for the same email or IP triggers a 5-minute
+  // lockout. Only failures count (checked here, recorded below on a bad
+  // password) so legitimate users who get it right on attempt 1 are never
+  // affected, and a successful login clears the bucket entirely.
+  const ipLock = checkLoginLock(ipKey);
+  if (!ipLock.allowed) return { error: rateLimitMessage(ipLock.retryAfterSeconds) };
+  if (emailKey) {
+    const emailLock = checkLoginLock(emailKey);
+    if (!emailLock.allowed) return { error: rateLimitMessage(emailLock.retryAfterSeconds) };
   }
 
   if (!email || !password || email.length > MAX_EMAIL_LEN || password.length > MAX_PASSWORD_LEN) {
@@ -84,7 +91,17 @@ export async function login(
   }
 
   const user = await verifyCredentials(email, password);
-  if (!user) return { error: "אימייל או סיסמה שגויים." };
+  if (!user) {
+    const ipResult = recordLoginFailure(ipKey);
+    const emailResult = emailKey ? recordLoginFailure(emailKey) : { allowed: true, retryAfterSeconds: 0 };
+    if (!ipResult.allowed || !emailResult.allowed) {
+      return { error: rateLimitMessage(Math.max(ipResult.retryAfterSeconds, emailResult.retryAfterSeconds)) };
+    }
+    return { error: "אימייל או סיסמה שגויים." };
+  }
+
+  resetLoginFailures(ipKey);
+  if (emailKey) resetLoginFailures(emailKey);
 
   if (!user.verified) {
     await createPendingVerification(user);
