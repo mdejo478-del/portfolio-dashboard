@@ -1,11 +1,10 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical, Sun, Moon } from "lucide-react";
+import { Undo2, Eye, EyeOff, LogOut, Info, Sun, Moon } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
-import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 import { useTheme } from "@/components/dashboard/useTheme";
 import { ChangePasswordModal } from "@/components/dashboard/ChangePasswordModal";
 import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
@@ -21,11 +20,8 @@ export function Header({
   alertsOpen: boolean; toggleAlerts: () => void; closeAlerts: () => void; dismissAlert: (id: string) => void;
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
-  const moreWrapperRef = useRef<HTMLDivElement>(null);
-  const morePos = usePopoverPosition(moreOpen, moreWrapperRef, 210);
   const { theme, toggleTheme } = useTheme();
 
   // Quiet pill action (About / undo / privacy / logout) - same shape in the
@@ -183,66 +179,32 @@ export function Header({
             {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
 
+          <Link
+            href="/about" className="hdr-icon" aria-label="אודות" title="אודות המערכת"
+            style={iconBtnStyle()}
+          >
+            <Info size={16} />
+          </Link>
+
+          <button
+            type="button" className="hdr-icon" onClick={undoLastAction} disabled={!undoSnapshot} aria-label="בטל פעולה אחרונה"
+            title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
+            style={iconBtnStyle()}
+          >
+            <Undo2 size={16} />
+          </button>
+
+          <form action={logout}>
+            <button type="submit" className="hdr-icon" aria-label="התנתקות" title="התנתקות" style={iconBtnStyle()}>
+              <LogOut size={16} />
+            </button>
+          </form>
+
           <SettingsMenu
             compact
             onChangePassword={() => setChangePasswordOpen(true)}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
           />
-
-          <div ref={moreWrapperRef} style={{ position: "relative" }}>
-            <button
-              type="button" className="hdr-icon" onClick={() => setMoreOpen((v) => !v)} aria-label="עוד פעולות" title="עוד פעולות"
-              style={iconBtnStyle()}
-            >
-              <MoreVertical size={16} />
-            </button>
-
-            {moreOpen && (
-              <>
-                <div onClick={() => setMoreOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-                <div style={{
-                  position: "absolute", top: "calc(100% + 8px)", left: morePos.left, width: morePos.width, zIndex: 50,
-                  background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
-                  boxShadow: "var(--shadow-md)", overflow: "hidden", display: "flex", flexDirection: "column",
-                }}>
-                  <Link
-                    href="/about" onClick={() => setMoreOpen(false)} className="hdr-menu-item"
-                    style={{
-                      display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                      fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--text-dim)", textDecoration: "none",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <Info size={15} /> אודות
-                  </Link>
-                  <button
-                    type="button" className="hdr-menu-item" disabled={!undoSnapshot}
-                    onClick={() => { undoLastAction(); setMoreOpen(false); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                      fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--text-dim)", background: "transparent",
-                      border: "none", borderBottom: "1px solid var(--border)", textAlign: "right", width: "100%",
-                      cursor: undoSnapshot ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    <Undo2 size={15} /> בטל פעולה אחרונה
-                  </button>
-                  <form action={logout}>
-                    <button
-                      type="submit" className="hdr-menu-item"
-                      style={{
-                        display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                        fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--loss)", background: "transparent",
-                        border: "none", textAlign: "right", width: "100%", cursor: "pointer",
-                      }}
-                    >
-                      <LogOut size={15} /> התנתקות
-                    </button>
-                  </form>
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
