@@ -1,8 +1,9 @@
 import { useRef } from "react";
-import { Bell, X } from "lucide-react";
+import { Bell, X, CheckCircle2 } from "lucide-react";
 import type { Alert } from "@/components/dashboard/types";
 import { TONE_STYLES } from "@/components/dashboard/constants";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
+import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 
 export function AlertsBell({
   alerts, unseenCount, seenIds, open, onToggle, onClose, onDismiss,
@@ -48,9 +49,7 @@ export function AlertsBell({
             </div>
 
             {alerts.length === 0 ? (
-              <div style={{ padding: "20px 14px", textAlign: "center", color: "var(--text-faint)", fontSize: 12.5 }}>
-                ✅ אין התראות שדורשות תשומת לב כרגע.
-              </div>
+              <EmptyState compact icon={<CheckCircle2 size={20} />} title="אין התראות פעילות" subtitle="נעדכן אותך כאן כשיהיה משהו שדורש תשומת לב." />
             ) : (
               alerts.map((a) => {
                 const s = TONE_STYLES[a.tone];

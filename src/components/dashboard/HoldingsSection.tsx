@@ -257,12 +257,12 @@ export function HoldingsSection({
       <PageBanner icon={<Wallet size={20} />} title="החזקות בתיק" subtitle="כל הנכסים, המשקלים ויעדי ההקצאה במקום אחד" />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)", display: "flex", alignItems: "center", gap: 8 }}>
           {pricesConfigured === false
             ? "לא הצלחנו לעדכן מחירים כרגע."
             : lastPriceUpdate
               ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
-              : "טוען מחירים..."}
+              : <>טוען מחירים <span className="ds-skeleton" style={{ display: "inline-block", width: 70, height: 10, borderRadius: 4, verticalAlign: "middle" }} /></>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{

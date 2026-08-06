@@ -88,7 +88,9 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 <span style={{ width: 10, height: 10, borderRadius: 999, background: dot, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--mono)" }}>{symbol}</div>
-                  <div style={{ fontSize: 12, color: "var(--text-faint)" }}>{detail?.name || (loading ? "טוען..." : "-")}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                    {detail?.name || (loading ? <span className="ds-skeleton" style={{ display: "inline-block", width: 110, height: 11, borderRadius: 4 }} /> : "-")}
+                  </div>
                 </div>
               </div>
               <button type="button" onClick={onClose} className="icon-btn" aria-label="סגור" title="סגור">
@@ -109,7 +111,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 <div style={{ fontFamily: "var(--mono)", fontSize: 32, fontWeight: 700, color: "var(--text)", direction: "ltr", textAlign: "right" }}>
                   {livePrice !== null && livePrice !== undefined ? formatMoney(livePrice, privacyMode, { digits: 2 }) : "-"}
                 </div>
-                {detail && detail.change !== null && detail.changePct !== null && (
+                {detail && detail.change !== null && detail.changePct !== null ? (
                   <div style={{
                     marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6,
                     color: detail.change >= 0 ? "var(--gain)" : "var(--loss)", fontSize: 14, fontWeight: 700,
@@ -123,7 +125,9 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                     </span>
                     <span style={{ color: "var(--text-faint)", fontWeight: 500 }}>היום</span>
                   </div>
-                )}
+                ) : loading ? (
+                  <span className="ds-skeleton" style={{ display: "inline-block", marginTop: 6, width: 140, height: 14, borderRadius: 4 }} />
+                ) : null}
                 {detail?.extended && (
                   <div style={{
                     marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5,
@@ -154,7 +158,9 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                       }}>
                         <div style={{ fontSize: 10.5, color: "var(--text-faint)", fontWeight: 600, marginBottom: 3 }}>{label}</div>
                         <div style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: tone }}>
-                          {val === null ? "—" : (val >= 0 ? "+" : "") + fmtPct(val)}
+                          {val === null ? (
+                            loading ? <span className="ds-skeleton" style={{ display: "inline-block", width: 28, height: 12, borderRadius: 3 }} /> : "—"
+                          ) : (val >= 0 ? "+" : "") + fmtPct(val)}
                         </div>
                       </div>
                     );
