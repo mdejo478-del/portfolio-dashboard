@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState, type CSSProperties } from "react";
-import { MoreVertical, KeyRound, Trash2, LogOut } from "lucide-react";
+import { Settings, KeyRound, Trash2, LogOut } from "lucide-react";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 import { logoutAllDevices } from "@/app/actions/auth";
 
-// A dedicated "⋮ הגדרות" entry point for account-level actions (change
+// A dedicated gear-icon "הגדרות" entry point for account-level actions (change
 // password, delete account) - kept separate from the general "עוד פעולות"
 // menu so these settings live under their own clearly-labeled category,
 // exactly like AlertsBell: a self-contained trigger + popover that manages
@@ -45,7 +45,7 @@ export function SettingsMenu({
         .settings-menu-item:focus-visible { outline: none; background: var(--hover-overlay); box-shadow: inset var(--shadow-focus); }
       `}</style>
       <button type="button" className="settings-menu-trigger" onClick={() => setOpen((v) => !v)} aria-label="הגדרות" title="הגדרות" style={triggerStyle}>
-        <MoreVertical size={compact ? 17 : 15} />
+        <Settings size={compact ? 17 : 15} />
         {!compact && "הגדרות"}
       </button>
 
