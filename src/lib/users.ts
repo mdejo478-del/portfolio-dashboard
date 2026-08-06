@@ -105,3 +105,15 @@ export async function markOnboardingCompleted(id: string): Promise<boolean> {
   await writeUsers(users);
   return true;
 }
+
+export type UpdatePasswordResult = "OK" | "WRONG_PASSWORD" | "NOT_FOUND";
+
+export async function updatePassword(id: string, currentPassword: string, newPassword: string): Promise<UpdatePasswordResult> {
+  const users = await readUsers();
+  const user = users.find((u) => u.id === id);
+  if (!user) return "NOT_FOUND";
+  if (!verifyPassword(currentPassword, user.passwordHash)) return "WRONG_PASSWORD";
+  user.passwordHash = hashPassword(newPassword);
+  await writeUsers(users);
+  return "OK";
+}

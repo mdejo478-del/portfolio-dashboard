@@ -1,11 +1,12 @@
 import { useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical } from "lucide-react";
+import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical, KeyRound } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
+import { ChangePasswordModal } from "@/components/dashboard/ChangePasswordModal";
 
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
@@ -18,6 +19,7 @@ export function Header({
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const moreWrapperRef = useRef<HTMLDivElement>(null);
   const morePos = usePopoverPosition(moreOpen, moreWrapperRef, 200);
 
@@ -108,6 +110,9 @@ export function Header({
             {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
             {privacyMode ? "מצב פרטיות פעיל" : "הסתר מידע רגיש"}
           </button>
+          <button type="button" className="ghost" onClick={() => setChangePasswordOpen(true)} style={ghostBtnStyle}>
+            <KeyRound size={15} /> שינוי סיסמה
+          </button>
           <form action={logout}>
             <button type="submit" className="ghost" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 15px" }}>
               <LogOut size={15} /> התנתקות
@@ -177,6 +182,18 @@ export function Header({
                   >
                     <Undo2 size={15} /> בטל פעולה אחרונה
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setChangePasswordOpen(true); setMoreOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                      fontSize: 13.5, fontWeight: 600, color: "var(--text-dim)", background: "transparent",
+                      border: "none", borderBottom: "1px solid var(--border)", textAlign: "right", width: "100%",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <KeyRound size={15} /> שינוי סיסמה
+                  </button>
                   <form action={logout}>
                     <button
                       type="submit"
@@ -195,6 +212,8 @@ export function Header({
           </div>
         </div>
       </div>
+
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
     </div>
   );
 }

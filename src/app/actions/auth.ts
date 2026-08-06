@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted } from "@/lib/users";
+import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword } from "@/lib/users";
 import {
   createSession, deleteSession, getSession,
   acceptDisclaimer as acceptDisclaimerSession,
@@ -17,6 +17,11 @@ import { notifyNewUserRegistration } from "@/lib/telegram";
 
 export interface AuthFormState {
   error?: string;
+}
+
+export interface ChangePasswordState {
+  error?: string;
+  success?: boolean;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -146,4 +151,37 @@ export async function completeOnboarding(): Promise<void> {
   // is invoked directly from an event handler instead of a <form> submission
   // (see the requireSession comment in dal.ts). The caller navigates itself
   // once this resolves.
+}
+
+export async function changePassword(
+  _prevState: ChangePasswordState | undefined,
+  formData: FormData
+): Promise<ChangePasswordState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  // Rate-limited per account (not just IP) - this endpoint lets someone probe
+  // the current password, so it needs the same brute-force protection as login.
+  const limit = checkRateLimit("change-password:" + session.userId, 8, 10 * 60 * 1000);
+  if (!limit.allowed) return { error: rateLimitMessage(limit.retryAfterSeconds) };
+
+  const currentPassword = String(formData.get("currentPassword") || "");
+  const newPassword = String(formData.get("newPassword") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { error: "נא למלא את כל השדות." };
+  }
+  if (newPassword.length < 6 || newPassword.length > MAX_PASSWORD_LEN) {
+    return { error: "הסיסמה החדשה חייבת להכיל בין 6 ל-" + MAX_PASSWORD_LEN + " תווים." };
+  }
+  if (newPassword !== confirmPassword) {
+    return { error: "הסיסמה החדשה ואימות הסיסמה אינם תואמים." };
+  }
+
+  const result = await updatePassword(session.userId, currentPassword, newPassword);
+  if (result === "WRONG_PASSWORD") return { error: "הסיסמה הנוכחית שגויה." };
+  if (result === "NOT_FOUND") return { error: "אירעה שגיאה. נסה שוב." };
+
+  return { success: true };
 }
