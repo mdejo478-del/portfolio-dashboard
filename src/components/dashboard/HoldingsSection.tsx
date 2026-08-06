@@ -138,7 +138,7 @@ export function HoldingsSection({
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-2)", marginBottom: 10 }}>
           <div
             onClick={() => openDetail(p.symbol)}
-            style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontWeight: 700, fontSize: 15, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+            style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontWeight: 700, fontSize: 16.5, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
           >
             <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.symbol, i), flexShrink: 0 }} />
             {tradingViewUrl(p.symbol) ? (
@@ -150,25 +150,25 @@ export function HoldingsSection({
             ) : p.symbol}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Badge tone={p.tone}>{p.status}</Badge>
+            <Badge tone={p.tone} size="md">{p.status}</Badge>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי</div>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-dim)", fontWeight: 600 }}>שווי</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 21, fontWeight: 700, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>
               {formatMoney(p.value, privacyMode)}
             </div>
           </div>
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>משקל</div>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700 }}>{fmtPct(p.weight)}</div>
+            <div style={{ fontSize: 12.5, color: "var(--text-dim)", fontWeight: 600 }}>משקל</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 21, fontWeight: 700 }}>{fmtPct(p.weight)}</div>
           </div>
         </div>
 
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 14px", fontSize: 12.5,
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 14px", fontSize: 14,
           paddingTop: 10, borderTop: "1px solid var(--border)",
         }}>
           <CardStat label="כמות">
@@ -189,7 +189,7 @@ export function HoldingsSection({
             <span style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</span>
           </CardStat>
           <CardStat label="עדיפות">
-            <Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"}>{p.priority}</Badge>
+            <Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"} size="md">{p.priority}</Badge>
           </CardStat>
           {isEditing ? (
             <>
@@ -222,9 +222,9 @@ export function HoldingsSection({
 
         <div style={{ marginTop: 10 }}>
           <span style={{
-            display: "block", fontWeight: 700, fontSize: 12.5, textAlign: "center",
+            display: "block", fontWeight: 700, fontSize: 14, textAlign: "center",
             color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
-            border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8, padding: "7px 10px",
+            border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8, padding: "8px 10px",
           }}>{p.action}</span>
         </div>
 
@@ -327,7 +327,7 @@ export function HoldingsSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)", maxHeight: 480 }}>
+      <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)", maxHeight: 480 }}>
         <table>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
@@ -396,14 +396,14 @@ export function HoldingsSection({
                     </span>
                   ) : fmtPct(p.dilute, 0)}
                 </td>
-                <td className="center"><Badge tone={p.tone}>{p.status}</Badge></td>
-                <td className="center"><Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"}>{p.priority}</Badge></td>
+                <td className="center"><Badge tone={p.tone} size="md">{p.status}</Badge></td>
+                <td className="center"><Badge tone={p.priority === "גבוהה" ? "red" : p.priority === "בינונית" ? "amber" : "green"} size="md">{p.priority}</Badge></td>
                 <td className="center">
                   <span style={{
-                    display: "inline-block", fontWeight: 700, fontSize: 12.5,
+                    display: "inline-block", fontWeight: 700, fontSize: 14,
                     color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
                     border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8,
-                    padding: "5px 10px", whiteSpace: "nowrap",
+                    padding: "6px 11px", whiteSpace: "nowrap",
                   }}>{p.action}</span>
                 </td>
                 <td className="center">
@@ -444,9 +444,9 @@ export function HoldingsSection({
           </tbody>
           <tfoot>
             <tr style={{ background: "var(--panel-2)" }}>
-              <td colSpan={3} style={{ fontWeight: 700, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>סך הכל התיק</td>
-              <td className="num" style={{ fontWeight: 700, fontSize: 15.5, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>{formatMoney(total, privacyMode)}</td>
-              <td className="num" style={{ fontWeight: 700, fontSize: 14.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "13px 12px" }}>100.0%</td>
+              <td colSpan={3} style={{ fontWeight: 700, fontSize: 16, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>סך הכל התיק</td>
+              <td className="num" style={{ fontWeight: 700, fontSize: 17, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>{formatMoney(total, privacyMode)}</td>
+              <td className="num" style={{ fontWeight: 700, fontSize: 16, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>100.0%</td>
               <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
             </tr>
           </tfoot>
@@ -577,7 +577,7 @@ export function HoldingsSection({
 function CardStat({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-      <span style={{ color: "var(--text-faint)", fontSize: 11 }}>{label}</span>
+      <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>{label}</span>
       <span style={{ color: "var(--text)", fontFamily: "var(--mono)" }}>{children}</span>
     </div>
   );

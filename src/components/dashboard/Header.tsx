@@ -32,8 +32,8 @@ export function Header({
   // resting and "active" (privacy-on) state, just different token colors.
   const actionBtnStyle = (active?: boolean): CSSProperties => ({
     display: "inline-flex", alignItems: "center", gap: "var(--space-2)",
-    padding: "var(--space-2) var(--space-4)", borderRadius: "var(--radius-md)",
-    fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600,
+    padding: "10px var(--space-4)", borderRadius: "var(--radius-md)",
+    fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600,
     color: active ? "var(--info)" : "var(--text-dim)",
     background: active ? "var(--info-subtle)" : "transparent",
     border: "1px solid " + (active ? "var(--info-subtle-border)" : "var(--border)"),
@@ -81,21 +81,21 @@ export function Header({
             style={{ width: 38, height: 38, objectFit: "contain", flexShrink: 0, borderRadius: "var(--radius-sm)" }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-            <h1 style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-lg)", fontWeight: 700, margin: 0, letterSpacing: "var(--letter-spacing-heading)", color: "var(--text)" }}>
+            <h1 style={{ fontFamily: "var(--sans)", fontSize: "20px", fontWeight: 700, margin: 0, letterSpacing: "var(--letter-spacing-heading)", color: "var(--text)" }}>
               IPMS
             </h1>
-            <span className="header-subtitle" style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-subtitle)", fontWeight: 600, letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
+            <span className="header-subtitle" style={{ fontFamily: "var(--sans)", fontSize: "15.5px", fontWeight: 600, letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
               מערכת לניהול תיק השקעות
             </span>
           </div>
         </div>
-        <span className="header-greeting" style={{ fontFamily: "var(--sans)", color: "var(--text-faint)", fontSize: "var(--font-size-sm)" }}>
+        <span className="header-greeting" style={{ fontFamily: "var(--sans)", color: "var(--text-faint)", fontSize: "14px" }}>
           שלום, <strong style={{ color: "var(--text-dim)", fontWeight: 600 }}>{userName}</strong>
         </span>
       </div>
 
       <div className="header-slogan" style={{ marginBottom: "var(--space-3)" }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: "var(--font-size-subtitle)", fontWeight: 500, fontStyle: "italic", letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: "15.5px", fontWeight: 500, fontStyle: "italic", letterSpacing: "var(--letter-spacing-subtitle)", color: "var(--text-dim)" }}>
           השקעה לפי הקצאה, לא לפי רגש.
         </span>
       </div>
@@ -104,15 +104,15 @@ export function Header({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-4)" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-5)", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
-            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "var(--font-size-sm)" }}>שווי תיק כולל</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--gain)", direction: "ltr", unicodeBidi: "plaintext" }}>
+            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "14px" }}>שווי תיק כולל</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "25px", fontWeight: 700, color: "var(--gain)", direction: "ltr", unicodeBidi: "plaintext" }}>
               {formatMoney(total, privacyMode)}
             </span>
           </div>
-          <div style={{ width: 1, height: 22, background: "var(--border)" }} />
+          <div style={{ width: 1, height: 26, background: "var(--border)" }} />
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
-            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "var(--font-size-sm)" }}>מזומן פנוי</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text)", direction: "ltr", unicodeBidi: "plaintext" }}>
+            <span style={{ fontFamily: "var(--sans)", color: "var(--text-dim)", fontWeight: 600, fontSize: "14px" }}>מזומן פנוי</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: "20px", fontWeight: 700, color: "var(--text)", direction: "ltr", unicodeBidi: "plaintext" }}>
               {formatMoney(cashFree, privacyMode)}
             </span>
           </div>
@@ -125,21 +125,21 @@ export function Header({
             open={alertsOpen} onToggle={toggleAlerts} onClose={closeAlerts} onDismiss={dismissAlert}
           />
           <Link href="/about" title="אודות המערכת" className="hdr-action" style={actionBtnStyle()}>
-            <Info size={14} /> אודות
+            <Info size={15} /> אודות
           </Link>
           <button
             type="button" className="hdr-action" onClick={undoLastAction} disabled={!undoSnapshot}
             title={undoSnapshot ? "בטל: " + undoSnapshot.label : "אין פעולה לביטול"}
             style={actionBtnStyle()}
           >
-            <Undo2 size={14} /> בטל פעולה אחרונה
+            <Undo2 size={15} /> בטל פעולה אחרונה
           </button>
           <button
             type="button" className="hdr-action" data-active={privacyMode} onClick={() => setPrivacyMode((v) => !v)}
             title={privacyMode ? "כבה מצב פרטיות והצג נתונים כספיים" : "הפעל מצב פרטיות - הסתרת נתונים כספיים"}
             style={actionBtnStyle(privacyMode)}
           >
-            {privacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
+            {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
             {privacyMode ? "מצב פרטיות פעיל" : "הסתר מידע רגיש"}
           </button>
           <button
@@ -147,7 +147,7 @@ export function Header({
             title={theme === "light" ? "עבור למצב כהה" : "עבור למצב בהיר"}
             style={actionBtnStyle()}
           >
-            {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+            {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
             {theme === "light" ? "מצב כהה" : "מצב בהיר"}
           </button>
           <SettingsMenu
@@ -156,7 +156,7 @@ export function Header({
           />
           <form action={logout}>
             <button type="submit" className="hdr-action" style={actionBtnStyle()}>
-              <LogOut size={14} /> התנתקות
+              <LogOut size={15} /> התנתקות
             </button>
           </form>
         </div>
@@ -209,34 +209,34 @@ export function Header({
                     href="/about" onClick={() => setMoreOpen(false)} className="hdr-menu-item"
                     style={{
                       display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                      fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-dim)", textDecoration: "none",
+                      fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--text-dim)", textDecoration: "none",
                       borderBottom: "1px solid var(--border)",
                     }}
                   >
-                    <Info size={14} /> אודות
+                    <Info size={15} /> אודות
                   </Link>
                   <button
                     type="button" className="hdr-menu-item" disabled={!undoSnapshot}
                     onClick={() => { undoLastAction(); setMoreOpen(false); }}
                     style={{
                       display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                      fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-dim)", background: "transparent",
+                      fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--text-dim)", background: "transparent",
                       border: "none", borderBottom: "1px solid var(--border)", textAlign: "right", width: "100%",
                       cursor: undoSnapshot ? "pointer" : "not-allowed",
                     }}
                   >
-                    <Undo2 size={14} /> בטל פעולה אחרונה
+                    <Undo2 size={15} /> בטל פעולה אחרונה
                   </button>
                   <form action={logout}>
                     <button
                       type="submit" className="hdr-menu-item"
                       style={{
                         display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-                        fontFamily: "var(--sans)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--loss)", background: "transparent",
+                        fontFamily: "var(--sans)", fontSize: "14px", fontWeight: 600, color: "var(--loss)", background: "transparent",
                         border: "none", textAlign: "right", width: "100%", cursor: "pointer",
                       }}
                     >
-                      <LogOut size={14} /> התנתקות
+                      <LogOut size={15} /> התנתקות
                     </button>
                   </form>
                 </div>

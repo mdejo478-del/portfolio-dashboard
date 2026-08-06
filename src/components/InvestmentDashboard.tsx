@@ -546,6 +546,8 @@ export default function InvestmentDashboard({
         .idash td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: right; vertical-align: middle; }
         .idash th.num, .idash td.num { text-align: right; }
         .idash td.num { font-family: var(--mono); direction: ltr; unicode-bidi: plaintext; font-variant-numeric: tabular-nums; }
+        .idash .holdings-table th { font-size: 12.5px; }
+        .idash .holdings-table td { font-size: 14.5px; padding: 11px 12px; }
         .idash th.center, .idash td.center { text-align: center; }
         .idash tr:nth-child(even) td { background: var(--row-alt); }
         .idash tr.row-cash td { background: var(--row-highlight); }
@@ -634,13 +636,13 @@ export default function InvestmentDashboard({
           {/* Ticker */}
           <div className="ticker-wrap" style={{
             display: "flex", alignItems: "center", gap: 14,
-            border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "10px 16px", marginBottom: 24,
+            border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "12px 16px", marginBottom: 24,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.4, whiteSpace: "nowrap" }}>הקצאה חיה</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.4, whiteSpace: "nowrap" }}>הקצאה חיה</span>
             </div>
-            <div style={{ width: 1, height: 16, background: "var(--border)", flexShrink: 0 }} />
+            <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
             <div style={{
               position: "relative", overflow: "hidden", flex: 1, minWidth: 0,
               WebkitMaskImage: "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
@@ -648,7 +650,7 @@ export default function InvestmentDashboard({
             }}>
               <div className="ticker-track">
                 {[...evaluated, ...evaluated].map((p, i) => (
-                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--mono)", fontSize: 12.5 }}>
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--mono)", fontSize: 14 }}>
                     <span style={{ width: 6, height: 6, borderRadius: 999, background: TONE_STYLES[p.tone].text, flexShrink: 0 }} />
                     <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.symbol}</span>
                     <span style={{ color: "var(--text-faint)" }}>{fmtPct(p.weight)}</span>

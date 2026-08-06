@@ -6,8 +6,8 @@ function HealthChip({ label, value, tone }: { label: string; value: string; tone
   const s = TONE_STYLES[tone];
   return (
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5,
-      background: s.bg, border: "1px solid " + s.border, borderRadius: 8, padding: "5px 10px", whiteSpace: "nowrap",
+      display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14,
+      background: s.bg, border: "1px solid " + s.border, borderRadius: 8, padding: "6px 12px", whiteSpace: "nowrap",
     }}>
       <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>{label}:</span>
       <span style={{ color: s.text, fontWeight: 700 }}>{value}</span>
@@ -27,10 +27,10 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
       padding: "var(--space-4) var(--space-5)", marginBottom: 22, display: "flex", flexDirection: "column", gap: "var(--space-3)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 15.5, fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>
           <span>{toneIcon}</span> בריאות התיק
         </div>
-        <div style={{ fontFamily: "var(--mono)", fontSize: 20, fontWeight: 700, color: s.text }}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700, color: s.text }}>
           ציון: {health.score}/100
         </div>
       </div>
@@ -41,7 +41,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
         <HealthChip label="Cash" value={fmtPct(health.cashPct)} tone={health.cashTone} />
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12.5 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
         <div>
           <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>צריך לחזק: </span>
           <span style={{ color: "var(--text)" }}>
