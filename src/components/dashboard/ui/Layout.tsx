@@ -12,8 +12,8 @@ export function PageBanner({ icon, title, subtitle }: { icon: ReactNode; title: 
         width: 40, height: 40, borderRadius: "var(--radius-sm)", background: "var(--panel-2)", flexShrink: 0,
       }}>{icon}</div>
       <div>
-        <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text)", letterSpacing: 0.2, lineHeight: "var(--line-height-tight)" }}>{title}</div>
-        <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-dim)", marginTop: 4, letterSpacing: 0.4 }}>{subtitle}</div>
+        <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text)", letterSpacing: "var(--letter-spacing-heading)", lineHeight: "var(--line-height-tight)" }}>{title}</div>
+        <div style={{ fontSize: "var(--font-size-subtitle)", fontWeight: 600, color: "var(--text-dim)", marginTop: 4, letterSpacing: "var(--letter-spacing-subtitle)" }}>{subtitle}</div>
       </div>
     </div>
   );

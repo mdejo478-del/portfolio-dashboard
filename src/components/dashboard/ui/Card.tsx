@@ -10,7 +10,7 @@ export function Card({ label, value, sub, tone, icon }: { label: string; value: 
       padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10, minWidth: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ color: "var(--text-dim)", fontSize: 12.5, fontWeight: 600, letterSpacing: 0.2, lineHeight: 1.3 }}>{label}</span>
+        <span style={{ color: "var(--text-dim)", fontSize: "var(--font-size-subtitle)", fontWeight: 600, letterSpacing: "var(--letter-spacing-subtitle)", lineHeight: 1.3 }}>{label}</span>
         {icon}
       </div>
       <span style={{ fontFamily: "var(--mono)", fontSize: 23, fontWeight: 700, lineHeight: 1.2, color: s ? s.text : "var(--text)", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
