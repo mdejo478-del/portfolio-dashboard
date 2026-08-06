@@ -1,12 +1,13 @@
 import { useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical, KeyRound } from "lucide-react";
+import { Undo2, Eye, EyeOff, LogOut, Info, MoreVertical, KeyRound, Trash2 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 import { ChangePasswordModal } from "@/components/dashboard/ChangePasswordModal";
+import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
 
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
@@ -20,6 +21,7 @@ export function Header({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const moreWrapperRef = useRef<HTMLDivElement>(null);
   const morePos = usePopoverPosition(moreOpen, moreWrapperRef, 200);
 
@@ -113,6 +115,12 @@ export function Header({
           <button type="button" className="ghost" onClick={() => setChangePasswordOpen(true)} style={ghostBtnStyle}>
             <KeyRound size={15} /> שינוי סיסמה
           </button>
+          <button
+            type="button" onClick={() => setDeleteAccountOpen(true)}
+            style={{ ...ghostBtnStyle, borderColor: "rgba(255,90,95,0.35)", color: "#FF8589" }}
+          >
+            <Trash2 size={15} /> מחק חשבון
+          </button>
           <form action={logout}>
             <button type="submit" className="ghost" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 15px" }}>
               <LogOut size={15} /> התנתקות
@@ -194,6 +202,18 @@ export function Header({
                   >
                     <KeyRound size={15} /> שינוי סיסמה
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDeleteAccountOpen(true); setMoreOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                      fontSize: 13.5, fontWeight: 600, color: "#FF8589", background: "transparent",
+                      border: "none", borderBottom: "1px solid var(--border)", textAlign: "right", width: "100%",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Trash2 size={15} /> מחק חשבון
+                  </button>
                   <form action={logout}>
                     <button
                       type="submit"
@@ -214,6 +234,7 @@ export function Header({
       </div>
 
       {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {deleteAccountOpen && <DeleteAccountModal onClose={() => setDeleteAccountOpen(false)} />}
     </div>
   );
 }

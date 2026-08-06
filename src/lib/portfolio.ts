@@ -165,3 +165,10 @@ export async function saveEquityHistory(userId: string, history: EquityPoint[]):
   const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
   await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed });
 }
+
+/** Permanently removes this user's live portfolio file (positions, trades,
+ * ledger, equity history) - used by account deletion. Does not touch
+ * historical backup snapshots; see deleteUserPortfolioBackups in backup.ts. */
+export async function deletePortfolio(userId: string): Promise<void> {
+  await fs.rm(portfolioPath(userId), { force: true });
+}

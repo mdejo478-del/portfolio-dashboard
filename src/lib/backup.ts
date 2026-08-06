@@ -118,3 +118,17 @@ export async function maybeRunBackup(): Promise<void> {
   if (meta && Date.now() - meta.lastBackupAt < MIN_INTERVAL_MS) return;
   await runBackupNow();
 }
+
+/** Removes this user's portfolio file from every existing backup snapshot -
+ * used by account deletion, so "delete my data" doesn't leave copies of the
+ * portfolio recoverable from a past snapshot. Historical copies of
+ * users.json (which also briefly contained this user's record) are left
+ * alone: they're whole-table point-in-time snapshots, not per-user data,
+ * and age out on their own via the existing rolling retention window. */
+export async function deleteUserPortfolioBackups(userId: string): Promise<void> {
+  const dirs = await listBackupDirs();
+  for (const name of dirs) {
+    const file = path.join(BACKUPS_DIR, name, "portfolios", `${userId}.json`);
+    await fs.rm(file, { force: true });
+  }
+}

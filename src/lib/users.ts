@@ -106,6 +106,14 @@ export async function markOnboardingCompleted(id: string): Promise<boolean> {
   return true;
 }
 
+export async function deleteUser(id: string): Promise<boolean> {
+  const users = await readUsers();
+  const next = users.filter((u) => u.id !== id);
+  if (next.length === users.length) return false;
+  await writeUsers(next);
+  return true;
+}
+
 export type UpdatePasswordResult = "OK" | "WRONG_PASSWORD" | "NOT_FOUND";
 
 export async function updatePassword(id: string, currentPassword: string, newPassword: string): Promise<UpdatePasswordResult> {

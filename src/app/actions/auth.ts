@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword } from "@/lib/users";
+import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword, deleteUser } from "@/lib/users";
 import {
   createSession, deleteSession, getSession,
   acceptDisclaimer as acceptDisclaimerSession,
@@ -14,6 +14,8 @@ import {
 } from "@/lib/pendingVerification";
 import { checkRateLimit, getClientIp, rateLimitMessage } from "@/lib/rateLimit";
 import { notifyNewUserRegistration } from "@/lib/telegram";
+import { deletePortfolio } from "@/lib/portfolio";
+import { deleteUserPortfolioBackups } from "@/lib/backup";
 
 export interface AuthFormState {
   error?: string;
@@ -184,4 +186,28 @@ export async function changePassword(
   if (result === "NOT_FOUND") return { error: "אירעה שגיאה. נסה שוב." };
 
   return { success: true };
+}
+
+export async function deleteAccount(
+  _prevState: AuthFormState | undefined,
+  formData: FormData
+): Promise<AuthFormState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const confirmText = String(formData.get("confirmText") || "").trim();
+  if (confirmText.toUpperCase() !== "DELETE" && confirmText !== "מחק") {
+    return { error: 'יש להקליד DELETE או "מחק" כדי לאשר את המחיקה.' };
+  }
+
+  // Portfolio + its backup snapshots first, then the user record itself -
+  // if something fails partway, better to have leftover portfolio data for
+  // a user that no longer exists (harmless, orphaned) than a deleted
+  // portfolio still attached to a user who can log back in and be confused
+  // by an empty account.
+  await deletePortfolio(session.userId);
+  await deleteUserPortfolioBackups(session.userId);
+  await deleteUser(session.userId);
+  await deleteSession();
+  redirect("/login");
 }
