@@ -30,7 +30,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16,
-          width: "min(420px, 100%)", boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+          width: "min(420px, 100%)", boxShadow: "var(--shadow-lg)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
@@ -43,8 +43,8 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         {state.success ? (
           <div style={{ padding: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
             <div style={{
-              width: 48, height: 48, borderRadius: "50%", background: "rgba(46,204,113,0.12)",
-              color: "#5BE39D", display: "flex", alignItems: "center", justifyContent: "center",
+              width: 48, height: 48, borderRadius: "50%", background: "var(--gain-subtle)",
+              color: "var(--gain)", display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               <CheckCircle2 size={26} />
             </div>
@@ -65,8 +65,8 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
             {state.error && (
               <div style={{
-                padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)",
-                borderRadius: 8, color: "#FF8589", fontSize: 12.5,
+                padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)",
+                borderRadius: 8, color: "var(--loss)", fontSize: 12.5,
               }}>
                 {state.error}
               </div>

@@ -24,12 +24,12 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--panel)", border: "1px solid rgba(255,90,95,0.4)", borderRadius: 16,
-          width: "min(440px, 100%)", boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+          background: "var(--panel)", border: "1px solid var(--loss-subtle-border)", borderRadius: 16,
+          width: "min(440px, 100%)", boxShadow: "var(--shadow-lg)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 800, color: "#FF8589" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 800, color: "var(--loss)" }}>
             <AlertTriangle size={18} /> מחיקת חשבון
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></button>
@@ -37,8 +37,8 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
 
         <form action={formAction} style={{ padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{
-            padding: "12px 14px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)",
-            borderRadius: 10, color: "#FF8589", fontSize: 13, lineHeight: 1.7,
+            padding: "12px 14px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)",
+            borderRadius: 10, color: "var(--loss)", fontSize: 13, lineHeight: 1.7,
           }}>
             פעולה זו תמחק לצמיתות את החשבון, התיק, יומן המסחר וכל הנתונים. לא ניתן לשחזר.
           </div>
@@ -56,8 +56,8 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
 
           {state.error && (
             <div style={{
-              padding: "8px 12px", background: "rgba(255,90,95,0.1)", border: "1px solid rgba(255,90,95,0.35)",
-              borderRadius: 8, color: "#FF8589", fontSize: 12.5,
+              padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)",
+              borderRadius: 8, color: "var(--loss)", fontSize: 12.5,
             }}>
               {state.error}
             </div>
@@ -68,7 +68,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
               type="submit" disabled={!isConfirmed || pending}
               style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: isConfirmed ? "#FF5A5F" : "rgba(255,90,95,0.25)", color: "#2B0B0C",
+                background: isConfirmed ? "var(--loss-strong)" : "var(--loss-subtle)", color: "#2B0B0C",
                 border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, fontSize: 13.5,
                 cursor: isConfirmed && !pending ? "pointer" : "not-allowed",
               }}

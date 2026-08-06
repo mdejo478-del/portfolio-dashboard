@@ -24,7 +24,7 @@ export function AlertsBell({
         {unseenCount > 0 && (
           <span style={{
             position: "absolute", top: -5, left: -5, minWidth: 16, height: 16, borderRadius: 999,
-            background: "#FF5A5F", color: "#fff", fontSize: 10, fontWeight: 800,
+            background: "var(--loss-strong)", color: "#fff", fontSize: 10, fontWeight: 800,
             display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
           }}>
             {unseenCount > 9 ? "9+" : unseenCount}
@@ -38,7 +38,7 @@ export function AlertsBell({
           <div style={{
             position: "absolute", top: "calc(100% + 8px)", left, width,
             maxHeight: 420, overflowY: "auto", background: "var(--panel)", border: "1px solid var(--border)",
-            borderRadius: 12, zIndex: 50, boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+            borderRadius: 12, zIndex: 50, boxShadow: "var(--shadow-md)",
           }}>
             <div style={{
               padding: "12px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13.5,
@@ -58,7 +58,7 @@ export function AlertsBell({
                 return (
                   <div key={a.id} style={{
                     padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", gap: 9, alignItems: "flex-start",
-                    background: isNew ? "rgba(34,211,168,0.04)" : "transparent",
+                    background: isNew ? "var(--accent-subtle)" : "transparent",
                   }}>
                     <span style={{ width: 8, height: 8, borderRadius: 999, marginTop: 5, flexShrink: 0, background: s.text }} />
                     <div style={{ flex: 1, minWidth: 0 }}>

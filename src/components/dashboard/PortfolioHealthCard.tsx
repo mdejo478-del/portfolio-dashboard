@@ -50,7 +50,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
         </div>
         <div>
           <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>חריגות משקל: </span>
-          <span style={{ color: health.weightBreaches.length > 0 ? "#FF8589" : "var(--text)" }}>
+          <span style={{ color: health.weightBreaches.length > 0 ? "var(--loss)" : "var(--text)" }}>
             {health.weightBreaches.length > 0 ? health.weightBreaches.map((p) => p.symbol).join(", ") : "אין חריגות משקל"}
           </span>
         </div>

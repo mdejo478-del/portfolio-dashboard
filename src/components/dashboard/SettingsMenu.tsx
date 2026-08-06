@@ -47,7 +47,7 @@ export function SettingsMenu({
           <div style={{
             position: "absolute", top: "calc(100% + 8px)", left: pos.left, width: pos.width, zIndex: 50,
             background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12,
-            boxShadow: "0 12px 32px rgba(0,0,0,0.45)", overflow: "hidden", display: "flex", flexDirection: "column",
+            boxShadow: "var(--shadow-md)", overflow: "hidden", display: "flex", flexDirection: "column",
           }}>
             <div style={{
               padding: "9px 14px", fontSize: 11, fontWeight: 700, color: "var(--text-faint)",
@@ -85,7 +85,7 @@ export function SettingsMenu({
               onClick={() => { onDeleteAccount(); setOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
-                fontSize: 13.5, fontWeight: 600, color: "#FF8589", background: "transparent",
+                fontSize: 13.5, fontWeight: 600, color: "var(--loss)", background: "transparent",
                 border: "none", textAlign: "right", width: "100%", cursor: "pointer",
               }}
             >
