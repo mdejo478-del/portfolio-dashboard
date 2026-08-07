@@ -2,6 +2,21 @@ import type { Tone, PortfolioHealthData } from "@/components/dashboard/types";
 import { TONE_STYLES } from "@/components/dashboard/constants";
 import { fmtPct } from "@/components/dashboard/format";
 
+function ToneDot({ tone }: { tone: Tone }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: 10,
+        height: 10,
+        borderRadius: 999,
+        background: TONE_STYLES[tone].text,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 function HealthChip({ label, value, tone }: { label: string; value: string; tone: Tone }) {
   const s = TONE_STYLES[tone];
   return (
@@ -17,7 +32,6 @@ function HealthChip({ label, value, tone }: { label: string; value: string; tone
 
 export function PortfolioHealthCard({ health }: { health: PortfolioHealthData }) {
   const s = TONE_STYLES[health.tone];
-  const toneIcon = health.tone === "green" ? "🟢" : health.tone === "amber" ? "🟡" : "🔴";
   const riskTone: Tone = health.risk === "תקין" ? "green" : health.risk === "גבוה" ? "red" : "blue";
   const diversificationTone: Tone = health.diversification === "טוב" ? "green" : health.diversification === "בינוני" ? "amber" : "red";
 
@@ -28,7 +42,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>
-          <span>{toneIcon}</span> בריאות התיק
+          <ToneDot tone={health.tone} /> בריאות התיק
         </div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700, color: s.text }}>
           ציון: {health.score}/100
