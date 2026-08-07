@@ -28,6 +28,21 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
         .auth-shell .auth-btn-ghost:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
         .auth-shell .auth-btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
 
+        @keyframes draw-line { to { stroke-dashoffset: 0; } }
+        @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes glow-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.6; } }
+        @keyframes dot-pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.6); opacity: 0; } }
+
+        .auth-line { stroke-dasharray: 100; stroke-dashoffset: 100; animation: draw-line 2.2s ease-out 0.3s forwards; }
+        .auth-badge { animation: fade-up 0.6s ease-out 1.8s both, bob 3.5s ease-in-out 2.4s infinite; }
+        .auth-glow { animation: glow-pulse 4s ease-in-out infinite; }
+        .auth-dot-ping { animation: dot-pulse 1.8s ease-out 2s infinite; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .auth-line, .auth-badge, .auth-glow, .auth-dot-ping { animation: none; }
+        }
+
         @media (max-width: 860px) {
           .auth-shell-marketing { display: none !important; }
           .auth-shell-login { flex: 1 1 100% !important; }
@@ -43,11 +58,10 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
           padding: "var(--space-4)", position: "relative", overflow: "hidden",
         }}
       >
-        {/* soft glow behind the card */}
-        <div style={{
+        <div className="auth-glow" style={{
           position: "absolute", top: "50%", left: "50%", width: 520, height: 520,
           background: "radial-gradient(circle, var(--accent-subtle) 0%, transparent 70%)",
-          transform: "translate(-50%, -50%)", pointerEvents: "none", opacity: 0.5,
+          transform: "translate(-50%, -50%)", pointerEvents: "none",
         }} />
 
         <div style={{
@@ -62,12 +76,18 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
             boxShadow: "0 0 14px 1px var(--accent-subtle)",
           }} />
 
-          {/* wordmark instead of the old placeholder logo image */}
-          <div style={{
-            display: "flex", alignItems: "baseline", gap: 2, marginBottom: "var(--space-6)",
-            fontFamily: "var(--mono)", fontWeight: 700, fontSize: 20, letterSpacing: "0.08em", color: "var(--text)",
-          }}>
-            IPMS<span style={{ color: "var(--accent)" }}>.</span>
+          {/* logo on a light plaque so the jpg's white background reads as intentional -
+              the plaque is deliberately a fixed light literal, not a theme token: the logo
+              asset itself has a baked-in off-white background, so the plaque has to stay
+              light regardless of app theme or the logo's own background would clash against it */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-6)" }}>
+            <div style={{
+              background: "#f4f4f2", borderRadius: 16, padding: 10,
+              boxShadow: "0 8px 24px -8px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
+            }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.jpg" alt="IPMS" style={{ width: 64, height: 64, borderRadius: 8, display: "block", objectFit: "cover" }} />
+            </div>
           </div>
 
           {children}
@@ -91,7 +111,7 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
             inward from this panel's own left edge (the shared boundary), so it
             stays inside the panel's own box and isn't clipped by overflow:hidden.
             A neutral black-based fade (not a token) reads as a soft shadow in both
-            themes, unlike the previous hardcoded dark-teal which only worked in dark mode. */}
+            themes, unlike a hardcoded dark-teal which would only work in dark mode. */}
         <div style={{
           position: "absolute", top: 0, bottom: 0, left: 0, width: 120,
           background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)",
@@ -115,13 +135,28 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
           </p>
         </div>
 
-        {/* decorative equity-curve style wave, purely visual */}
-        <svg viewBox="0 0 600 160" style={{ width: "100%", height: 140, opacity: 0.85 }} aria-hidden="true">
-          <path
-            d="M0,110 C60,60 120,140 180,90 C240,40 300,120 360,70 C420,20 480,100 540,55 C570,30 590,45 600,40"
-            fill="none" stroke="var(--accent)" strokeWidth="2.5"
-          />
-        </svg>
+        {/* animated rising equity curve - purely decorative, not sourced from any portfolio */}
+        <div style={{ position: "relative", width: "100%", height: 180 }}>
+          <div className="auth-badge" style={{
+            position: "absolute", top: 6, left: "18%",
+            background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", color: "var(--gain)",
+            fontFamily: "var(--mono)", fontWeight: 700, fontSize: 13, borderRadius: 8, padding: "4px 10px",
+          }}>
+            +24.6%
+          </div>
+
+          <svg viewBox="0 0 600 160" style={{ width: "100%", height: "100%" }} aria-hidden="true">
+            <path
+              className="auth-line"
+              pathLength={100}
+              d="M0,130 C60,90 110,150 170,100 C230,50 280,120 340,75 C400,30 450,95 510,45 C540,20 560,35 590,10"
+              fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round"
+            />
+            {/* end point + pulsing ping to draw the eye upward */}
+            <circle cx="590" cy="10" r="5" fill="var(--accent)" />
+            <circle className="auth-dot-ping" cx="590" cy="10" r="5" fill="var(--accent)" />
+          </svg>
+        </div>
       </div>
     </div>
   );
