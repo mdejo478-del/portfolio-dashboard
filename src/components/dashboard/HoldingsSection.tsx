@@ -350,17 +350,19 @@ export function HoldingsSection({
                 <td
                   onClick={() => openDetail(p.symbol)}
                   title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
-                  style={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "var(--space-2)", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
+                  style={{ fontWeight: 700, textAlign: "right", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
                 >
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
-                  {tradingViewUrl(p.symbol) ? (
-                    <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="symbol-link"
-                      title={"פתח גרף TradingView עבור " + p.symbol}>
-                      {p.symbol}
-                    </a>
-                  ) : p.symbol}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
+                    {tradingViewUrl(p.symbol) ? (
+                      <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="symbol-link"
+                        title={"פתח גרף TradingView עבור " + p.symbol}>
+                        {p.symbol}
+                      </a>
+                    ) : p.symbol}
+                  </span>
                 </td>
                 <td className="num" style={{ color: "var(--text-dim)" }}>
                   {editingPosId === p.id ? (
