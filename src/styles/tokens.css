@@ -36,14 +36,14 @@
      truth instead of two :root blocks racing on cascade order. */
 
   /* ---------------------------------------------------------------------
-     Color — brand accent (existing teal, used for primary interactive UI)
+     Color — brand accent (amber/gold, replacing the previous teal)
      --------------------------------------------------------------------- */
-  --accent: #22d3a8;
-  --accent-hover: #2ee6ba;
-  --accent-active: #1cb891;
+  --accent: #b8924f;
+  --accent-hover: #c9a563;
+  --accent-active: #a5813f;    /* darker than --accent, matching the old teal's hover-lighter/active-darker pattern - not separately specified */
   --accent-on: #04342c;        /* text/icon color on top of --accent */
-  --accent-subtle: rgba(34, 211, 168, 0.12);
-  --accent-subtle-border: rgba(34, 211, 168, 0.35);
+  --accent-subtle: #241d0f;
+  --accent-subtle-border: #3d3018;
 
   /* ---------------------------------------------------------------------
      Color — quiet blue-violet secondary accent (new)
@@ -89,7 +89,7 @@
   --active-overlay: rgba(255, 255, 255, 0.06);
   --row-highlight: rgba(148, 163, 184, 0.07);
   --row-alt: rgba(255, 255, 255, 0.015);
-  --focus-ring: rgba(34, 211, 168, 0.35);
+  --focus-ring: rgba(184, 146, 79, 0.35);
   --disabled-opacity: 0.45;
 
   /* ---------------------------------------------------------------------
@@ -179,11 +179,11 @@
   --text-dim: #5b6472;
   --text-faint: #8a93a3;
 
-  --accent: #0e8f73;
-  --accent-hover: #0aa383;
-  --accent-active: #0c7a61;
-  --accent-subtle: rgba(14, 143, 115, 0.12);
-  --accent-subtle-border: rgba(14, 143, 115, 0.35);
+  --accent: #8a6d2f;
+  --accent-hover: #9c7b36;
+  --accent-active: #705a1f;
+  --accent-subtle: rgba(138, 109, 47, 0.12);
+  --accent-subtle-border: rgba(138, 109, 47, 0.35);
 
   --accent-violet: #5458d4;
   --accent-violet-hover: #6468e0;
@@ -208,7 +208,7 @@
   --active-overlay: rgba(20, 24, 31, 0.07);
   --row-highlight: rgba(91, 100, 114, 0.08);
   --row-alt: rgba(20, 24, 31, 0.018);
-  --focus-ring: rgba(14, 143, 115, 0.35);
+  --focus-ring: rgba(138, 109, 47, 0.35);
   --scrim: rgba(20, 24, 31, 0.4);
 
   --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
@@ -229,11 +229,11 @@
     --text: #14181f;
     --text-dim: #5b6472;
     --text-faint: #8a93a3;
-    --accent: #0e8f73;
-    --accent-hover: #0aa383;
-    --accent-active: #0c7a61;
-    --accent-subtle: rgba(14, 143, 115, 0.12);
-    --accent-subtle-border: rgba(14, 143, 115, 0.35);
+    --accent: #8a6d2f;
+    --accent-hover: #9c7b36;
+    --accent-active: #705a1f;
+    --accent-subtle: rgba(138, 109, 47, 0.12);
+    --accent-subtle-border: rgba(138, 109, 47, 0.35);
     --accent-violet: #5458d4;
     --accent-violet-hover: #6468e0;
     --accent-violet-subtle: rgba(84, 88, 212, 0.12);
@@ -254,7 +254,7 @@
     --active-overlay: rgba(20, 24, 31, 0.07);
     --row-highlight: rgba(91, 100, 114, 0.08);
     --row-alt: rgba(20, 24, 31, 0.018);
-    --focus-ring: rgba(14, 143, 115, 0.35);
+    --focus-ring: rgba(138, 109, 47, 0.35);
     --scrim: rgba(20, 24, 31, 0.4);
     --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
     --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.08);
