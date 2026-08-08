@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 import { deleteAccount, type AuthFormState } from "@/app/actions/auth";
+import { Button } from "@/components/dashboard/ui/Button";
 
 const initialState: AuthFormState = {};
 
@@ -34,7 +35,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--loss)" }}>
             <AlertTriangle size={18} /> מחיקת חשבון
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></button>
+          <Button variant="icon" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></Button>
         </div>
 
         <form action={formAction} style={{ padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -66,18 +67,13 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
           )}
 
           <div style={{ display: "flex", gap: 10 }}>
-            <button
-              type="submit" disabled={!isConfirmed || pending}
-              style={{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: isConfirmed ? "var(--loss-strong)" : "var(--loss-subtle)", color: "var(--loss-on)",
-                border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, fontSize: 13.5,
-                cursor: isConfirmed && !pending ? "pointer" : "not-allowed",
-              }}
+            <Button
+              type="submit" variant="danger" disabled={!isConfirmed || pending}
+              style={{ flex: 1 }}
             >
               <Trash2 size={15} /> {pending ? "מוחק..." : "מחק לצמיתות"}
-            </button>
-            <button type="button" className="ghost" onClick={onClose} disabled={pending}>ביטול</button>
+            </Button>
+            <Button variant="ghost" onClick={onClose} disabled={pending}>ביטול</Button>
           </div>
         </form>
       </div>

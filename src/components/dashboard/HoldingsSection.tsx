@@ -8,6 +8,7 @@ import { EMPTY_POSITION_FORM } from "@/components/dashboard/constants";
 import { TONE_STYLES } from "@/components/dashboard/constants";
 import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum } from "@/components/dashboard/format";
 import { Badge } from "@/components/dashboard/ui/Badge";
+import { Button } from "@/components/dashboard/ui/Button";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
@@ -220,32 +221,28 @@ export function HoldingsSection({
           )}
         </div>
 
-        <div style={{ marginTop: 10 }}>
-          <span style={{
-            display: "block", fontWeight: 700, fontSize: 14, textAlign: "center",
-            color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
-            border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8, padding: "8px 10px",
-          }}>{p.action}</span>
+        <div style={{ marginTop: 10, textAlign: "center" }}>
+          <Badge tone={p.tone} size="md" style={{ display: "block" }}>{p.action}</Badge>
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: 10 }}>
           {isEditing ? (
             <>
-              <button type="button" className="icon-btn" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={15} /></button>
-              <button type="button" className="icon-btn" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={15} /></button>
+              <Button variant="icon" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={15} /></Button>
+              <Button variant="icon" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={15} /></Button>
             </>
           ) : (
-            <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={15} /></button>
+            <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={15} /></Button>
           )}
           {p.symbol === "CASH" ? (
             <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
           ) : deletePosConfirmId === p.id ? (
             <>
-              <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-1)" }}><Check size={13} /> אישור</button>
-              <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={15} /></button>
+              <Button variant="danger" onClick={() => deletePosition(p.id)} style={{ padding: "6px 10px", fontSize: 12.5, gap: "var(--space-1)" }}><Check size={13} /> אישור</Button>
+              <Button variant="icon" onClick={() => setDeletePosConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={15} /></Button>
             </>
           ) : (
-            <button type="button" className="icon-btn danger" onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={15} /></button>
+            <Button variant="icon" danger onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={15} /></Button>
           )}
         </div>
       </div>
@@ -277,13 +274,11 @@ export function HoldingsSection({
               <>✓ נשמר</>
             )}
           </span>
-          <button type="button" className="ghost" onClick={refreshPrices} disabled={pricesLoading}
-            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Button variant="ghost" onClick={refreshPrices} disabled={pricesLoading}>
             <RefreshCw size={14} className={pricesLoading ? "spin-icon" : undefined} /> רענון מחירים
-          </button>
-          <button type="button" className="ghost" onClick={onBackupNow} disabled={backupRunning}
-            title="שומר עותק גיבוי מיידי של נתוני התיק, בנוסף לגיבוי האוטומטי"
-            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          </Button>
+          <Button variant="ghost" onClick={onBackupNow} disabled={backupRunning}
+            title="שומר עותק גיבוי מיידי של נתוני התיק, בנוסף לגיבוי האוטומטי">
             {backupRunning ? (
               <><RefreshCw size={14} className="spin-icon" /> יוצר גיבוי...</>
             ) : backupDoneAt !== null ? (
@@ -291,7 +286,7 @@ export function HoldingsSection({
             ) : (
               <><Archive size={14} /> צור גיבוי עכשיו</>
             )}
-          </button>
+          </Button>
         </div>
       </div>
       {priceError && (
@@ -381,13 +376,9 @@ export function HoldingsSection({
                 <td className="num">{fmtPct(p.weight)}</td>
                 <td className="center"><Badge tone={p.tone} size="md">{p.status}</Badge></td>
                 <td className="center">
-                  <span title={p.action} style={{
-                    display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
-                    fontWeight: 700, fontSize: 14,
-                    color: TONE_STYLES[p.tone].text, background: TONE_STYLES[p.tone].bg,
-                    border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 8,
-                    padding: "6px 11px", whiteSpace: "nowrap",
-                  }}>{p.action}</span>
+                  <Badge tone={p.tone} size="md" title={p.action} style={{
+                    display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>{p.action}</Badge>
                 </td>
                 <td className="num tight" style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</td>
                 <td className="num tight" style={{ color: "var(--text-faint)" }}>
@@ -419,21 +410,21 @@ export function HoldingsSection({
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
                     {editingPosId === p.id ? (
                       <>
-                        <button type="button" className="icon-btn" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={13} /></button>
-                        <button type="button" className="icon-btn" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={13} /></button>
+                        <Button variant="icon" onClick={() => savePosQty(p)} aria-label="שמור" title="שמור"><Check size={13} /></Button>
+                        <Button variant="icon" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={13} /></Button>
                       </>
                     ) : (
-                      <button type="button" className="icon-btn" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={13} /></button>
+                      <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={13} /></Button>
                     )}
                     {p.symbol === "CASH" ? (
                       <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
                     ) : deletePosConfirmId === p.id ? (
                       <>
-                        <button type="button" onClick={() => deletePosition(p.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-1)" }}><Check size={12} /> אישור</button>
-                        <button type="button" onClick={() => setDeletePosConfirmId(null)} className="icon-btn" aria-label="ביטול" title="ביטול"><X size={13} /></button>
+                        <Button variant="danger" onClick={() => deletePosition(p.id)} style={{ padding: "4px 8px", fontSize: 11.5, gap: "var(--space-1)" }}><Check size={12} /> אישור</Button>
+                        <Button variant="icon" onClick={() => setDeletePosConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={13} /></Button>
                       </>
                     ) : (
-                      <button type="button" className="icon-btn danger" onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={13} /></button>
+                      <Button variant="icon" danger onClick={() => setDeletePosConfirmId(p.id)} aria-label="הסר נכס" title="הסר נכס"><Trash2 size={13} /></Button>
                     )}
                   </div>
                 </td>
@@ -475,7 +466,7 @@ export function HoldingsSection({
               <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
               </div>
-              <button type="button" className="icon-btn" onClick={() => { setShowAddPosition(false); setPosForm(EMPTY_POSITION_FORM); setPosFormError(""); }}><X size={15} /></button>
+              <Button variant="icon" onClick={() => { setShowAddPosition(false); setPosForm(EMPTY_POSITION_FORM); setPosFormError(""); }}><X size={15} /></Button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: "var(--space-3)" }}>
               <Field label="סימול">
@@ -491,7 +482,7 @@ export function HoldingsSection({
                   onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0.00" />
               </Field>
               <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <button type="button" onClick={submitNewPosition} className="primary" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Check size={15} /> הוסף לתיק</button>
+                <Button variant="primary" onClick={submitNewPosition} style={{ width: "100%" }}><Check size={15} /> הוסף לתיק</Button>
               </div>
             </div>
             {posFormError && (
@@ -504,12 +495,9 @@ export function HoldingsSection({
             </div>
           </div>
         ) : (
-          <button
-            type="button" className="primary" onClick={openAddPositionForm}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 22px", fontSize: 14 }}
-          >
+          <Button variant="primary" onClick={openAddPositionForm}>
             <Plus size={16} /> הוסף נכס לתיק
-          </button>
+          </Button>
         )}
       </div>
 

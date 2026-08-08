@@ -9,6 +9,7 @@ import type { TradeFormState } from "@/components/dashboard/types";
 import { ACTION_OPTS, STRATEGY_OPTS, SYMOPTS, EMPTY_FORM } from "@/components/dashboard/constants";
 import { fmtUSD, fmtPct, fmtNum, formatMoney, parseNum, csvEscape, mapStrategyToOption } from "@/components/dashboard/format";
 import { ActionBadge } from "@/components/dashboard/ui/Badge";
+import { Button } from "@/components/dashboard/ui/Button";
 import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
@@ -291,17 +292,16 @@ export function TradeJournalSection({
             accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             style={{ display: "none" }} onChange={handleFileSelected}
           />
-          <button className="ghost" onClick={() => fileInputRef.current?.click()} disabled={importLoading}
-            style={{ display: "flex", alignItems: "center", gap: 6, opacity: importLoading ? 0.6 : 1 }}>
+          <Button variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={importLoading}>
             {importLoading ? <RefreshCw size={15} className="spin-icon" /> : <Upload size={15} />}
             {importLoading ? "טוען קובץ..." : "העלאת קובץ עסקאות (CSV / Excel)"}
-          </button>
-          <button className="ghost" onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          </Button>
+          <Button variant="ghost" onClick={exportCSV}>
             <Download size={15} /> ייצוא CSV
-          </button>
-          <button className="primary" onClick={() => { if (showForm && editingId === null) { cancelForm(); } else { setForm(EMPTY_FORM); setEditingId(null); setShowForm(true); } }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          </Button>
+          <Button variant="primary" onClick={() => { if (showForm && editingId === null) { cancelForm(); } else { setForm(EMPTY_FORM); setEditingId(null); setShowForm(true); } }}>
             <Plus size={15} /> {showForm && editingId === null ? "סגור טופס" : "הוסף עסקה"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -312,7 +312,7 @@ export function TradeJournalSection({
               {editingId !== null ? <Pencil size={15} color="var(--info)" /> : <Plus size={15} color="var(--accent)" />}
               {editingId !== null ? "עריכת עסקה" : "עסקה חדשה"}
             </div>
-            <button type="button" className="icon-btn" onClick={cancelForm}><X size={15} /></button>
+            <Button variant="icon" onClick={cancelForm}><X size={15} /></Button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12 }}>
             <Field label="תאריך"><input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} /></Field>
@@ -384,8 +384,8 @@ export function TradeJournalSection({
           )}
 
           <div className="idash-form-actions" style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button type="button" onClick={submitTrade} className="primary" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Check size={15} /> {editingId !== null ? "עדכן עסקה" : "שמור עסקה"}</button>
-            <button type="button" className="ghost" onClick={cancelForm}>ביטול</button>
+            <Button variant="primary" onClick={submitTrade}><Check size={15} /> {editingId !== null ? "עדכן עסקה" : "שמור עסקה"}</Button>
+            <Button variant="ghost" onClick={cancelForm}>ביטול</Button>
           </div>
         </div>
       )}
@@ -406,7 +406,7 @@ export function TradeJournalSection({
         </Field>
         <Field label="מתאריך"><input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} /></Field>
         <Field label="עד תאריך"><input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></Field>
-        <button type="button" className="ghost" onClick={() => { setFSymbol("הכל"); setFAction("הכל"); setFFrom(""); setFTo(""); }}>נקה סינון</button>
+        <Button variant="ghost" onClick={() => { setFSymbol("הכל"); setFAction("הכל"); setFFrom(""); setFTo(""); }}>נקה סינון</Button>
       </div>
       <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>מציג {sortedTrades.length} מתוך {trades.length} עסקאות</div>
 
@@ -458,14 +458,14 @@ export function TradeJournalSection({
                 <td style={{ color: "var(--text-faint)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.notes || ""}>{t.notes || "-"}</td>
                 <td className="center">
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
-                    <button type="button" className="icon-btn" onClick={() => startEdit(t)} aria-label="עריכה" title="עריכה"><Pencil size={13} /></button>
+                    <Button variant="icon" onClick={() => startEdit(t)} aria-label="עריכה" title="עריכה"><Pencil size={13} /></Button>
                     {deleteConfirmId === t.id ? (
                       <>
-                        <button type="button" onClick={() => deleteTrade(t.id)} style={{ background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 7, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Check size={12} /> אישור</button>
-                        <button type="button" className="icon-btn" onClick={() => setDeleteConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={13} /></button>
+                        <Button variant="danger" onClick={() => deleteTrade(t.id)} style={{ padding: "4px 8px", fontSize: 11.5, gap: 4 }}><Check size={12} /> אישור</Button>
+                        <Button variant="icon" onClick={() => setDeleteConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={13} /></Button>
                       </>
                     ) : (
-                      <button type="button" className="icon-btn danger" onClick={() => setDeleteConfirmId(t.id)} aria-label="מחיקה" title="מחיקה"><Trash2 size={13} /></button>
+                      <Button variant="icon" danger onClick={() => setDeleteConfirmId(t.id)} aria-label="מחיקה" title="מחיקה"><Trash2 size={13} /></Button>
                     )}
                   </div>
                 </td>

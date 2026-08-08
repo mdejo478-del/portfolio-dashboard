@@ -1,27 +1,40 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Tone } from "@/components/dashboard/types";
-import { TONE_STYLES, ACTION_LABELS } from "@/components/dashboard/constants";
+import { ACTION_LABELS } from "@/components/dashboard/constants";
 
-export function Badge({ tone, children, size = "sm" }: { tone: Tone; children: ReactNode; size?: "sm" | "md" }) {
-  const s = TONE_STYLES[tone] || TONE_STYLES.green;
+// Maps this app's Tone system onto the design-system's .ds-badge color
+// variants (tokens.css) - "neutral" and "accent" exist in the CSS but have
+// no Tone equivalent, so they're left available for future direct use.
+export const TONE_TO_DS_BADGE: Record<Tone, string> = {
+  green: "ds-badge-gain",
+  amber: "ds-badge-warning",
+  red: "ds-badge-loss",
+  blue: "ds-badge-info",
+};
+
+export function Badge({
+  tone, children, size = "sm", title, style,
+}: { tone: Tone; children: ReactNode; size?: "sm" | "md"; title?: string; style?: CSSProperties }) {
+  const variant = TONE_TO_DS_BADGE[tone] || TONE_TO_DS_BADGE.green;
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      background: s.bg, border: "1px solid " + s.border, color: s.text,
-      borderRadius: 999, fontWeight: 600, whiteSpace: "nowrap",
-      padding: size === "md" ? "4px 11px" : "3px 10px", fontSize: size === "md" ? 14 : 12,
-    }}>{children}</span>
+    <span
+      className={`ds-badge ${variant}`}
+      title={title}
+      // .ds-badge has one built-in size; "md" is a documented larger reading-size
+      // used where these pills carry primary information (e.g. Holdings table).
+      style={{ ...(size === "md" ? { fontSize: 14, padding: "4px 11px" } : undefined), ...style }}
+    >
+      {children}
+    </span>
   );
 }
 
 export function ActionBadge({ action }: { action: string }) {
   const meta = ACTION_LABELS[action] || { label: action, tone: "amber" as Tone, icon: null };
-  const s = TONE_STYLES[meta.tone];
+  const variant = TONE_TO_DS_BADGE[meta.tone] || TONE_TO_DS_BADGE.amber;
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      background: s.bg, border: "1px solid " + s.border, color: s.text,
-      borderRadius: 8, padding: "3px 9px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
-    }}>{meta.icon}{meta.label}</span>
+    <span className={`ds-badge ${variant}`}>
+      {meta.icon}{meta.label}
+    </span>
   );
 }

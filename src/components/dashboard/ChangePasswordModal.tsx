@@ -4,6 +4,7 @@ import { useActionState, useEffect } from "react";
 import { X, KeyRound, CheckCircle2 } from "lucide-react";
 import { changePassword, type ChangePasswordState } from "@/app/actions/auth";
 import { Field } from "@/components/dashboard/ui/Layout";
+import { Button } from "@/components/dashboard/ui/Button";
 
 const initialState: ChangePasswordState = {};
 
@@ -39,7 +40,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
             <KeyRound size={17} color="var(--accent)" /> שינוי סיסמה
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></button>
+          <Button variant="icon" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></Button>
         </div>
 
         {state.success ? (
@@ -51,7 +52,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               <CheckCircle2 size={26} />
             </div>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text)" }}>הסיסמה עודכנה בהצלחה</div>
-            <button type="button" className="ghost" onClick={onClose} style={{ marginTop: 4 }}>סגור</button>
+            <Button variant="ghost" onClick={onClose} style={{ marginTop: 4 }}>סגור</Button>
           </div>
         ) : (
           <form action={formAction} style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -75,10 +76,10 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             )}
 
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              <button type="submit" className="primary" disabled={pending} style={{ flex: 1 }}>
+              <Button type="submit" variant="primary" disabled={pending} style={{ flex: 1 }}>
                 {pending ? "מעדכן..." : "עדכן סיסמה"}
-              </button>
-              <button type="button" className="ghost" onClick={onClose} disabled={pending}>ביטול</button>
+              </Button>
+              <Button variant="ghost" onClick={onClose} disabled={pending}>ביטול</Button>
             </div>
           </form>
         )}

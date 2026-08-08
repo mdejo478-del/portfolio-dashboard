@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "@/components/dashboard/ui/Button";
 
 export function EmptyState({
   icon, title, subtitle, actionLabel, onAction, compact,
@@ -26,12 +27,12 @@ export function EmptyState({
         <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-dim)", maxWidth: 320, lineHeight: "var(--line-height-relaxed)" }}>{subtitle}</div>
       )}
       {actionLabel && onAction && (
-        <button
-          type="button" className="primary" onClick={onAction}
-          style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, padding: "11px 22px", fontSize: 13.5 }}
+        <Button
+          variant="primary" onClick={onAction}
+          style={{ marginTop: 6 }}
         >
           {actionLabel}
-        </button>
+        </Button>
       )}
     </div>
   );

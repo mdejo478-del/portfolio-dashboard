@@ -1,5 +1,6 @@
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, ReferenceLine, Tooltip } from "recharts";
 import { TrendingUp, RefreshCw } from "lucide-react";
+import { Button } from "@/components/dashboard/ui/Button";
 import type { Tone } from "@/components/dashboard/types";
 import { TONE_STYLES } from "@/components/dashboard/constants";
 import { fmtPct, formatMoney } from "@/components/dashboard/format";
@@ -44,11 +45,11 @@ export function EquityCurveCard({
             Drawdown: {drawdown === 0 ? "0.00%" : fmtPct(drawdown)}
           </span>
           {canRebuild && (
-            <button type="button" className="ghost" onClick={onRebuild} disabled={rebuilding}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", fontSize: 13 }}>
+            <Button variant="ghost" onClick={onRebuild} disabled={rebuilding}
+              style={{ gap: 5, padding: "6px 11px", fontSize: 13 }}>
               <RefreshCw size={12} className={rebuilding ? "spin-icon" : undefined} />
               {rebuilding ? "משחזר..." : "שחזור היסטוריה מיומן המסחר"}
-            </button>
+            </Button>
           )}
         </div>
       </div>

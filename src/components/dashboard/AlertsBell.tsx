@@ -4,6 +4,7 @@ import type { Alert } from "@/components/dashboard/types";
 import { TONE_STYLES } from "@/components/dashboard/constants";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
+import { Button } from "@/components/dashboard/ui/Button";
 
 export function AlertsBell({
   alerts, unseenCount, seenIds, open, onToggle, onClose, onDismiss,
@@ -16,10 +17,10 @@ export function AlertsBell({
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
-      <button
-        type="button" className="ghost" onClick={onToggle}
+      <Button
+        variant="ghost" onClick={onToggle}
         title="התראות"
-        style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "9px 12px" }}
+        style={{ position: "relative", padding: "9px 12px" }}
       >
         <Bell size={15} />
         {unseenCount > 0 && (
@@ -31,7 +32,7 @@ export function AlertsBell({
             {unseenCount > 9 ? "9+" : unseenCount}
           </span>
         )}
-      </button>
+      </Button>
 
       {open && (
         <>
@@ -64,9 +65,9 @@ export function AlertsBell({
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}>{a.title}</div>
                       <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 2, lineHeight: 1.4 }}>{a.message}</div>
                     </div>
-                    <button type="button" className="icon-btn" onClick={() => onDismiss(a.id)} title="סגור התראה" aria-label="סגור התראה">
+                    <Button variant="icon" onClick={() => onDismiss(a.id)} title="סגור התראה" aria-label="סגור התראה">
                       <X size={12} />
-                    </button>
+                    </Button>
                   </div>
                 );
               })

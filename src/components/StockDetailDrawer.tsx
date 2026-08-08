@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
+import { Button } from "@/components/dashboard/ui/Button";
 import { getStockDetailAction } from "@/app/actions/prices";
 import type { StockDetail } from "@/lib/prices";
 import type { Position } from "@/lib/portfolio";
@@ -93,9 +94,9 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                   </div>
                 </div>
               </div>
-              <button type="button" onClick={onClose} className="icon-btn" aria-label="סגור" title="סגור">
+              <Button variant="icon" onClick={onClose} aria-label="סגור" title="סגור">
                 <X size={16} />
-              </button>
+              </Button>
             </div>
 
             <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -204,8 +205,8 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               )}
 
               {tvUrl && (
-                <a href={tvUrl} target="_blank" rel="noopener noreferrer" className="ghost"
-                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", padding: "10px 18px", borderRadius: 10, border: "1px solid var(--border)", color: "var(--text-dim)", fontSize: 13.5, fontWeight: 600 }}>
+                <a href={tvUrl} target="_blank" rel="noopener noreferrer" className="ds-btn ds-btn-ghost"
+                  style={{ textDecoration: "none" }}>
                   <ExternalLink size={14} /> פתח גרף מלא ב-TradingView
                 </a>
               )}

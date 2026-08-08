@@ -3,8 +3,9 @@
 import { X, AlertTriangle, CheckCircle2, FileWarning } from "lucide-react";
 import type { ParseResult, ParsedTradeRow } from "@/lib/tradeImport";
 import { fmtUSD } from "@/components/dashboard/format";
-import { TONE_STYLES } from "@/components/dashboard/constants";
 import type { Tone } from "@/components/dashboard/types";
+import { Badge } from "@/components/dashboard/ui/Badge";
+import { Button } from "@/components/dashboard/ui/Button";
 
 const ACTION_TONE: Record<string, Tone> = {
   "קנייה": "green", "מכירה": "red", "הפקדה": "blue", "משיכה": "amber", "אחר": "blue",
@@ -45,7 +46,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
             <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>תצוגה מקדימה — ייבוא עסקאות מקובץ</div>
             <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 3 }}>{fileName}</div>
           </div>
-          <button type="button" onClick={onClose} className="icon-btn" aria-label="סגור" title="סגור"><X size={16} /></button>
+          <Button variant="icon" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></Button>
         </div>
 
         <div style={{ padding: 22, overflowY: "auto" }}>
@@ -87,12 +88,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
                         <td style={{ fontWeight: 700 }}>{row.symbol || "-"}</td>
                         <td className="center">
                           {row.action ? (
-                            <span style={{
-                              display: "inline-block", fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "2px 8px",
-                              background: TONE_STYLES[ACTION_TONE[row.action] || "amber"].bg,
-                              border: "1px solid " + TONE_STYLES[ACTION_TONE[row.action] || "amber"].border,
-                              color: TONE_STYLES[ACTION_TONE[row.action] || "amber"].text,
-                            }}>{row.action}</span>
+                            <Badge tone={ACTION_TONE[row.action] || "amber"}>{row.action}</Badge>
                           ) : "-"}
                         </td>
                         <td className="num">{row.qty !== null ? row.qty : "-"}</td>
@@ -120,15 +116,14 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", padding: "16px 22px", borderTop: "1px solid var(--border)" }}>
-          <button type="button" className="ghost" onClick={onClose}>ביטול</button>
+          <Button variant="ghost" onClick={onClose}>ביטול</Button>
           {!result.fileError && (
-            <button
-              type="button" className="primary" disabled={validRows.length === 0}
+            <Button
+              variant="primary" disabled={validRows.length === 0}
               onClick={() => onConfirm(validRows)}
-              style={validRows.length === 0 ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
             >
               אישור והוספה ליומן ({validRows.length})
-            </button>
+            </Button>
           )}
         </div>
       </div>
