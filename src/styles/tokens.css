@@ -41,7 +41,7 @@
   --accent: #b8924f;
   --accent-hover: #c9a563;
   --accent-active: #a5813f;    /* darker than --accent, matching the old teal's hover-lighter/active-darker pattern - not separately specified */
-  --accent-on: #04342c;        /* text/icon color on top of --accent */
+  --accent-on: #1c1508;        /* text/icon color on top of --accent - warm near-black, matches the amber accent's hue family (was tuned for the old teal) */
   --accent-subtle: #241d0f;
   --accent-subtle-border: #3d3018;
 
