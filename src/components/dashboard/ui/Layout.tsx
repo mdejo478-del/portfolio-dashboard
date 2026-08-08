@@ -13,7 +13,7 @@ export function PageBanner({ icon, title, subtitle }: { icon: ReactNode; title: 
       }}>{icon}</div>
       <div>
         <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text)", letterSpacing: "var(--letter-spacing-heading)", lineHeight: "var(--line-height-tight)" }}>{title}</div>
-        <div style={{ fontSize: "var(--font-size-subtitle)", fontWeight: 600, color: "var(--text-dim)", marginTop: 4, letterSpacing: "var(--letter-spacing-subtitle)" }}>{subtitle}</div>
+        <div style={{ fontSize: "var(--font-size-subtitle)", fontWeight: 600, color: "var(--text-dim)", marginTop: "var(--space-1)", letterSpacing: "var(--letter-spacing-subtitle)" }}>{subtitle}</div>
       </div>
     </div>
   );

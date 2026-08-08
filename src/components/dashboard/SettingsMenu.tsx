@@ -25,12 +25,12 @@ export function SettingsMenu({
   const triggerStyle: CSSProperties = compact
     ? {
         display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40,
-        borderRadius: 10, cursor: "pointer", background: "transparent",
+        borderRadius: "var(--radius-md)", cursor: "pointer", background: "transparent",
         border: "1px solid var(--border)", color: "var(--text-dim)",
       }
     : {
         display: "flex", alignItems: "center", gap: 6, padding: "9px 15px",
-        borderRadius: 10, fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+        borderRadius: "var(--radius-md)", fontWeight: 600, fontSize: 13.5, cursor: "pointer",
         background: "transparent", border: "1px solid var(--border)", color: "var(--text-dim)",
       };
 

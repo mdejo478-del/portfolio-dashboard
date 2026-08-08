@@ -25,7 +25,7 @@ export function AlertsBell({
         <Bell size={15} />
         {unseenCount > 0 && (
           <span style={{
-            position: "absolute", top: -5, left: -5, minWidth: 16, height: 16, borderRadius: 999,
+            position: "absolute", top: -5, left: -5, minWidth: 16, height: 16, borderRadius: "var(--radius-full)",
             background: "var(--loss-strong)", color: "var(--loss-on)", fontSize: 10, fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
           }}>
@@ -44,7 +44,7 @@ export function AlertsBell({
           }}>
             <div style={{
               padding: "12px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13.5,
-              display: "flex", alignItems: "center", gap: 8, color: "var(--text)",
+              display: "flex", alignItems: "center", gap: "var(--space-2)", color: "var(--text)",
             }}>
               <Bell size={14} color="var(--accent)" /> התראות{alerts.length > 0 ? " (" + alerts.length + ")" : ""}
             </div>
@@ -60,7 +60,7 @@ export function AlertsBell({
                     padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", gap: 9, alignItems: "flex-start",
                     background: isNew ? "var(--accent-subtle)" : "transparent",
                   }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, marginTop: 5, flexShrink: 0, background: s.text }} />
+                    <span style={{ width: 8, height: 8, borderRadius: "var(--radius-full)", marginTop: 5, flexShrink: 0, background: s.text }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}>{a.title}</div>
                       <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 2, lineHeight: 1.4 }}>{a.message}</div>

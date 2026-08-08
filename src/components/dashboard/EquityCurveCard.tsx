@@ -28,7 +28,7 @@ export function EquityCurveCard({
   const yDomain: [number, number] = [rawMin - padding, rawMax + padding];
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "var(--shadow-sm)", padding: "var(--space-4) var(--space-5)", marginBottom: 22 }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", padding: "var(--space-4) var(--space-5)", marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>
           <TrendingUp size={16} color="var(--accent)" /> התפתחות התיק
@@ -81,14 +81,14 @@ export function EquityCurveCard({
           </ResponsiveContainer>
         ) : (
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: "var(--accent)" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "var(--radius-full)", background: "var(--accent)" }} />
             <span style={{ fontSize: 13.5, color: "var(--text-faint)" }}>נקודת המדידה הראשונה נרשמה היום</span>
           </div>
         )}
       </div>
 
       {!hasRange && (
-        <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-faint)" }}>
+        <div style={{ marginTop: "var(--space-2)", fontSize: 13, color: "var(--text-faint)" }}>
           המערכת שומרת נקודת שווי יומית - הגרף יתמלא בהדרגה ככל שיעברו ימים
           {canRebuild ? ", או לחץ \"שחזור היסטוריה מיומן המסחר\" כדי למלא אותו מיד לפי עסקאות העבר." : "."}
         </div>

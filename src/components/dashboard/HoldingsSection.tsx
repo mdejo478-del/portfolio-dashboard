@@ -134,14 +134,14 @@ export function HoldingsSection({
     return (
       <div key={p.id} style={{
         background: p.symbol === "CASH" ? "var(--row-highlight)" : "var(--panel)",
-        border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
+        border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 14, marginBottom: 10,
       }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-2)", marginBottom: 10 }}>
           <div
             onClick={() => openDetail(p.symbol)}
             style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontWeight: 700, fontSize: 16.5, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
           >
-            <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.symbol, i), flexShrink: 0 }} />
+            <span style={{ width: 9, height: 9, borderRadius: "var(--radius-full)", background: colorFor(p.symbol, i), flexShrink: 0 }} />
             {tradingViewUrl(p.symbol) ? (
               <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
@@ -310,7 +310,7 @@ export function HoldingsSection({
           {evaluated.length > 0 && (
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 14, padding: "13px 16px",
+              background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "13px 16px",
             }}>
               <span style={{ fontWeight: 700, fontSize: 14.5 }}>סך הכל התיק</span>
               <span style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: "var(--gain)" }}>{formatMoney(total, privacyMode)}</span>
@@ -322,7 +322,7 @@ export function HoldingsSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", marginBottom: "var(--space-5)" }}>
+      <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "auto", marginBottom: "var(--space-5)" }}>
         <table>
           <colgroup>
             <col style={{ width: 100 }} /><col style={{ width: 68 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
@@ -348,7 +348,7 @@ export function HoldingsSection({
                   style={{ fontWeight: 700, textAlign: "right", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
                 >
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: "var(--radius-full)", background: colorFor(p.symbol, i), display: "inline-block", flexShrink: 0 }} />
                     {tradingViewUrl(p.symbol) ? (
                       <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -461,7 +461,7 @@ export function HoldingsSection({
 
       <div style={{ marginBottom: "var(--space-5)" }}>
         {showAddPosition ? (
-          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid var(--accent-subtle-border)", borderRadius: 14, padding: "var(--space-4)" }}>
+          <div ref={addPositionRef} style={{ background: "var(--panel)", border: "1px solid var(--accent-subtle-border)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-3)" }}>
               <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <Plus size={15} color="var(--accent)" /> הוספת נכס חדש לתיק
@@ -501,7 +501,7 @@ export function HoldingsSection({
         )}
       </div>
 
-      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 30, maxWidth: 640, marginRight: "auto", marginLeft: "auto" }}>
+      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 22, marginBottom: 30, maxWidth: 640, marginRight: "auto", marginLeft: "auto" }}>
         <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: "var(--space-4)", textAlign: "center" }}>הקצאת נכסים</div>
         {pieData.length === 0 ? (
           <EmptyState
@@ -529,7 +529,7 @@ export function HoldingsSection({
           <div style={{ flex: "0 1 260px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px" }}>
             {pieData.map((p, i) => (
               <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
-                <span style={{ width: 9, height: 9, borderRadius: 999, background: colorFor(p.name, i), flexShrink: 0 }} />
+                <span style={{ width: 9, height: 9, borderRadius: "var(--radius-full)", background: colorFor(p.name, i), flexShrink: 0 }} />
                 <span style={{ color: "var(--text-dim)" }}>{p.name}</span>
                 <span style={{ marginRight: "auto", fontFamily: "var(--mono)", color: "var(--text)", fontWeight: 600 }}>{fmtPct(p.weight)}</span>
               </div>
@@ -549,13 +549,13 @@ export function HoldingsSection({
             subtitle="המלצות לאיזון והתאמת פוזיציות יופיעו כאן ברגע שיתווספו נכסים לתיק"
           />
         ) : needsAction.length === 0 ? (
-          <div style={{ background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", borderRadius: 14, padding: "var(--space-4)", display: "flex", alignItems: "center", gap: 10, color: "var(--gain)", fontSize: 13.5 }}>
+          <div style={{ background: "var(--gain-subtle)", border: "1px solid var(--gain-subtle-border)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", display: "flex", alignItems: "center", gap: 10, color: "var(--gain)", fontSize: 13.5 }}>
             <ShieldCheck size={18} /> כל הנכסים במשקל היעד – אין פעולות נדרשות כרגע.
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "var(--space-3)" }}>
             {needsAction.map((p) => (
-              <div key={p.symbol} style={{ background: "var(--panel)", border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: 14, padding: 14 }}>
+              <div key={p.symbol} style={{ background: "var(--panel)", border: "1px solid " + TONE_STYLES[p.tone].border, borderRadius: "var(--radius-lg)", padding: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                   <span style={{ fontWeight: 700, fontSize: 14 }}>{p.symbol}</span>
                   <Badge tone={p.tone}><AlertTriangle size={12} />{p.priority}</Badge>

@@ -65,7 +65,7 @@ export default function AboutPage() {
                 "תמונת מצב ברורה של התיק",
               ].map((item) => (
                 <li key={item} style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
-                  <span style={{ marginTop: 8, height: 6, width: 6, flexShrink: 0, borderRadius: "var(--radius-full)", background: "var(--accent)" }} />
+                  <span style={{ marginTop: "var(--space-2)", height: 6, width: 6, flexShrink: 0, borderRadius: "var(--radius-full)", background: "var(--accent)" }} />
                   {item}
                 </li>
               ))}

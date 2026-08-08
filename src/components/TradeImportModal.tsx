@@ -29,7 +29,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
       className="ds-modal-scrim-in"
       style={{
         position: "fixed", inset: 0, zIndex: 70, background: "var(--scrim)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-5)",
       }}
     >
       <div
@@ -53,14 +53,14 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
           {result.fileError ? (
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
-              background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 10, color: "var(--loss)", fontSize: 13.5, lineHeight: 1.6,
+              background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: "var(--radius-md)", color: "var(--loss)", fontSize: 13.5, lineHeight: 1.6,
             }}>
               <FileWarning size={18} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>{result.fileError}</span>
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--gain)", fontSize: 13, fontWeight: 700 }}>
                   <CheckCircle2 size={15} /> {validRows.length} עסקאות תקינות יתווספו ליומן
                 </div>

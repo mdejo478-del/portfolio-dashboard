@@ -614,14 +614,14 @@ export default function InvestmentDashboard({
         {globalError && (
           <div style={{
             margin: "12px 20px 0", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-            background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 10, fontSize: 13,
+            background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: "var(--radius-md)", fontSize: 13,
           }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
               <AlertCircle size={15} style={{ flexShrink: 0 }} /> {globalError}
             </span>
             <button
               type="button" onClick={() => setGlobalError("")}
-              style={{ background: "transparent", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+              style={{ background: "transparent", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
             >סגור</button>
           </div>
         )}
@@ -638,10 +638,10 @@ export default function InvestmentDashboard({
           {/* Ticker */}
           <div className="ticker-wrap" style={{
             display: "flex", alignItems: "center", gap: 14,
-            border: "1px solid var(--border)", borderRadius: 10, background: "var(--panel)", padding: "12px 16px", marginBottom: 24,
+            border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--panel)", padding: "12px 16px", marginBottom: "var(--space-6)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
+              <span style={{ width: 7, height: 7, borderRadius: "var(--radius-full)", background: "var(--accent)" }} />
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.4, whiteSpace: "nowrap" }}>הקצאה חיה</span>
             </div>
             <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
@@ -653,7 +653,7 @@ export default function InvestmentDashboard({
               <div className="ticker-track">
                 {[...evaluated, ...evaluated].map((p, i) => (
                   <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--mono)", fontSize: 14 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 999, background: TONE_STYLES[p.tone].text, flexShrink: 0 }} />
+                    <span style={{ width: 6, height: 6, borderRadius: "var(--radius-full)", background: TONE_STYLES[p.tone].text, flexShrink: 0 }} />
                     <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.symbol}</span>
                     <span style={{ color: "var(--text-faint)" }}>{fmtPct(p.weight)}</span>
                   </span>

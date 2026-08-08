@@ -25,7 +25,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       className="ds-modal-scrim-in"
       style={{
         position: "fixed", inset: 0, zIndex: 70, background: "var(--scrim)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-5)",
       }}
     >
       <div
@@ -37,14 +37,14 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
             <KeyRound size={17} color="var(--accent)" /> שינוי סיסמה
           </div>
           <Button variant="icon" onClick={onClose} aria-label="סגור" title="סגור"><X size={16} /></Button>
         </div>
 
         {state.success ? (
-          <div style={{ padding: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+          <div style={{ padding: 26, display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-3)", textAlign: "center" }}>
             <div style={{
               width: 48, height: 48, borderRadius: "50%", background: "var(--gain-subtle)",
               color: "var(--gain)", display: "flex", alignItems: "center", justifyContent: "center",
@@ -52,7 +52,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               <CheckCircle2 size={26} />
             </div>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text)" }}>הסיסמה עודכנה בהצלחה</div>
-            <Button variant="ghost" onClick={onClose} style={{ marginTop: 4 }}>סגור</Button>
+            <Button variant="ghost" onClick={onClose} style={{ marginTop: "var(--space-1)" }}>סגור</Button>
           </div>
         ) : (
           <form action={formAction} style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -75,7 +75,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: "var(--space-1)" }}>
               <Button type="submit" variant="primary" disabled={pending} style={{ flex: 1 }}>
                 {pending ? "מעדכן..." : "עדכן סיסמה"}
               </Button>

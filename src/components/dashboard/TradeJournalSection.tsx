@@ -306,15 +306,15 @@ export function TradeJournalSection({
       </div>
 
       {showForm && (
-        <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "var(--info-subtle-border)" : "var(--border)"), borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "var(--info-subtle-border)" : "var(--border)"), borderRadius: "var(--radius-lg)", padding: 18, marginBottom: "var(--space-5)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 14.5, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
               {editingId !== null ? <Pencil size={15} color="var(--info)" /> : <Plus size={15} color="var(--accent)" />}
               {editingId !== null ? "עריכת עסקה" : "עסקה חדשה"}
             </div>
             <Button variant="icon" onClick={cancelForm}><X size={15} /></Button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: "var(--space-3)" }}>
             <Field label="תאריך"><input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} /></Field>
             <Field label="נכס / סימול">
               <input type="text" list="symbol-suggestions" value={form.symbol} onChange={(e) => updateForm("symbol", e.target.value.toUpperCase())}
@@ -352,7 +352,7 @@ export function TradeJournalSection({
             </div>
           </div>
 
-          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, display: "flex", gap: "var(--space-6)", flexWrap: "wrap" }}>
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", gap: "var(--space-6)", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי כולל משוער</div>
               <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{previewValue !== null ? fmtUSD(previewValue) : "-"}</div>
@@ -433,7 +433,7 @@ export function TradeJournalSection({
       <div className="idash-scroll-hint">
         <ArrowLeftRight size={12} /> גלול הצידה כדי לראות את כל העמודות
       </div>
-      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, overflow: "auto", maxHeight: 480 }}>
+      <div className="idash-scroll-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "auto", maxHeight: 480 }}>
         <table>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
@@ -461,7 +461,7 @@ export function TradeJournalSection({
                     <Button variant="icon" onClick={() => startEdit(t)} aria-label="עריכה" title="עריכה"><Pencil size={13} /></Button>
                     {deleteConfirmId === t.id ? (
                       <>
-                        <Button variant="danger" onClick={() => deleteTrade(t.id)} style={{ padding: "4px 8px", fontSize: 11.5, gap: 4 }}><Check size={12} /> אישור</Button>
+                        <Button variant="danger" onClick={() => deleteTrade(t.id)} style={{ padding: "4px 8px", fontSize: 11.5, gap: "var(--space-1)" }}><Check size={12} /> אישור</Button>
                         <Button variant="icon" onClick={() => setDeleteConfirmId(null)} aria-label="ביטול" title="ביטול"><X size={13} /></Button>
                       </>
                     ) : (

@@ -9,7 +9,7 @@ function ToneDot({ tone }: { tone: Tone }) {
         display: "inline-block",
         width: 10,
         height: 10,
-        borderRadius: 999,
+        borderRadius: "var(--radius-full)",
         background: TONE_STYLES[tone].text,
         flexShrink: 0,
       }}
@@ -37,7 +37,7 @@ export function PortfolioHealthCard({ health }: { health: PortfolioHealthData })
 
   return (
     <div style={{
-      background: s.bg, border: "1px solid " + s.border, borderRadius: 14, boxShadow: "var(--shadow-sm)",
+      background: s.bg, border: "1px solid " + s.border, borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)",
       padding: "var(--space-4) var(--space-5)", marginBottom: 22, display: "flex", flexDirection: "column", gap: "var(--space-3)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>

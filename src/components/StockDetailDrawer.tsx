@@ -86,7 +86,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 999, background: dot, flexShrink: 0 }} />
+                <span style={{ width: 10, height: 10, borderRadius: "var(--radius-full)", background: dot, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--mono)" }}>{symbol}</div>
                   <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
@@ -99,7 +99,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               </Button>
             </div>
 
-            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
               {error && (
                 <div style={{ padding: "8px 12px", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
                   {error}
@@ -131,7 +131,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                 ) : null}
                 {detail?.extended && (
                   <div style={{
-                    marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5,
+                    marginTop: "var(--space-2)", display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: 12.5,
                     color: detail.extended.changePct === null ? "var(--text-faint)" : detail.extended.changePct >= 0 ? "var(--gain)" : "var(--loss)",
                   }}>
                     <span style={{ color: "var(--text-faint)", fontWeight: 600 }}>
@@ -147,14 +147,14 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
               {/* Returns row */}
               <div>
-                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>תשואות</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: "var(--space-2)" }}>תשואות</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-2)" }}>
                   {RETURN_PERIODS.map(({ key, label }) => {
                     const val = detail?.returns?.[key] ?? null;
                     const tone = val === null ? "var(--text-faint)" : val >= 0 ? "var(--gain)" : "var(--loss)";
                     return (
                       <div key={key} style={{
-                        background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10,
+                        background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
                         padding: "8px 6px", textAlign: "center",
                       }}>
                         <div style={{ fontSize: 10.5, color: "var(--text-faint)", fontWeight: 600, marginBottom: 3 }}>{label}</div>
@@ -168,7 +168,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                   })}
                 </div>
                 {detail && !detail.historicalAvailable && !loading && (
-                  <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-faint)", lineHeight: 1.5 }}>
+                  <div style={{ marginTop: "var(--space-2)", fontSize: 11, color: "var(--text-faint)", lineHeight: 1.5 }}>
                     נתוני תשואה היסטוריים (1W–1Y) אינם זמינים כרגע דרך Finnhub לנכס זה — ייתכן שהתוכנית החינמית אינה כוללת גישה לנתוני מחירים היסטוריים עבור הסימול הזה. מוצג רק שינוי יומי (1D), הזמין תמיד בתוכנית החינמית.
                   </div>
                 )}
@@ -177,7 +177,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
               {/* Extra stats available for free from the quote endpoint */}
               {detail && (detail.open !== null || detail.high !== null || detail.low !== null || detail.previousClose !== null) && (
                 <div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>נתוני יום המסחר</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: "var(--space-2)" }}>נתוני יום המסחר</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 12.5 }}>
                     <StatRow label="פתיחה" value={formatMoney(detail.open, privacyMode, { digits: 2 })} />
                     <StatRow label="סגירה קודמת" value={formatMoney(detail.previousClose, privacyMode, { digits: 2 })} />
@@ -189,7 +189,7 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
               {position && (
                 <div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>ההחזקה שלך</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: "var(--space-2)" }}>ההחזקה שלך</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 12.5 }}>
                     <StatRow label="כמות" value={position.qty !== null && position.qty !== undefined ? String(position.qty) : "—"} />
                     <StatRow label="שווי" value={formatMoney(position.value, privacyMode)} />
