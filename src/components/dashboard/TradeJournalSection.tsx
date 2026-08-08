@@ -60,6 +60,7 @@ export function TradeJournalSection({
   }
 
   const isMobile = useIsMobile();
+  const isTablet = useIsMobile(860);
 
   const [fSymbol, setFSymbol] = useState<string>("הכל");
   const [fAction, setFAction] = useState<string>("הכל");
@@ -276,7 +277,11 @@ export function TradeJournalSection({
       {/* Trade journal banner */}
       <PageBanner icon={<ListChecks size={20} />} title="יומן מסחר חכם ומקצועי (Smart Trade Log)" subtitle="כל העסקאות, הסיכומים והפעולות במקום אחד" />
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 22 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : isTablet ? "repeat(3, 1fr)" : "repeat(6, 1fr)",
+        gap: isMobile ? 10 : 14, marginBottom: 22,
+      }}>
         <Card label="מזומן פנוי" value={formatMoney(cashFree, privacyMode)} icon={<Wallet size={15} color="var(--text-dim)" />} />
         <Card label="רווח/הפסד ממומש" value={formatMoney(stats.realizedPnl, privacyMode)} tone={stats.realizedPnl >= 0 ? "green" : "red"} icon={stats.realizedPnl >= 0 ? <TrendingUp size={15} color="var(--gain)" /> : <TrendingDown size={15} color="var(--loss)" />} />
         <Card label="אחוז הצלחה" value={fmtPct(stats.winRate)} sub={stats.sellCount + " עסקאות מכירה"} icon={<Percent size={15} color="var(--text-dim)" />} />

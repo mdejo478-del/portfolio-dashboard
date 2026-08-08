@@ -593,10 +593,12 @@ export default function InvestmentDashboard({
         .header-actions-compact { display: none; }
         @media (max-width: 860px) {
           .idash-grid2 { grid-template-columns: 1fr !important; }
+          .idash-scroll-hint { display: flex !important; }
+          .header-actions-full { display: none !important; }
+          .header-actions-compact { display: flex !important; }
         }
         @media (max-width: 640px) {
           .idash-content { padding: 14px 12px 0 !important; }
-          .idash-scroll-hint { display: flex !important; }
           .idash button.icon-btn { width: 34px !important; height: 34px !important; }
           .idash button.primary, .idash button.ghost { min-height: 42px; }
           /* iOS Safari auto-zooms the page on focus for any input under 16px - only visible on a real device, not in Chrome devtools emulation. */
@@ -605,8 +607,6 @@ export default function InvestmentDashboard({
           .idash-form-actions button { width: 100%; }
           .header-subtitle { display: none; }
           .header-greeting { font-size: 11.5px !important; }
-          .header-actions-full { display: none !important; }
-          .header-actions-compact { display: flex !important; }
         }
       `}</style>
 
