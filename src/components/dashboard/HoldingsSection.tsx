@@ -139,13 +139,17 @@ export function HoldingsSection({
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-2)", marginBottom: 10 }}>
           <div
             onClick={() => openDetail(p.symbol)}
+            className={p.symbol !== "CASH" ? "detail-trigger" : undefined}
+            role={p.symbol !== "CASH" ? "button" : undefined}
+            tabIndex={p.symbol !== "CASH" ? 0 : undefined}
+            onKeyDown={p.symbol !== "CASH" ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(p.symbol); } } : undefined}
             style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontWeight: 700, fontSize: 16.5, cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
           >
             <span style={{ width: 9, height: 9, borderRadius: "var(--radius-full)", background: colorFor(p.symbol, i), flexShrink: 0 }} />
             {tradingViewUrl(p.symbol) ? (
               <a href={tradingViewUrl(p.symbol) || undefined} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                style={{ color: "var(--text)", textDecoration: "none", borderBottom: "1px dashed var(--text-faint)" }}>
+                className="symbol-link">
                 {p.symbol}
               </a>
             ) : p.symbol}
@@ -345,6 +349,10 @@ export function HoldingsSection({
                 <td
                   onClick={() => openDetail(p.symbol)}
                   title={p.symbol !== "CASH" ? "פתח כרטיס פרטי מניה" : undefined}
+                  className={p.symbol !== "CASH" ? "detail-trigger" : undefined}
+                  role={p.symbol !== "CASH" ? "button" : undefined}
+                  tabIndex={p.symbol !== "CASH" ? 0 : undefined}
+                  onKeyDown={p.symbol !== "CASH" ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(p.symbol); } } : undefined}
                   style={{ fontWeight: 700, textAlign: "right", cursor: p.symbol !== "CASH" ? "pointer" : "default" }}
                 >
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>

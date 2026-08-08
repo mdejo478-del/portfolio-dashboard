@@ -58,6 +58,7 @@ export function Header({
         .hdr .hdr-action[data-active="true"]:hover { border-color: var(--info); background: var(--info-subtle); color: var(--info); }
         .hdr .hdr-action:disabled { opacity: 0.4; cursor: not-allowed; }
         .hdr .hdr-action:disabled:hover { border-color: var(--border); background: transparent; color: var(--text-dim); }
+        .hdr .hdr-action:focus-visible, .hdr .hdr-icon:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
         .hdr .hdr-icon { transition: border-color 140ms ease, background 140ms ease, color 140ms ease; }
         .hdr .hdr-icon:hover { border-color: var(--border-strong); background: var(--hover-overlay); color: var(--text); }
         .hdr .hdr-icon[data-active="true"]:hover { border-color: var(--info); background: var(--info-subtle); color: var(--info); }

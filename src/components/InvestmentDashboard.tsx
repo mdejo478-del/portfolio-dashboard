@@ -580,6 +580,7 @@ export default function InvestmentDashboard({
         .idash a.symbol-link { color: var(--text); text-decoration: none; border-bottom: 1px dashed var(--text-faint); transition: color 140ms ease, border-color 140ms ease; }
         .idash a.symbol-link:hover, .idash a.symbol-link:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
         .idash a.symbol-link:focus-visible { outline: none; }
+        .idash .detail-trigger:focus-visible { outline: none; box-shadow: inset var(--shadow-focus); border-radius: var(--radius-sm); }
         .ticker-track { display: flex; gap: 28px; animation: ticker 32s linear infinite; white-space: nowrap; }
         .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
         @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }

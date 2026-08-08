@@ -408,6 +408,7 @@
   transition: var(--transition-fast);
 }
 .ds-btn-icon:hover { border-color: var(--text-dim); color: var(--text); }
+.ds-btn-icon:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .ds-btn-icon.ds-danger:hover { border-color: var(--loss); color: var(--loss); }
 
 /* --- Input --------------------------------------------------------------- */

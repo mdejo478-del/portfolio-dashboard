@@ -17,16 +17,20 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
     <div style={{ minHeight: "100vh", display: "flex", direction: "ltr", background: "var(--bg)" }}>
       <style>{`
         .auth-shell input:focus, .auth-shell select:focus, .auth-shell textarea:focus {
-          outline: none; border-color: var(--accent);
+          outline: none; border-color: var(--accent); box-shadow: var(--shadow-focus);
         }
         .auth-shell .auth-link { color: var(--accent); text-decoration: none; transition: color 140ms ease; }
         .auth-shell .auth-link:hover { color: var(--accent-hover); text-decoration: underline; }
+        .auth-shell .auth-link:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
         .auth-shell .auth-btn-primary { transition: background 140ms ease; }
         .auth-shell .auth-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
         .auth-shell .auth-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .auth-shell .auth-btn-ghost { transition: border-color 140ms ease, color 140ms ease; }
         .auth-shell .auth-btn-ghost:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
         .auth-shell .auth-btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+        .auth-shell .auth-btn-primary:focus-visible, .auth-shell .auth-btn-ghost:focus-visible {
+          outline: none; box-shadow: var(--shadow-focus);
+        }
 
         @keyframes draw-line { to { stroke-dashoffset: 0; } }
         @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
