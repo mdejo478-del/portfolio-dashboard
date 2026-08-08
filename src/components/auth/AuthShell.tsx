@@ -82,7 +82,7 @@ export function AuthShell({ children, maxWidth = 400 }: { children: ReactNode; m
               light regardless of app theme or the logo's own background would clash against it */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-6)" }}>
             <div style={{
-              background: "#f4f4f2", borderRadius: 16, padding: 10,
+              background: "#f4f4f2", borderRadius: "var(--radius-2xl)", padding: 10,
               boxShadow: "0 8px 24px -8px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
             }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}

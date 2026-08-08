@@ -32,7 +32,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         className="ds-modal-panel-in"
         style={{
-          background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16,
+          background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-2xl)",
           width: "min(420px, 100%)", boxShadow: "var(--shadow-lg)",
         }}
       >

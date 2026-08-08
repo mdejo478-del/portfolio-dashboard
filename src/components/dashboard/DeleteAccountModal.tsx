@@ -27,7 +27,7 @@ export function DeleteAccountModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         className="ds-modal-panel-in"
         style={{
-          background: "var(--panel)", border: "1px solid var(--loss-subtle-border)", borderRadius: 16,
+          background: "var(--panel)", border: "1px solid var(--loss-subtle-border)", borderRadius: "var(--radius-2xl)",
           width: "min(440px, 100%)", boxShadow: "var(--shadow-lg)",
         }}
       >

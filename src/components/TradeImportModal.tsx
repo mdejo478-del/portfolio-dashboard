@@ -36,7 +36,7 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
         onClick={(e) => e.stopPropagation()}
         className="ds-modal-panel-in"
         style={{
-          background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16,
+          background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-2xl)",
           width: "min(920px, 100%)", maxHeight: "88vh", display: "flex", flexDirection: "column",
           boxShadow: "var(--shadow-lg)",
         }}
