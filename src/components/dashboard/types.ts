@@ -34,6 +34,9 @@ export interface PositionFormState {
   symbol: string;
   qty: string;
   price: string;
+  min: string;
+  max: string;
+  dilute: string;
 }
 export interface PosEditFields {
   qty: string;
