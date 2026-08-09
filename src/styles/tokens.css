@@ -22,12 +22,12 @@
   /* ---------------------------------------------------------------------
      Color — surfaces & text (values unchanged, now global)
      --------------------------------------------------------------------- */
-  --bg: #0f0d0a;
-  --bg-elevated: #1e1a14;      /* header/panel gradient top, e.g. linear-gradient(180deg, var(--bg-elevated), #0D1319) */
-  --panel: #181510;
-  --panel-2: #1d1a13;
-  --border: #2d281e;
-  --border-strong: #3e3729;
+  --bg: #0a0e13;
+  --bg-elevated: #131c24;      /* header/panel gradient top, e.g. linear-gradient(180deg, var(--bg-elevated), #0D1319) */
+  --panel: #10161d;
+  --panel-2: #141b23;
+  --border: #1f2a35;
+  --border-strong: #2b3947;
   --text: #e8edf2;
   --text-dim: #8b98ab;
   --text-faint: #4e5a6b;
