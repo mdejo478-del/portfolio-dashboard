@@ -115,15 +115,17 @@ export function HoldingsSection({
     if (Number.isNaN(qty) || qty <= 0) { setPosFormError("נא להזין כמות תקינה (מספר גדול מ-0)."); return; }
     if (Number.isNaN(price) || price <= 0) { setPosFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
     if (positions.some((p) => p.symbol === symbol)) { setPosFormError("נכס בסימול " + symbol + " כבר קיים בתיק. ערוך את הכמות שלו ישירות בטבלה במקום."); return; }
-    // Allocation targets are optional at add-time - a blank field keeps the
-    // long-standing default (0% / 100% / 150%) so quick-adding a position
-    // without deciding on targets yet still works exactly as before.
+    // Allocation targets are optional at add-time - a blank field falls back
+    // to a moderate single-position default (5% / 15% / 20%) rather than the
+    // old 0%/100%/150% "no real constraint" placeholder, so a quick-added
+    // position still gets a sane starting range instead of an effectively
+    // unmanaged one.
     const minNum = parseNum(posForm.min);
     const maxNum = parseNum(posForm.max);
     const diluteNum = parseNum(posForm.dilute);
-    const min = !Number.isNaN(minNum) ? minNum / 100 : 0;
-    const max = !Number.isNaN(maxNum) ? maxNum / 100 : 1;
-    const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : 1.5;
+    const min = !Number.isNaN(minNum) ? minNum / 100 : 0.05;
+    const max = !Number.isNaN(maxNum) ? maxNum / 100 : 0.15;
+    const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : 0.20;
     pushUndoSnapshot("הוספת נכס לתיק");
     const value = qty * price;
     setPositions((ps) => [...ps, {
@@ -505,19 +507,19 @@ export function HoldingsSection({
               <Field label="יעד מינימום %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.min} onChange={(e) => updatePosForm("min", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="5" />%
                 </span>
               </Field>
               <Field label="יעד מקסימום %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.max} onChange={(e) => updatePosForm("max", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="100" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="15" />%
                 </span>
               </Field>
               <Field label="רף דילול %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.dilute} onChange={(e) => updatePosForm("dilute", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="150" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="20" />%
                 </span>
               </Field>
               <div style={{ display: "flex", alignItems: "flex-end" }}>
@@ -530,7 +532,7 @@ export function HoldingsSection({
               </div>
             )}
             <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-faint)" }}>
-              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל ברירת מחדל (מינ&apos; 0%, מקס&apos; 100%, דילול 150%) שניתן לעדכן בהמשך.
+              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל ברירת מחדל (מינ&apos; 5%, מקס&apos; 15%, דילול 20%) שניתן לעדכן בהמשך.
             </div>
           </div>
         ) : (
