@@ -73,9 +73,9 @@ export function Header({
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", minWidth: 0 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.jpg"
+            src="/logo.png"
             alt="IPMS"
-            style={{ width: 38, height: 38, objectFit: "contain", flexShrink: 0, borderRadius: "var(--radius-sm)" }}
+            style={{ width: 38, height: 38, aspectRatio: "1 / 1", objectFit: "contain", flexShrink: 0, borderRadius: "var(--radius-sm)" }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
             <h1 style={{ fontFamily: "var(--sans)", fontSize: "20px", fontWeight: 700, margin: 0, letterSpacing: "var(--letter-spacing-heading)", color: "var(--text)" }}>
