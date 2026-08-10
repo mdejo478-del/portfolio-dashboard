@@ -28,7 +28,7 @@ export function AuthShell({ children, maxWidth = 420 }: { children: ReactNode; m
           outline: none; box-shadow: var(--shadow-focus);
         }
 
-        @keyframes auth-glow-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.6; } }
+        @keyframes auth-glow-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.85; } }
         .auth-glow-pulse { animation: auth-glow-pulse 4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
           .auth-glow-pulse { animation: none; opacity: 0.5; }
@@ -37,13 +37,13 @@ export function AuthShell({ children, maxWidth = 420 }: { children: ReactNode; m
 
       {/* רקע מאוחד אחד לכל הדף - glow עדין + קו דקורטיבי, לא פאנל נפרד */}
       <div className="auth-glow-pulse" style={{
-        position: "absolute", top: "-10%", left: "50%", width: 900, height: 900,
-        background: "radial-gradient(circle, var(--accent-subtle) 0%, transparent 65%)",
+        position: "absolute", top: "-12%", left: "50%", width: 1050, height: 1050,
+        background: "radial-gradient(circle, var(--accent-subtle) 0%, var(--accent-subtle) 35%, transparent 70%)",
         transform: "translateX(-50%)", pointerEvents: "none",
       }} />
       <svg viewBox="0 0 1200 300" style={{
-        position: "absolute", bottom: 0, left: 0, width: "100%", height: "40%",
-        opacity: 0.08, pointerEvents: "none",
+        position: "absolute", top: "50%", left: "50%", width: 1000, height: 250,
+        transform: "translate(-50%, -50%)", opacity: 0.08, pointerEvents: "none",
       }}>
         <path d="M0,220 C150,160 300,260 450,180 C600,100 750,220 900,140 C1000,90 1100,150 1200,80"
           fill="none" stroke="var(--accent)" strokeWidth="3" />
@@ -86,6 +86,13 @@ export function AuthShell({ children, maxWidth = 420 }: { children: ReactNode; m
           מאובטח ומוצפן מקצה לקצה
         </div>
       </div>
+
+      <div style={{
+        position: "absolute", inset: 0, opacity: 0.025, pointerEvents: "none",
+        mixBlendMode: "overlay",
+        backgroundImage: "url(/grain.png)",
+        backgroundRepeat: "repeat",
+      }} />
     </div>
   );
 }
