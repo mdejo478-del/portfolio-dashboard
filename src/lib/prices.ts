@@ -322,3 +322,84 @@ export async function getStockDetail(symbol: string): Promise<StockDetail> {
     returns, historicalAvailable, extended,
   };
 }
+
+// --- Morning Brief: earnings calendar + company news ---------------------
+// Both endpoints are equity-only (no crypto coverage), unlike getQuotes -
+// callers are expected to skip SYMBOL_OVERRIDES-mapped (crypto) symbols
+// before calling either of these.
+
+export interface RawEarningsEntry {
+  symbol: string;
+  date: string;
+  hour: "bmo" | "amc" | "";
+  epsEstimate: number | null;
+}
+
+interface FinnhubEarningsCalendar {
+  earningsCalendar?: Array<{ symbol?: string; date?: string; hour?: string; epsEstimate?: number | null }>;
+}
+
+/** Unscoped by design when `symbol` is omitted: one call covers every
+ * company reporting in the date range, cheaper than one call per held
+ * symbol when there are multiple users/positions to check against it. */
+export async function getEarningsCalendar(fromDate: string, toDate: string, symbol?: string): Promise<RawEarningsEntry[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const symbolParam = symbol ? `&symbol=${encodeURIComponent(symbol)}` : "";
+    const res = await fetch(
+      `${FINNHUB_BASE}/calendar/earnings?from=${fromDate}&to=${toDate}${symbolParam}&token=${apiKey}`,
+      { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as FinnhubEarningsCalendar;
+    if (!Array.isArray(data.earningsCalendar)) return [];
+    return data.earningsCalendar
+      .filter((e): e is Required<Pick<typeof e, "symbol" | "date">> & typeof e => typeof e.symbol === "string" && typeof e.date === "string")
+      .map((e) => ({
+        symbol: e.symbol,
+        date: e.date,
+        hour: e.hour === "bmo" || e.hour === "amc" ? e.hour : "",
+        epsEstimate: typeof e.epsEstimate === "number" ? e.epsEstimate : null,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export interface RawNewsHeadline {
+  headline: string;
+  summary: string;
+  source: string;
+  datetime: number; // unix seconds
+  url: string;
+}
+
+interface FinnhubNewsItem {
+  headline?: string;
+  summary?: string;
+  source?: string;
+  datetime?: number;
+  url?: string;
+}
+
+/** Company news is inherently per-symbol on Finnhub's free tier - no batch
+ * endpoint - so callers should cap how many symbols they query per run. */
+export async function getCompanyNews(symbol: string, fromDate: string, toDate: string): Promise<RawNewsHeadline[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey || SYMBOL_OVERRIDES[symbol]) return [];
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE}/company-news?symbol=${encodeURIComponent(symbol)}&from=${fromDate}&to=${toDate}&token=${apiKey}`,
+      { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as FinnhubNewsItem[];
+    if (!Array.isArray(data)) return [];
+    return data
+      .filter((n): n is Required<FinnhubNewsItem> => Boolean(n.headline && n.source && n.url && typeof n.datetime === "number"))
+      .map((n) => ({ headline: n.headline, summary: n.summary || "", source: n.source, datetime: n.datetime, url: n.url }));
+  } catch {
+    return [];
+  }
+}

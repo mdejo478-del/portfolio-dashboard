@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, PieChart as PieChartIcon, Lock, Newspaper, Sunrise } from "lucide-react";
+import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, Lock } from "lucide-react";
 import type { Position } from "@/lib/portfolio";
 import type { ExtendedQuote } from "@/lib/prices";
+import type { MorningBriefResult } from "@/app/actions/morningBrief";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
 import { EMPTY_POSITION_FORM } from "@/components/dashboard/constants";
 import { TONE_STYLES } from "@/components/dashboard/constants";
@@ -12,6 +12,8 @@ import { Button } from "@/components/dashboard/ui/Button";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
+import { AllocationCard } from "@/components/dashboard/AllocationCard";
+import { MorningBriefCard } from "@/components/dashboard/MorningBriefCard";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface HoldingsSectionProps {
@@ -33,11 +35,16 @@ interface HoldingsSectionProps {
   backupRunning: boolean;
   backupDoneAt: number | null;
   onBackupNow: () => void;
+  morningBrief: MorningBriefResult | null;
+  morningBriefLoading: boolean;
+  morningBriefError: string;
+  onOpenMorningBrief: () => void;
 }
 
 export function HoldingsSection({
   evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, extendedPrices, openDetail,
   pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
+  morningBrief, morningBriefLoading, morningBriefError, onOpenMorningBrief,
 }: HoldingsSectionProps) {
   const isMobile = useIsMobile();
   const [editingPosId, setEditingPosId] = useState<number | null>(null);
@@ -54,7 +61,6 @@ export function HoldingsSection({
   }
 
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
-  const pieData = evaluated.map((p) => ({ name: p.symbol, value: p.value, weight: p.weight }));
 
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
@@ -550,57 +556,9 @@ export function HoldingsSection({
       </div>
 
       <div className="idash-grid2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginBottom: 30, alignItems: "stretch" }}>
-        <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 22 }}>
-          <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, marginBottom: "var(--space-4)", textAlign: "center" }}>הקצאת נכסים</div>
-          {pieData.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<PieChartIcon size={18} />}
-              title="אין עדיין נתונים להצגה"
-              subtitle="ברגע שתוסיף פוזיציה, הקצאת התיק תופיע כאן כגרף עוגה"
-            />
-          ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, flexWrap: "wrap" }}>
-            <div style={{ flex: "0 0 auto", width: 210, height: 210 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={95} paddingAngle={2}
-                    onClick={(data) => openDetail(String(data.name))}>
-                    {pieData.map((p, i) => (
-                      <Cell key={p.name} fill={colorFor(p.name, i)} stroke="var(--panel)" strokeWidth={2}
-                        style={{ cursor: p.name !== "CASH" ? "pointer" : "default" }} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} formatter={(val, name) => [formatMoney(Number(val), privacyMode), String(name)]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ flex: "0 1 260px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px" }}>
-              {pieData.map((p, i) => (
-                <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: "var(--radius-full)", background: colorFor(p.name, i), flexShrink: 0 }} />
-                  <span style={{ color: "var(--text-dim)" }}>{p.name}</span>
-                  <span style={{ marginRight: "auto", fontFamily: "var(--mono)", color: "var(--text)", fontWeight: 600 }}>{fmtPct(p.weight)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
-        </div>
-
-        <div className="morning-brief-card" style={{
-          background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 22,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-2)",
-          minHeight: 260, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 13.5, color: "var(--text)", fontWeight: 700, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <Newspaper size={16} color="var(--accent)" /> Morning Brief
-          </div>
-          <Sunrise size={28} color="var(--text-faint)" style={{ marginTop: "var(--space-2)" }} />
-          <div style={{ color: "var(--text-faint)", fontSize: 13 }}>בקרוב</div>
-          <div style={{ color: "var(--text-faint)", fontSize: 11.5, maxWidth: 220 }}>
-            סיכום יומי על התיק, דיווחים קרובים, חדשות ותנודות משמעותיות - בבנייה.
-          </div>
+        <AllocationCard evaluated={evaluated} privacyMode={privacyMode} openDetail={openDetail} />
+        <div className="morning-brief-card">
+          <MorningBriefCard result={morningBrief} loading={morningBriefLoading} error={morningBriefError} onOpenDrawer={onOpenMorningBrief} />
         </div>
       </div>
 

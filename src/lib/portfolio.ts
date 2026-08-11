@@ -5,9 +5,9 @@ import path from "path";
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
-import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck } from "@/lib/portfolioTypes";
+import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData } from "@/lib/portfolioTypes";
 export { cashEffect };
-export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck } from "@/lib/portfolioTypes";
+export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData } from "@/lib/portfolioTypes";
 
 const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
 const MAX_EQUITY_POINTS = 3_650; // ~10 years of daily snapshots
@@ -240,15 +240,17 @@ export async function updateAlertAcks(
 
 /** Called from the daily snapshot job (not a user action) so passive market
  * movement is still captured: rolls in today's equity point using live
- * prices, and sets/clears cashIdleSince based on whether cash is currently
- * over its own target - both independent of whether the user touched the
- * app today. See dailySnapshot.ts. */
-export async function updateDailySnapshot(userId: string, params: { equityValue: number; cashOverThreshold: boolean }): Promise<void> {
+ * prices, sets/clears cashIdleSince based on whether cash is currently over
+ * its own target, and optionally refreshes the cached Morning Brief data
+ * (earnings/news) - all independent of whether the user touched the app
+ * today. See dailySnapshot.ts. */
+export async function updateDailySnapshot(userId: string, params: { equityValue: number; cashOverThreshold: boolean; morningBrief?: MorningBriefData }): Promise<void> {
   const existing = await getPortfolio(userId);
   const today = new Date().toISOString().slice(0, 10);
   const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue);
   const cashIdleSince = params.cashOverThreshold ? (existing.cashIdleSince ?? today) : null;
-  await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince });
+  const morningBrief = params.morningBrief ?? existing.morningBrief;
+  await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince, morningBrief });
 }
 
 /** Overwrites just the equity history, keeping positions/trades/ledger as

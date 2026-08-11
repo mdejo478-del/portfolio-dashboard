@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { AlertCircle } from "lucide-react";
 import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAlertsAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
+import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck } from "@/lib/portfolio";
 import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
@@ -16,6 +17,7 @@ import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { Header } from "@/components/dashboard/Header";
 import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
+import { MorningBriefDrawer } from "@/components/dashboard/MorningBriefDrawer";
 import { TradeJournalSection } from "@/components/dashboard/TradeJournalSection";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
 import { EquityCurveCard } from "@/components/dashboard/EquityCurveCard";
@@ -238,6 +240,28 @@ export default function InvestmentDashboard({
 
   const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
   function openDetail(symbol: string) { if (symbol !== "CASH") setDetailSymbol(symbol); }
+
+  // Morning Brief: fetched once on load, not polled - it's a daily-cadence
+  // digest (cached earnings/news server-side, see dailySnapshot.ts), not a
+  // live feed like the price refresh below.
+  const [morningBrief, setMorningBrief] = useState<MorningBriefResult | null>(null);
+  const [morningBriefLoading, setMorningBriefLoading] = useState<boolean>(true);
+  const [morningBriefError, setMorningBriefError] = useState<string>("");
+  const [briefDrawerOpen, setBriefDrawerOpen] = useState<boolean>(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await getMorningBriefAction();
+        if (!cancelled) setMorningBrief(result);
+      } catch {
+        if (!cancelled) setMorningBriefError("לא הצלחנו לטעון את ה-Morning Brief כרגע.");
+      } finally {
+        if (!cancelled) setMorningBriefLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const total = useMemo(() => positions.reduce((a, p) => a + p.value, 0), [positions]);
   const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
@@ -781,6 +805,8 @@ export default function InvestmentDashboard({
             openDetail={openDetail} pricesConfigured={pricesConfigured} lastPriceUpdate={lastPriceUpdate}
             pricesLoading={pricesLoading} priceError={priceError} refreshPrices={refreshPrices} saveStatus={saveStatus}
             backupRunning={backupRunning} backupDoneAt={backupDoneAt} onBackupNow={handleBackupNow}
+            morningBrief={morningBrief} morningBriefLoading={morningBriefLoading} morningBriefError={morningBriefError}
+            onOpenMorningBrief={() => setBriefDrawerOpen(true)}
           />
 
           <TradeJournalSection
@@ -805,6 +831,16 @@ export default function InvestmentDashboard({
           pushUndoSnapshot("עדכון מחיר יעד");
           setPositions((ps) => ps.map((p) => (p.symbol === symbol ? { ...p, priceTarget } : p)));
         }}
+      />
+
+      <MorningBriefDrawer
+        open={briefDrawerOpen}
+        onClose={() => setBriefDrawerOpen(false)}
+        result={morningBrief}
+        loading={morningBriefLoading}
+        error={morningBriefError}
+        portfolioHealth={portfolioHealth}
+        privacyMode={privacyMode}
       />
     </div>
   );

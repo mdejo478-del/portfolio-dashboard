@@ -83,6 +83,33 @@ export interface HealthScoreAck {
   seenAt: string; // ISO
 }
 
+export interface EarningsEntry {
+  symbol: string;
+  date: string;              // YYYY-MM-DD
+  hour: "bmo" | "amc" | "";  // before market open / after market close / unspecified
+  epsEstimate: number | null;
+}
+
+export interface NewsHeadline {
+  symbol: string;
+  headline: string;
+  summary: string;
+  source: string;
+  datetime: string; // ISO
+  url: string;
+}
+
+// Cached once a day by the daily snapshot job (src/lib/dailySnapshot.ts) -
+// upcomingEarnings/news are read-only from the client's perspective; the
+// "live" part of Morning Brief (today's big movers) is computed fresh on
+// each request instead (see getMorningBriefAction) rather than stored here,
+// since it would be stale within hours of being cached.
+export interface MorningBriefData {
+  generatedAt: string;               // ISO - when this was last refreshed
+  upcomingEarnings: EarningsEntry[]; // only currently-held symbols, ~14 days out, sorted by date
+  news: NewsHeadline[];               // top few held symbols by weight, most recent first
+}
+
 // What's actually persisted to disk: client-submitted portfolio data plus
 // server-maintained fields (daily value history, alert acknowledgements).
 export interface StoredPortfolioData extends PortfolioData {
@@ -94,6 +121,7 @@ export interface StoredPortfolioData extends PortfolioData {
   // portfolio.ts and dailySnapshot.ts) so a long stretch with no user action
   // still correctly tracks how long cash has been sitting idle.
   cashIdleSince?: string | null;
+  morningBrief?: MorningBriefData;
 }
 
 /** Net cash impact of a single trade (deposits/withdrawals move cash directly;
