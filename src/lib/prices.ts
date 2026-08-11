@@ -24,13 +24,22 @@ export interface ExtendedQuote {
 export interface QuotesResult {
   configured: boolean;
   prices: Record<string, number | null>;
+  // Finnhub's quote response already includes the day's change % (`dp`)
+  // alongside the price itself - captured here so a single-day-drop alert
+  // doesn't need a second, heavier per-symbol detail fetch just to get it.
+  dayChangePct: Record<string, number | null>;
   // Only populated for symbols currently trading pre-market or after-hours -
   // during the regular session (or when the market's fully closed) this is
   // null, since Finnhub's quote above already covers the regular price.
   extended: Record<string, ExtendedQuote | null>;
 }
 
-async function fetchQuote(symbol: string, apiKey: string): Promise<number | null> {
+interface QuoteFetchResult {
+  price: number;
+  dayChangePct: number | null;
+}
+
+async function fetchQuote(symbol: string, apiKey: string): Promise<QuoteFetchResult | null> {
   const finnhubSymbol = SYMBOL_OVERRIDES[symbol] || symbol;
   try {
     const res = await fetch(
@@ -38,9 +47,9 @@ async function fetchQuote(symbol: string, apiKey: string): Promise<number | null
       { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { c?: number };
+    const data = (await res.json()) as { c?: number; dp?: number };
     if (typeof data.c !== "number" || data.c <= 0) return null;
-    return data.c;
+    return { price: data.c, dayChangePct: typeof data.dp === "number" ? data.dp / 100 : null };
   } catch {
     return null;
   }
@@ -115,17 +124,18 @@ export async function getQuotes(symbols: string[]): Promise<QuotesResult> {
   // shape for https://api.twelvedata.com/price?symbol=...&apikey=...
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) {
-    return { configured: false, prices: {}, extended: {} };
+    return { configured: false, prices: {}, dayChangePct: {}, extended: {} };
   }
 
   const uniqueSymbols = Array.from(new Set(symbols));
-  const [priceEntries, extendedEntries] = await Promise.all([
+  const [quoteEntries, extendedEntries] = await Promise.all([
     Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchQuote(symbol, apiKey)] as const)),
     Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchExtendedHoursQuote(symbol)] as const)),
   ]);
   return {
     configured: true,
-    prices: Object.fromEntries(priceEntries),
+    prices: Object.fromEntries(quoteEntries.map(([symbol, q]) => [symbol, q?.price ?? null])),
+    dayChangePct: Object.fromEntries(quoteEntries.map(([symbol, q]) => [symbol, q?.dayChangePct ?? null])),
     extended: Object.fromEntries(extendedEntries),
   };
 }

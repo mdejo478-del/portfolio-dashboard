@@ -12,11 +12,11 @@ import { SettingsMenu } from "@/components/dashboard/SettingsMenu";
 
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
-  visibleAlerts, unseenAlertCount, seenAlertIds, alertsOpen, toggleAlerts, closeAlerts, dismissAlert,
+  visibleAlerts, unseenAlertCount, newAlertIds, alertsOpen, toggleAlerts, closeAlerts, dismissAlert,
   undoSnapshot, undoLastAction,
 }: {
   userName: string; total: number; cashFree: number; privacyMode: boolean; setPrivacyMode: (fn: (v: boolean) => boolean) => void;
-  visibleAlerts: Alert[]; unseenAlertCount: number; seenAlertIds: Set<string>;
+  visibleAlerts: Alert[]; unseenAlertCount: number; newAlertIds: Set<string>;
   alertsOpen: boolean; toggleAlerts: () => void; closeAlerts: () => void; dismissAlert: (id: string) => void;
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
 }) {
@@ -118,7 +118,7 @@ export function Header({
         {/* Full action row: every action visible inline (desktop / tablet) */}
         <div className="header-actions-full" style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
           <AlertsBell
-            alerts={visibleAlerts} unseenCount={unseenAlertCount} seenIds={seenAlertIds}
+            alerts={visibleAlerts} unseenCount={unseenAlertCount} newIds={newAlertIds}
             open={alertsOpen} onToggle={toggleAlerts} onClose={closeAlerts} onDismiss={dismissAlert}
           />
           <Link href="/about" title="אודות המערכת" className="hdr-action" style={actionBtnStyle()}>
@@ -161,7 +161,7 @@ export function Header({
         {/* Compact action row: essentials only, rest behind "עוד" (mobile) */}
         <div className="header-actions-compact" style={{ alignItems: "center", gap: "var(--space-2)" }}>
           <AlertsBell
-            alerts={visibleAlerts} unseenCount={unseenAlertCount} seenIds={seenAlertIds}
+            alerts={visibleAlerts} unseenCount={unseenAlertCount} newIds={newAlertIds}
             open={alertsOpen} onToggle={toggleAlerts} onClose={closeAlerts} onDismiss={dismissAlert}
           />
           <button

@@ -15,6 +15,11 @@ export interface RawPosition {
   max: number;
   dilute: number;
   hodl?: boolean;
+  // Optional personal price target ($) - independent of the min/max weight
+  // range above: price and weight can cross their respective thresholds at
+  // different times, since weight also depends on the rest of the
+  // portfolio's value, not just this position's own price.
+  priceTarget?: number | null;
 }
 export interface Position extends RawPosition {
   id: number;
@@ -56,10 +61,39 @@ export interface EquityPoint {
   value: number;
 }
 
-// What's actually persisted to disk: client-submitted portfolio data plus a
-// server-maintained daily value history.
+// Persisted per-user "what has the user already been shown" record for one
+// alert occurrence, keyed by a stable alert id (e.g. "below-min:GOOG"). The
+// alert re-fires once the live metric has moved materially away from `value`
+// (see src/lib/alertRules.ts) instead of either repeating on every login
+// (no ack at all) or staying silently suppressed forever after one dismissal
+// (id-only dedup, the bug this replaces).
+export interface AlertAck {
+  value: number;
+  seenAt: string; // ISO
+}
+
+// Portfolio-health alerts need the score's breakdown (not just the scalar)
+// to name the main driver of a change, so they get their own richer ack
+// instead of squeezing into AlertAck's single `value` number.
+export interface HealthScoreAck {
+  score: number;
+  rangeRatio: number;
+  cashHealth: number;
+  breachScore: number;
+  seenAt: string; // ISO
+}
+
+// What's actually persisted to disk: client-submitted portfolio data plus
+// server-maintained fields (daily value history, alert acknowledgements).
 export interface StoredPortfolioData extends PortfolioData {
   equityHistory: EquityPoint[];
+  alertAcks: Record<string, AlertAck>;
+  healthScoreAck?: HealthScoreAck;
+  // ISO date the CASH position was first seen continuously over its own max
+  // target; null while cash is within target. Set/cleared server-side (see
+  // portfolio.ts and dailySnapshot.ts) so a long stretch with no user action
+  // still correctly tracks how long cash has been sitting idle.
+  cashIdleSince?: string | null;
 }
 
 /** Net cash impact of a single trade (deposits/withdrawals move cash directly;

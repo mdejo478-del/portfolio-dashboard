@@ -19,6 +19,9 @@ export default async function Home() {
       initialNextPositionId={portfolio.nextPositionId}
       initialNextTradeId={portfolio.nextTradeId}
       initialEquityHistory={portfolio.equityHistory}
+      initialAlertAcks={portfolio.alertAcks}
+      initialHealthScoreAck={portfolio.healthScoreAck}
+      initialCashIdleSince={portfolio.cashIdleSince ?? null}
     />
   );
 }

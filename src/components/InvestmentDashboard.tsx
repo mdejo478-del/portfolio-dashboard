@@ -2,16 +2,18 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { AlertCircle } from "lucide-react";
-import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction } from "@/app/actions/portfolio";
+import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAlertsAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
 import type { ExtendedQuote } from "@/lib/prices";
-import type { Position, Trade, Ledger, PortfolioData, EquityPoint } from "@/lib/portfolio";
+import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck } from "@/lib/portfolio";
+import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
 
 import type { Tone, EvaluatedPosition, Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { TONE_STYLES, PRICE_REFRESH_INTERVAL_MS } from "@/components/dashboard/constants";
 import { fmtPct, formatMoney } from "@/components/dashboard/format";
 import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
+import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { Header } from "@/components/dashboard/Header";
 import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
 import { TradeJournalSection } from "@/components/dashboard/TradeJournalSection";
@@ -37,6 +39,9 @@ interface InvestmentDashboardProps {
   initialNextPositionId: number;
   initialNextTradeId: number;
   initialEquityHistory: EquityPoint[];
+  initialAlertAcks: Record<string, AlertAck>;
+  initialHealthScoreAck?: HealthScoreAck;
+  initialCashIdleSince: string | null;
 }
 
 export default function InvestmentDashboard({
@@ -47,6 +52,9 @@ export default function InvestmentDashboard({
   initialNextPositionId,
   initialNextTradeId,
   initialEquityHistory,
+  initialAlertAcks,
+  initialHealthScoreAck,
+  initialCashIdleSince,
 }: InvestmentDashboardProps) {
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
   const [globalError, setGlobalError] = useState<string>("");
@@ -187,6 +195,11 @@ export default function InvestmentDashboard({
   const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
   const [priceError, setPriceError] = useState<string>("");
   const [extendedPrices, setExtendedPrices] = useState<Record<string, ExtendedQuote | null>>({});
+  // Day-over-day % change per symbol, straight from Finnhub's quote response
+  // (`dp`) - captured here rather than with a second per-symbol fetch, since
+  // the single-day-drop alert (#6) only needs the number the price refresh
+  // already receives.
+  const [dayChangePct, setDayChangePct] = useState<Record<string, number | null>>({});
 
   const refreshPrices = useCallback(async () => {
     const symbols = positionsRef.current.filter((p) => p.symbol !== "CASH").map((p) => p.symbol);
@@ -207,6 +220,7 @@ export default function InvestmentDashboard({
           return { ...p, price: newPrice, value: p.qty * newPrice };
         }));
         setExtendedPrices(result.extended);
+        setDayChangePct(result.dayChangePct);
         setLastPriceUpdate(new Date());
       }
     } catch {
@@ -229,152 +243,18 @@ export default function InvestmentDashboard({
   const evaluated = useMemo<EvaluatedPosition[]>(() => positions.map((p) => ({ ...p, ...evaluatePosition(p, total, privacyMode) })), [positions, total, privacyMode]);
 
   // Portfolio Health: a quick-glance score built from the same status/weight
-  // rules already used per-position, just rolled up into one summary.
-  const portfolioHealth = useMemo(() => {
-    const cashPos = evaluated.find((p) => p.symbol === "CASH");
-    // HODL positions are exempt from rebalancing by design, so they're excluded
-    // from the "in target range" measure the same way they're excluded from status.
-    const rebalancable = evaluated.filter((p) => p.symbol !== "CASH" && !p.hodl);
-
-    const inRangeCount = rebalancable.filter((p) => p.weight >= p.min && p.weight <= p.max).length;
-    const rangeRatio = rebalancable.length > 0 ? inRangeCount / rebalancable.length : 1;
-
-    const cashDev = cashPos ? cashPos.dev : 0;
-    const cashHealth = cashPos ? Math.max(0, 1 - Math.abs(cashDev) / 0.15) : 1;
-
-    const diluteBreaches = rebalancable.filter((p) => p.status === "חריגה - דילול נדרש");
-    const overBreaches = rebalancable.filter((p) => p.status === "מעל היעד");
-    const weightBreaches = [...diluteBreaches, ...overBreaches];
-    const needsStrengthen = rebalancable.filter((p) => p.status === "דורש חיזוק");
-
-    // Scales with how many breaches there are (and how severe), not just whether
-    // any exist at all - a portfolio with several breaches scores meaningfully
-    // lower than one with a single, isolated breach.
-    const breachPenalty = diluteBreaches.length * 12 + overBreaches.length * 6;
-    const breachScore = Math.max(0, 20 - breachPenalty);
-    const score = Math.max(0, Math.min(100, Math.round(rangeRatio * 60 + cashHealth * 20 + breachScore)));
-
-    const diversification: "טוב" | "בינוני" | "חלש" =
-      rangeRatio >= 0.8 ? "טוב" : rangeRatio >= 0.5 ? "בינוני" : "חלש";
-
-    const risk: "תקין" | "גבוה" | "נמוך" =
-      diluteBreaches.length > 0 ? "גבוה" : (cashPos && cashDev > 0.05) ? "נמוך" : "תקין";
-
-    const tone: Tone = score >= 75 ? "green" : score >= 50 ? "amber" : "red";
-    const cashTone: Tone = !cashPos ? "blue" : cashDev === 0 ? "green" : "amber";
-
-    return { score, tone, diversification, risk, cashPct: cashPos ? cashPos.weight : 0, cashTone, needsStrengthen, weightBreaches };
-  }, [evaluated]);
-
-  // Alerts: only conditions that genuinely need attention (never one per
-  // healthy position - that would be noise). Ids are deterministic and
-  // content-based (e.g. "below-min:RKLB:3") so dismissing one only suppresses
-  // that specific occurrence - if the same condition resolves and later
-  // recurs, it reappears as a fresh alert (handled by the GC effect below).
-  // The trailing number is a 2-point-wide severity bucket on |dev|: a breach
-  // that keeps worsening after being dismissed crosses into a new bucket and
-  // gets a new id, so it re-alerts instead of staying silently suppressed
-  // for as long as the position never fully returns to range.
-  const alerts = useMemo<Alert[]>(() => {
-    const list: Alert[] = [];
-    for (const p of evaluated) {
-      if (p.hodl) continue; // HODL positions are exempt from rebalancing by design
-      const isCash = p.symbol === "CASH";
-      const severityBucket = Math.floor(Math.abs(p.dev) * 50);
-      if (p.status === "דורש חיזוק") {
-        list.push({
-          id: "below-min:" + p.symbol + ":" + severityBucket, tone: "amber",
-          title: isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
-          message: p.action,
-        });
-      } else if (p.status === "חריגה - דילול נדרש") {
-        list.push({
-          id: "dilute-breach:" + p.symbol + ":" + severityBucket, tone: "red",
-          title: isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
-          message: p.action,
-        });
-      } else if (p.status === "מעל היעד") {
-        list.push({
-          id: "over-max:" + p.symbol + ":" + severityBucket, tone: "amber",
-          title: isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
-          message: p.action,
-        });
-      } else if (p.status === "✅ תקין") {
-        // A quiet positive callout: only when weight sits right at the center
-        // of the target range, not for merely "somewhere inside" it (that's
-        // the normal/expected state for most positions, and would be noise).
-        const mid = (p.min + p.max) / 2;
-        if (Math.abs(p.weight - mid) <= 0.015) {
-          list.push({
-            id: "on-target:" + p.symbol, tone: "green",
-            title: (isCash ? "אחוז המזומן" : p.symbol) + " הגיע ליעד המשקל",
-            message: "המשקל הנוכחי (" + fmtPct(p.weight) + ") קרוב מאוד ליעד האידיאלי.",
-          });
-        }
-      }
-    }
-
-    const problemCount = portfolioHealth.needsStrengthen.length + portfolioHealth.weightBreaches.length;
-    if (problemCount >= 3 || portfolioHealth.score < 50) {
-      list.push({
-        id: "rebalance-recommended", tone: portfolioHealth.tone === "red" ? "red" : "amber",
-        title: "מומלץ איזון מחדש כולל",
-        message: problemCount + " נכסים דורשים תשומת לב וציון בריאות התיק הוא " + portfolioHealth.score + "/100.",
-      });
-    }
-
-    const priority: Record<Tone, number> = { red: 0, amber: 1, blue: 2, green: 3 };
-    return list.sort((a, b) => priority[a.tone] - priority[b.tone]);
-  }, [evaluated, portfolioHealth]);
-
-  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
-  const [seenAlertIds, setSeenAlertIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    try {
-      setDismissedAlertIds(new Set(JSON.parse(localStorage.getItem("alerts_dismissed_v1") || "[]")));
-      setSeenAlertIds(new Set(JSON.parse(localStorage.getItem("alerts_seen_v1") || "[]")));
-    } catch { /* ignore malformed/unavailable storage */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem("alerts_dismissed_v1", JSON.stringify([...dismissedAlertIds])); } catch { /* ignore */ }
-  }, [dismissedAlertIds]);
-  useEffect(() => {
-    try { localStorage.setItem("alerts_seen_v1", JSON.stringify([...seenAlertIds])); } catch { /* ignore */ }
-  }, [seenAlertIds]);
-  // Garbage-collect ids for alerts whose underlying condition no longer holds,
-  // so if the same condition recurs later it shows up again instead of
-  // staying permanently suppressed by a stale dismissal.
-  useEffect(() => {
-    const currentIds = new Set(alerts.map((a) => a.id));
-    setDismissedAlertIds((prev) => new Set([...prev].filter((id) => currentIds.has(id))));
-    setSeenAlertIds((prev) => new Set([...prev].filter((id) => currentIds.has(id))));
-  }, [alerts]);
-
-  const visibleAlerts = useMemo(() => alerts.filter((a) => !dismissedAlertIds.has(a.id)), [alerts, dismissedAlertIds]);
-  const unseenAlertCount = useMemo(() => visibleAlerts.filter((a) => !seenAlertIds.has(a.id)).length, [visibleAlerts, seenAlertIds]);
-
-  function dismissAlert(id: string) {
-    setDismissedAlertIds((prev) => new Set([...prev, id]));
-  }
-  function markAlertsSeen() {
-    setSeenAlertIds((prev) => new Set([...prev, ...visibleAlerts.map((a) => a.id)]));
-  }
-
-  const [alertsOpen, setAlertsOpen] = useState<boolean>(false);
-  function toggleAlerts() {
-    setAlertsOpen((open) => {
-      const next = !open;
-      if (next) markAlertsSeen();
-      return next;
-    });
-  }
+  // rules already used per-position, just rolled up into one summary. The
+  // formula itself lives in a shared module (src/lib/portfolioHealth.ts) so
+  // the server-side daily snapshot job can compute the same score.
+  const portfolioHealth = useMemo(() => computePortfolioHealth(evaluated), [evaluated]);
 
   // Equity curve: the server keeps one snapshot per day (see savePortfolio),
   // returned as initialEquityHistory. Here we additionally overlay today's
   // live total so the chart's last point stays current between saves,
   // without waiting for a round-trip to the server. equityHistoryOverride
   // holds a freshly rebuilt-from-trades series after the user triggers a
-  // rebuild, without needing a full page reload.
+  // rebuild, without needing a full page reload. Lives above the alerts
+  // block below since the ATH-drawdown alert (#3) needs equityAth.
   const [equityHistoryOverride, setEquityHistoryOverride] = useState<EquityPoint[] | null>(null);
   const [rebuildingEquity, setRebuildingEquity] = useState<boolean>(false);
   const [equityRebuildWarnings, setEquityRebuildWarnings] = useState<string[]>([]);
@@ -418,6 +298,224 @@ export default function InvestmentDashboard({
     } finally {
       setRebuildingEquity(false);
     }
+  }
+
+  // Drawdown from the portfolio's all-time high (negative while below it, 0
+  // at a fresh high) - feeds alert #3.
+  const athDrawdownPct = useMemo(() => (equityAth > 0 ? (total - equityAth) / equityAth : 0), [total, equityAth]);
+
+  // What the user has already been shown, per-alert-occurrence - persisted
+  // server-side (data/portfolios/<userId>.json) rather than localStorage, so
+  // it survives a reload, a different device, or a fresh login instead of
+  // either repeating every time or (the previous bug) staying silently
+  // suppressed forever once a worsening condition was dismissed once.
+  const [alertAcksState, setAlertAcksState] = useState<Record<string, AlertAck>>(initialAlertAcks);
+  const [healthScoreAckState, setHealthScoreAckState] = useState<HealthScoreAck | undefined>(initialHealthScoreAck);
+
+  // Cash-idle tracking (#4): mirrors the exact rule the server applies in
+  // savePortfolio/dailySnapshot (cash weight over its own max target),
+  // recomputed live here so crossing the threshold mid-session (a big
+  // deposit, or other positions dropping in value) is reflected immediately
+  // instead of waiting for the next save/daily check. The server remains
+  // the source of truth for what's actually persisted; this is a client
+  // mirror so "how many days idle" doesn't need a round-trip to compute.
+  const [cashIdleSince, setCashIdleSince] = useState<string | null>(initialCashIdleSince);
+  useEffect(() => {
+    const cashPos = evaluated.find((p) => p.symbol === "CASH");
+    const overThreshold = Boolean(cashPos && cashPos.weight > cashPos.max);
+    setCashIdleSince((prev) => (overThreshold ? (prev ?? new Date().toISOString().slice(0, 10)) : null));
+  }, [evaluated]);
+
+  // Alerts: only conditions that genuinely need attention. Two shapes:
+  //  - Persistent conditions (weight deviation #2, ATH drawdown #3, the
+  //    aggregate rebalance recommendation) stay listed for as long as the
+  //    underlying condition holds, whether or not they're "new" - opening
+  //    the bell or dismissing one only clears its new/unseen highlight, via
+  //    a server-persisted ack (alertAcksState, survives reload/device) that
+  //    re-arms once the tracked value has moved at least the type's rearm
+  //    step away from what was last acknowledged - not on every tiny wiggle,
+  //    but also not suppressed forever while things keep getting worse (the
+  //    bug the old localStorage id-only dedup had).
+  //  - Event alerts (price target crossed #1, idle cash #4, single-day drop
+  //    #6, the "on target" callout) are one-time notices: they only appear
+  //    while unacknowledged for their current occurrence, and disappear
+  //    once acked - reappearing only on a genuinely new event (price
+  //    crosses again, cash resolves then goes idle again, a new trading
+  //    day's drop).
+  const { alerts, alertTrackedValues, newAlertIds } = useMemo(() => {
+    const list: Alert[] = [];
+    const trackedValues: Record<string, number> = {};
+    const newIds = new Set<string>();
+
+    function pushPersistent(id: string, tone: Tone, title: string, message: string, value: number, step: number) {
+      trackedValues[id] = value;
+      if (isNewOccurrence(value, alertAcksState[id], step)) newIds.add(id);
+      list.push({ id, tone, title, message });
+    }
+    function pushIfNew(id: string, tone: Tone, title: string, message: string, isNew: boolean, value: number) {
+      if (!isNew) return;
+      trackedValues[id] = value;
+      newIds.add(id);
+      list.push({ id, tone, title, message });
+    }
+
+    for (const p of evaluated) {
+      const isCash = p.symbol === "CASH";
+
+      if (!p.hodl) {
+        if (p.status === "דורש חיזוק") {
+          pushPersistent("below-min:" + p.symbol, "amber",
+            isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
+            p.action, p.dev, ALERT_RULES.devRearmStep);
+        } else if (p.status === "חריגה - דילול נדרש") {
+          pushPersistent("dilute-breach:" + p.symbol, "red",
+            isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
+            p.action, p.dev, ALERT_RULES.devRearmStep);
+        } else if (p.status === "מעל היעד") {
+          pushPersistent("over-max:" + p.symbol, "amber",
+            isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
+            p.action, p.dev, ALERT_RULES.devRearmStep);
+        } else if (p.status === "✅ תקין") {
+          // A quiet positive callout: only when weight sits right at the center
+          // of the target range, not for merely "somewhere inside" it (that's
+          // the normal/expected state for most positions, and would be noise).
+          const mid = (p.min + p.max) / 2;
+          if (Math.abs(p.weight - mid) <= 0.015) {
+            // Magnitude-based rather than presence-only, so drifting away
+            // from target and later returning counts as a fresh occurrence
+            // instead of being suppressed forever after the first time.
+            const id = "on-target:" + p.symbol;
+            pushIfNew(id, "green", (isCash ? "אחוז המזומן" : p.symbol) + " הגיע ליעד המשקל",
+              "המשקל הנוכחי (" + fmtPct(p.weight) + ") קרוב מאוד ליעד האידיאלי.",
+              isNewOccurrence(p.weight, alertAcksState[id], 0.03), p.weight);
+          }
+        }
+      }
+
+      // #1 price target crossed (up or down) - independent of the weight
+      // range above, since price and weight can cross at different times
+      // (weight also depends on the rest of the portfolio's value).
+      if (!isCash && p.priceTarget != null && p.price != null) {
+        const side = priceTargetSide(p.price, p.priceTarget);
+        const id = "price-target:" + p.symbol;
+        const isNew = isPriceTargetNewOccurrence(side, alertAcksState[id]);
+        pushIfNew(id, "blue",
+          p.symbol + (side === 1 ? " חצה כלפי מעלה את מחיר היעד" : " חצה כלפי מטה את מחיר היעד"),
+          p.symbol + " במחיר " + formatMoney(p.price, privacyMode, { digits: 2 }) + " (יעד: " + formatMoney(p.priceTarget, privacyMode, { digits: 2 }) + ").",
+          isNew, side);
+      }
+
+      // #6 single-day drop >5% - id includes today's date, so a new trading
+      // day's drop is automatically a fresh occurrence.
+      if (!isCash) {
+        const changePct = dayChangePct[p.symbol];
+        if (changePct != null && changePct <= ALERT_RULES.dailyDropThreshold) {
+          const today = new Date().toISOString().slice(0, 10);
+          const id = "day-drop:" + p.symbol + ":" + today;
+          pushIfNew(id, "red", p.symbol + " ירד " + fmtPct(Math.abs(changePct)) + " היום",
+            "ירידה חדה תוך יום מסחר בודד - ייתכן אירוע חדשותי משמעותי.",
+            !alertAcksState[id], 1);
+        }
+      }
+    }
+
+    // #3 ATH drawdown - stays listed while the drawdown holds, re-highlights
+    // as new if it worsens by another athRearmStep after being seen; the
+    // hysteresis between athAlertDrawdown and athClearDrawdown just keeps it
+    // from flickering right at the -10% line.
+    if (athDrawdownPct <= ALERT_RULES.athAlertDrawdown) {
+      pushPersistent("ath-drawdown", "red", "ירידה משמעותית משיא התיק",
+        "התיק ירד " + fmtPct(Math.abs(athDrawdownPct)) + " מנקודת השיא ההיסטורית שלו.",
+        athDrawdownPct, ALERT_RULES.athRearmStep);
+    }
+
+    // #4 idle cash - one-time until it resolves (cashIdleSince clears once
+    // cash drops back under its own target). The id is scoped to this
+    // specific idle streak's start date, not just "cash-idle" - otherwise
+    // once acked it would never fire again for any *later* streak, since a
+    // presence-only check has no way to tell "resolved, then went idle
+    // again" apart from "still the same ongoing occurrence".
+    if (cashIdleSince) {
+      const days = Math.floor((Date.now() - new Date(cashIdleSince + "T00:00:00Z").getTime()) / 86_400_000);
+      if (days >= ALERT_RULES.cashIdleDays) {
+        const id = "cash-idle:" + cashIdleSince;
+        pushIfNew(id, "amber", "מזומן עודף לא מושקע",
+          "אחוז המזומן מעל היעד כבר " + days + " ימים ברציפות.",
+          !alertAcksState[id], 1);
+      }
+    }
+
+    // #5 health score change - needs a previous breakdown to compare
+    // against, so the very first-ever computation (no ack yet) just
+    // silently has nothing to alert on rather than firing on nothing.
+    if (healthScoreAckState) {
+      const id = "health-score-change";
+      const isNew = Math.abs(portfolioHealth.score - healthScoreAckState.score) >= ALERT_RULES.healthScoreRearmStep;
+      if (isNew) {
+        const deltas: [string, number][] = [
+          ["יחס הנכסים בטווח היעד", (portfolioHealth.rangeRatio - healthScoreAckState.rangeRatio) * 60],
+          ["בריאות המזומן", (portfolioHealth.cashHealth - healthScoreAckState.cashHealth) * 20],
+          ["חריגות דילול/מקסימום", portfolioHealth.breachScore - healthScoreAckState.breachScore],
+        ];
+        const [mainDriver, mainDelta] = deltas.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
+        const improved = portfolioHealth.score > healthScoreAckState.score;
+        pushIfNew(id, improved ? "green" : "amber",
+          "ציון בריאות התיק " + (improved ? "השתפר" : "ירד") + " ל-" + portfolioHealth.score + "/100",
+          "השינוי העיקרי: " + mainDriver + " (" + (mainDelta >= 0 ? "+" : "") + Math.round(mainDelta) + " נק').",
+          true, portfolioHealth.score);
+      }
+    }
+
+    const problemCount = portfolioHealth.needsStrengthen.length + portfolioHealth.weightBreaches.length;
+    if (problemCount >= 3 || portfolioHealth.score < 50) {
+      pushPersistent("rebalance-recommended", portfolioHealth.tone === "red" ? "red" : "amber",
+        "מומלץ איזון מחדש כולל",
+        problemCount + " נכסים דורשים תשומת לב וציון בריאות התיק הוא " + portfolioHealth.score + "/100.",
+        problemCount, 1);
+    }
+
+    const priority: Record<Tone, number> = { red: 0, amber: 1, blue: 2, green: 3 };
+    list.sort((a, b) => priority[a.tone] - priority[b.tone]);
+    return { alerts: list, alertTrackedValues: trackedValues, newAlertIds: newIds };
+  }, [evaluated, portfolioHealth, alertAcksState, healthScoreAckState, athDrawdownPct, cashIdleSince, dayChangePct, privacyMode]);
+
+  const unseenAlertCount = newAlertIds.size;
+
+  // Acknowledges the given alert ids at their current tracked value/health
+  // breakdown: optimistic local update (so the UI reacts immediately) plus a
+  // best-effort server write - losing that write just means an alert may
+  // resurface once more than strictly necessary, never a hard failure.
+  function ackAlertsNow(ids: string[]) {
+    if (ids.length === 0) return;
+    const seenAt = new Date().toISOString();
+    const acks: Record<string, { value: number }> = {};
+    for (const id of ids) acks[id] = { value: alertTrackedValues[id] ?? 1 };
+    setAlertAcksState((prev) => {
+      const next = { ...prev };
+      for (const [id, { value }] of Object.entries(acks)) next[id] = { value, seenAt };
+      return next;
+    });
+    const healthScoreAck = ids.includes("health-score-change")
+      ? { score: portfolioHealth.score, rangeRatio: portfolioHealth.rangeRatio, cashHealth: portfolioHealth.cashHealth, breachScore: portfolioHealth.breachScore }
+      : undefined;
+    if (healthScoreAck) setHealthScoreAckState({ ...healthScoreAck, seenAt });
+    ackAlertsAction({ acks, healthScoreAck }).catch(() => { /* best-effort, see comment above */ });
+  }
+
+  function dismissAlert(id: string) {
+    ackAlertsNow([id]);
+  }
+  function markAlertsSeen() {
+    ackAlertsNow(alerts.map((a) => a.id));
+  }
+
+  const [alertsOpen, setAlertsOpen] = useState<boolean>(false);
+  function toggleAlerts() {
+    setAlertsOpen((open) => {
+      const next = !open;
+      if (next) markAlertsSeen();
+      return next;
+    });
   }
   const stats = useMemo(() => {
     const sells = trades.filter((t) => t.action === "מכירה");
@@ -634,7 +732,7 @@ export default function InvestmentDashboard({
 
         <Header
           userName={userName} total={total} cashFree={cashFree} privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
-          visibleAlerts={visibleAlerts} unseenAlertCount={unseenAlertCount} seenAlertIds={seenAlertIds}
+          visibleAlerts={alerts} unseenAlertCount={unseenAlertCount} newAlertIds={newAlertIds}
           alertsOpen={alertsOpen} toggleAlerts={toggleAlerts} closeAlerts={() => setAlertsOpen(false)} dismissAlert={dismissAlert}
           undoSnapshot={undoSnapshot} undoLastAction={undoLastAction}
         />
@@ -702,6 +800,10 @@ export default function InvestmentDashboard({
         colorIndex={Math.max(0, evaluated.findIndex((p) => p.symbol === detailSymbol))}
         privacyMode={privacyMode}
         onClose={() => setDetailSymbol(null)}
+        onSetPriceTarget={(symbol, priceTarget) => {
+          pushUndoSnapshot("עדכון מחיר יעד");
+          setPositions((ps) => ps.map((p) => (p.symbol === symbol ? { ...p, priceTarget } : p)));
+        }}
       />
     </div>
   );

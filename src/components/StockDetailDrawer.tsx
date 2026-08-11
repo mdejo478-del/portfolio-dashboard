@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
+import { X, TrendingUp, TrendingDown, ExternalLink, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/Button";
 import { getStockDetailAction } from "@/app/actions/prices";
 import type { StockDetail } from "@/lib/prices";
 import type { Position } from "@/lib/portfolio";
-import { fmtPct, colorFor, tradingViewUrl, formatMoney } from "@/components/dashboard/format";
+import { fmtPct, colorFor, tradingViewUrl, formatMoney, parseNum } from "@/components/dashboard/format";
 
 const RETURN_PERIODS: { key: keyof StockDetail["returns"]; label: string }[] = [
   { key: "1D", label: "1D" },
@@ -25,13 +25,30 @@ interface StockDetailDrawerProps {
   colorIndex: number;
   privacyMode: boolean;
   onClose: () => void;
+  onSetPriceTarget: (symbol: string, priceTarget: number | null) => void;
 }
 
-export default function StockDetailDrawer({ symbol, position, colorIndex, privacyMode, onClose }: StockDetailDrawerProps) {
+export default function StockDetailDrawer({ symbol, position, colorIndex, privacyMode, onClose, onSetPriceTarget }: StockDetailDrawerProps) {
   const [detail, setDetail] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const requestSeq = useRef<number>(0);
+
+  const [editingTarget, setEditingTarget] = useState<boolean>(false);
+  const [targetInput, setTargetInput] = useState<string>("");
+  useEffect(() => {
+    setEditingTarget(false);
+    setTargetInput(position?.priceTarget != null ? String(position.priceTarget) : "");
+  }, [symbol, position?.priceTarget]);
+
+  function saveTarget() {
+    if (!symbol) return;
+    const trimmed = targetInput.trim();
+    if (trimmed === "") { onSetPriceTarget(symbol, null); setEditingTarget(false); return; }
+    const num = parseNum(trimmed);
+    if (!Number.isNaN(num) && num > 0) onSetPriceTarget(symbol, num);
+    setEditingTarget(false);
+  }
 
   useEffect(() => {
     if (!symbol) { setDetail(null); return; }
@@ -195,6 +212,31 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
                     <StatRow label="שווי" value={formatMoney(position.value, privacyMode)} />
                     <StatRow label="משקל בתיק" value={fmtPct(position.weight)} />
                   </div>
+                  {position.symbol !== "CASH" && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                      <span style={{ color: "var(--text-faint)" }}>מחיר יעד</span>
+                      {editingTarget ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <input
+                            type="text" inputMode="decimal" autoFocus value={targetInput}
+                            onChange={(e) => setTargetInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveTarget(); if (e.key === "Escape") setEditingTarget(false); }}
+                            placeholder="ללא יעד" style={{ width: 90, fontFamily: "var(--mono)", direction: "ltr", textAlign: "left" }}
+                          />
+                          <Button variant="icon" onClick={saveTarget} aria-label="שמור" title="שמור"><Check size={13} /></Button>
+                        </span>
+                      ) : (
+                        <span
+                          onClick={() => setEditingTarget(true)} role="button" tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingTarget(true); } }}
+                          style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: "var(--mono)", color: position.priceTarget != null ? "var(--text)" : "var(--text-faint)", fontWeight: 600, direction: "ltr" }}
+                        >
+                          {position.priceTarget != null ? formatMoney(position.priceTarget, privacyMode, { digits: 2 }) : "הגדר"}
+                          <Pencil size={11} />
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

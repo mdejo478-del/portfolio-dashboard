@@ -7,9 +7,9 @@ import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { Button } from "@/components/dashboard/ui/Button";
 
 export function AlertsBell({
-  alerts, unseenCount, seenIds, open, onToggle, onClose, onDismiss,
+  alerts, unseenCount, newIds, open, onToggle, onClose, onDismiss,
 }: {
-  alerts: Alert[]; unseenCount: number; seenIds: Set<string>;
+  alerts: Alert[]; unseenCount: number; newIds: Set<string>;
   open: boolean; onToggle: () => void; onClose: () => void; onDismiss: (id: string) => void;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -54,7 +54,7 @@ export function AlertsBell({
             ) : (
               alerts.map((a) => {
                 const s = TONE_STYLES[a.tone];
-                const isNew = !seenIds.has(a.id);
+                const isNew = newIds.has(a.id);
                 return (
                   <div key={a.id} style={{
                     padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", gap: 9, alignItems: "flex-start",

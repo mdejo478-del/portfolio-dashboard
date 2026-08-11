@@ -1,7 +1,7 @@
 "use server";
 
 import { verifySession, requireSession } from "@/lib/dal";
-import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, type EquityPoint } from "@/lib/portfolio";
+import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, isValidAckPayload, updateAlertAcks, type EquityPoint } from "@/lib/portfolio";
 import { rebuildEquityHistory } from "@/lib/equityHistory";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
 import { maybeRunBackup, runBackupNow } from "@/lib/backup";
@@ -21,6 +21,18 @@ export async function savePortfolioAction(data: unknown): Promise<void> {
   } catch (err) {
     console.error("[backup] post-save check failed:", err);
   }
+}
+
+// Fire-and-forget from the client (bell opened or an alert dismissed) - not
+// critical if a single call is lost (the alert just reappears once more than
+// it strictly needed to), so requireSession rather than a hard-failing
+// verifySession keeps a transient auth hiccup from surfacing as an error.
+export async function ackAlertsAction(payload: unknown): Promise<void> {
+  const session = await requireSession();
+  if (!isValidAckPayload(payload)) {
+    throw new Error("נתוני אישור התראה אינם תקינים.");
+  }
+  await updateAlertAcks(session.userId, payload.acks, payload.healthScoreAck);
 }
 
 export async function backupNowAction(): Promise<{ createdAt: number }> {

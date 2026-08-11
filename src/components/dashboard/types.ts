@@ -37,12 +37,14 @@ export interface PositionFormState {
   min: string;
   max: string;
   dilute: string;
+  priceTarget: string;
 }
 export interface PosEditFields {
   qty: string;
   min: string;
   max: string;
   dilute: string;
+  priceTarget: string;
 }
 export interface UndoSnapshot {
   label: string;
@@ -62,4 +64,9 @@ export interface PortfolioHealthData {
   cashTone: Tone;
   needsStrengthen: EvaluatedPosition[];
   weightBreaches: EvaluatedPosition[];
+  // The score's three components, broken out so a "score changed
+  // significantly" alert can name its main driver instead of just the delta.
+  rangeRatio: number;
+  cashHealth: number;
+  breachScore: number;
 }

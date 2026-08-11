@@ -41,7 +41,7 @@ export function HoldingsSection({
 }: HoldingsSectionProps) {
   const isMobile = useIsMobile();
   const [editingPosId, setEditingPosId] = useState<number | null>(null);
-  const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "" });
+  const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "", priceTarget: "" });
   const [deletePosConfirmId, setDeletePosConfirmId] = useState<number | null>(null);
   const [showAddPosition, setShowAddPosition] = useState<boolean>(false);
   const [posForm, setPosForm] = useState<PositionFormState>(EMPTY_POSITION_FORM);
@@ -75,23 +75,28 @@ export function HoldingsSection({
       min: String(Math.round(p.min * 1000) / 10),
       max: String(Math.round(p.max * 1000) / 10),
       dilute: String(Math.round(p.dilute * 1000) / 10),
+      priceTarget: p.priceTarget != null ? String(p.priceTarget) : "",
     });
   }
-  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "" }); }
+  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "", priceTarget: "" }); }
   function updatePosEditField(field: keyof PosEditFields, val: string) { setPosEditFields((f) => ({ ...f, [field]: val })); }
   function savePosQty(p: Position) {
     const qtyNum = parseNum(posEditFields.qty);
     const minNum = parseNum(posEditFields.min);
     const maxNum = parseNum(posEditFields.max);
     const diluteNum = parseNum(posEditFields.dilute);
+    const priceTargetNum = parseNum(posEditFields.priceTarget);
     if (Number.isNaN(qtyNum) || qtyNum < 0) { cancelPosEdit(); return; }
     pushUndoSnapshot("עריכת נכס בתיק");
     const min = !Number.isNaN(minNum) ? minNum / 100 : p.min;
     const max = !Number.isNaN(maxNum) ? maxNum / 100 : p.max;
     const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : p.dilute;
+    // Blank field = no price target (clears it); a valid number sets it;
+    // anything else unparseable keeps whatever was already saved.
+    const priceTarget = posEditFields.priceTarget.trim() === "" ? null : (!Number.isNaN(priceTargetNum) ? priceTargetNum : (p.priceTarget ?? null));
     setPositions((ps) => ps.map((row) => {
       if (row.id !== p.id) return row;
-      const updated = { ...row, min, max, dilute };
+      const updated = { ...row, min, max, dilute, priceTarget };
       if (row.symbol === "CASH") return { ...updated, value: qtyNum };
       return { ...updated, qty: qtyNum, value: qtyNum * (row.price ?? 0) };
     }));
@@ -126,11 +131,13 @@ export function HoldingsSection({
     const min = !Number.isNaN(minNum) ? minNum / 100 : 0.05;
     const max = !Number.isNaN(maxNum) ? maxNum / 100 : 0.15;
     const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : 0.20;
+    const priceTargetNum = parseNum(posForm.priceTarget);
+    const priceTarget = !Number.isNaN(priceTargetNum) ? priceTargetNum : null;
     pushUndoSnapshot("הוספת נכס לתיק");
     const value = qty * price;
     setPositions((ps) => [...ps, {
       id: nextPosIdRef.current++, symbol, qty, price, value, weight: 0,
-      dev: 0, min, max, dilute, hodl: false,
+      dev: 0, min, max, dilute, hodl: false, priceTarget,
     }]);
     setPosForm(EMPTY_POSITION_FORM);
     setPosFormError("");
@@ -500,10 +507,10 @@ export function HoldingsSection({
                 <input type="text" inputMode="decimal" value={posForm.price} onChange={(e) => updatePosForm("price", e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0.00" />
               </Field>
-              {/* Spacer so the three allocation-target fields + submit button
-                  land together as their own row instead of splitting across
-                  rows - only needed in the 4-column desktop grid. */}
-              {!isMobile && <div />}
+              <Field label="מחיר יעד $ (אופציונלי)">
+                <input type="text" inputMode="decimal" value={posForm.priceTarget} onChange={(e) => updatePosForm("priceTarget", e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="לדוגמה: 250" />
+              </Field>
               <Field label="יעד מינימום %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.min} onChange={(e) => updatePosForm("min", e.target.value)}
@@ -532,7 +539,7 @@ export function HoldingsSection({
               </div>
             )}
             <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-faint)" }}>
-              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל ברירת מחדל (מינ&apos; 5%, מקס&apos; 15%, דילול 20%) שניתן לעדכן בהמשך.
+              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל ברירת מחדל (מינ&apos; 5%, מקס&apos; 15%, דילול 20%) שניתן לעדכן בהמשך. מחיר היעד עוזר לך לקבל התראה כשהמניה חוצה מחיר מסוים - לא קשור לאחוזי ההקצאה.
             </div>
           </div>
         ) : (

@@ -55,6 +55,6 @@ export const EMPTY_FORM: TradeFormState = {
   qty: "", price: "", fee: "-2.5", strategy: "📈 קנייה DCA", notes: "", pnlManual: "",
 };
 
-export const EMPTY_POSITION_FORM: PositionFormState = { symbol: "", qty: "", price: "", min: "", max: "", dilute: "" };
+export const EMPTY_POSITION_FORM: PositionFormState = { symbol: "", qty: "", price: "", min: "", max: "", dilute: "", priceTarget: "" };
 
 export const PRICE_REFRESH_INTERVAL_MS = 75_000;
