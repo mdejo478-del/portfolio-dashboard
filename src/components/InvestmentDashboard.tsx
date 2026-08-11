@@ -268,29 +268,34 @@ export default function InvestmentDashboard({
 
   // Alerts: only conditions that genuinely need attention (never one per
   // healthy position - that would be noise). Ids are deterministic and
-  // content-based (e.g. "below-min:RKLB") so dismissing one only suppresses
+  // content-based (e.g. "below-min:RKLB:3") so dismissing one only suppresses
   // that specific occurrence - if the same condition resolves and later
   // recurs, it reappears as a fresh alert (handled by the GC effect below).
+  // The trailing number is a 2-point-wide severity bucket on |dev|: a breach
+  // that keeps worsening after being dismissed crosses into a new bucket and
+  // gets a new id, so it re-alerts instead of staying silently suppressed
+  // for as long as the position never fully returns to range.
   const alerts = useMemo<Alert[]>(() => {
     const list: Alert[] = [];
     for (const p of evaluated) {
       if (p.hodl) continue; // HODL positions are exempt from rebalancing by design
       const isCash = p.symbol === "CASH";
+      const severityBucket = Math.floor(Math.abs(p.dev) * 50);
       if (p.status === "דורש חיזוק") {
         list.push({
-          id: "below-min:" + p.symbol, tone: "amber",
+          id: "below-min:" + p.symbol + ":" + severityBucket, tone: "amber",
           title: isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
           message: p.action,
         });
       } else if (p.status === "חריגה - דילול נדרש") {
         list.push({
-          id: "dilute-breach:" + p.symbol, tone: "red",
+          id: "dilute-breach:" + p.symbol + ":" + severityBucket, tone: "red",
           title: isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
           message: p.action,
         });
       } else if (p.status === "מעל היעד") {
         list.push({
-          id: "over-max:" + p.symbol, tone: "amber",
+          id: "over-max:" + p.symbol + ":" + severityBucket, tone: "amber",
           title: isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
           message: p.action,
         });
@@ -693,7 +698,7 @@ export default function InvestmentDashboard({
 
       <StockDetailDrawer
         symbol={detailSymbol}
-        position={positions.find((p) => p.symbol === detailSymbol)}
+        position={evaluated.find((p) => p.symbol === detailSymbol)}
         colorIndex={Math.max(0, evaluated.findIndex((p) => p.symbol === detailSymbol))}
         privacyMode={privacyMode}
         onClose={() => setDetailSymbol(null)}
