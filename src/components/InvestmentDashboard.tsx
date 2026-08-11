@@ -696,6 +696,7 @@ export default function InvestmentDashboard({
         .header-actions-compact { display: none; }
         @media (max-width: 860px) {
           .idash-grid2 { grid-template-columns: 1fr !important; }
+          .morning-brief-card { order: -1; }
           .idash-scroll-hint { display: flex !important; }
           .header-actions-full { display: none !important; }
           .header-actions-compact { display: flex !important; }
