@@ -233,6 +233,12 @@ export default function InvestmentDashboard({
   }, []);
 
   useEffect(() => {
+    // Fetch on mount, then poll - the canonical data-fetching Effect.
+    // refreshPrices sets loading/error state synchronously before its first
+    // await, which is exactly what it should do (show a loading state right
+    // away rather than waiting a tick), so it doesn't fit the "avoid
+    // setState in an Effect" guidance the linter defaults to here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPrices();
     const interval = setInterval(refreshPrices, PRICE_REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
@@ -345,8 +351,14 @@ export default function InvestmentDashboard({
   // mirror so "how many days idle" doesn't need a round-trip to compute.
   const [cashIdleSince, setCashIdleSince] = useState<string | null>(initialCashIdleSince);
   useEffect(() => {
+    // Genuinely needs to be an Effect, not a derived/render-time value: it
+    // remembers *when* cash first crossed its threshold, which isn't
+    // something the current evaluated[] snapshot alone can tell you - only
+    // "is it over threshold right now" is derivable from props, "since
+    // when" requires carrying state forward across renders.
     const cashPos = evaluated.find((p) => p.symbol === "CASH");
     const overThreshold = Boolean(cashPos && cashPos.weight > cashPos.max);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCashIdleSince((prev) => (overThreshold ? (prev ?? new Date().toISOString().slice(0, 10)) : null));
   }, [evaluated]);
 
@@ -460,7 +472,7 @@ export default function InvestmentDashboard({
     // presence-only check has no way to tell "resolved, then went idle
     // again" apart from "still the same ongoing occurrence".
     if (cashIdleSince) {
-      const days = Math.floor((Date.now() - new Date(cashIdleSince + "T00:00:00Z").getTime()) / 86_400_000);
+      const days = Math.floor((new Date().getTime() - new Date(cashIdleSince + "T00:00:00Z").getTime()) / 86_400_000);
       if (days >= ALERT_RULES.cashIdleDays) {
         const id = "cash-idle:" + cashIdleSince;
         pushIfNew(id, "amber", "מזומן עודף לא מושקע",

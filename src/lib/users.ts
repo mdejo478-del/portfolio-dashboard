@@ -1,6 +1,7 @@
 import { randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
+import { withFileLock } from "@/lib/fileLock";
 
 const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
@@ -66,22 +67,28 @@ export async function findUserById(id: string): Promise<StoredUser | undefined> 
 
 export async function createUser(name: string, email: string, password: string): Promise<StoredUser> {
   const normalized = email.trim().toLowerCase();
-  const users = await readUsers();
-  if (users.some((u) => u.email === normalized)) throw new Error("EMAIL_TAKEN");
+  // Locked so two concurrent signups for the same email can't both pass the
+  // "email taken" check before either has written - without this, the
+  // second writer's read (of the pre-first-signup file) would overwrite the
+  // first signup right out of the file.
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    if (users.some((u) => u.email === normalized)) throw new Error("EMAIL_TAKEN");
 
-  const user: StoredUser = {
-    id: randomUUID(),
-    name,
-    email: normalized,
-    passwordHash: hashPassword(password),
-    createdAt: new Date().toISOString(),
-    verified: false,
-    verificationCode: generateVerificationCode(),
-    onboardingCompleted: false,
-  };
-  users.push(user);
-  await writeUsers(users);
-  return user;
+    const user: StoredUser = {
+      id: randomUUID(),
+      name,
+      email: normalized,
+      passwordHash: hashPassword(password),
+      createdAt: new Date().toISOString(),
+      verified: false,
+      verificationCode: generateVerificationCode(),
+      onboardingCompleted: false,
+    };
+    users.push(user);
+    await writeUsers(users);
+    return user;
+  });
 }
 
 export async function verifyCredentials(email: string, password: string): Promise<StoredUser | null> {
@@ -92,49 +99,59 @@ export async function verifyCredentials(email: string, password: string): Promis
 }
 
 export async function markUserVerified(id: string): Promise<boolean> {
-  const users = await readUsers();
-  const user = users.find((u) => u.id === id);
-  if (!user) return false;
-  user.verified = true;
-  user.verificationCode = null;
-  await writeUsers(users);
-  return true;
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return false;
+    user.verified = true;
+    user.verificationCode = null;
+    await writeUsers(users);
+    return true;
+  });
 }
 
 export async function markOnboardingCompleted(id: string): Promise<boolean> {
-  const users = await readUsers();
-  const user = users.find((u) => u.id === id);
-  if (!user) return false;
-  user.onboardingCompleted = true;
-  await writeUsers(users);
-  return true;
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return false;
+    user.onboardingCompleted = true;
+    await writeUsers(users);
+    return true;
+  });
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
-  const users = await readUsers();
-  const next = users.filter((u) => u.id !== id);
-  if (next.length === users.length) return false;
-  await writeUsers(next);
-  return true;
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const next = users.filter((u) => u.id !== id);
+    if (next.length === users.length) return false;
+    await writeUsers(next);
+    return true;
+  });
 }
 
 export async function invalidateAllSessions(id: string): Promise<boolean> {
-  const users = await readUsers();
-  const user = users.find((u) => u.id === id);
-  if (!user) return false;
-  user.sessionsValidAfter = Date.now();
-  await writeUsers(users);
-  return true;
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return false;
+    user.sessionsValidAfter = Date.now();
+    await writeUsers(users);
+    return true;
+  });
 }
 
 export type UpdatePasswordResult = "OK" | "WRONG_PASSWORD" | "NOT_FOUND";
 
 export async function updatePassword(id: string, currentPassword: string, newPassword: string): Promise<UpdatePasswordResult> {
-  const users = await readUsers();
-  const user = users.find((u) => u.id === id);
-  if (!user) return "NOT_FOUND";
-  if (!verifyPassword(currentPassword, user.passwordHash)) return "WRONG_PASSWORD";
-  user.passwordHash = hashPassword(newPassword);
-  await writeUsers(users);
-  return "OK";
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return "NOT_FOUND";
+    if (!verifyPassword(currentPassword, user.passwordHash)) return "WRONG_PASSWORD";
+    user.passwordHash = hashPassword(newPassword);
+    await writeUsers(users);
+    return "OK";
+  });
 }

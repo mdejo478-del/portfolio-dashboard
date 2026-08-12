@@ -10,6 +10,14 @@ export function useTheme() {
   const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
+    // Deliberately synced post-mount, not via a lazy useState initializer:
+    // this component renders on the server (where document doesn't exist)
+    // and must match that "dark" fallback on the client's first render too,
+    // or React logs a hydration mismatch. THEME_INIT_SCRIPT already set the
+    // real value on <html> before hydration - this just pulls it into React
+    // state one tick later, which is the standard fix for this exact
+    // SSR/client-only-value tension.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme((document.documentElement.dataset.theme as Theme) || "dark");
   }, []);
 

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
+import { withFileLock } from "@/lib/fileLock";
 // This file does Node-only file I/O and must never be imported from client
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
@@ -164,23 +165,28 @@ function computeCashIdleSince(positions: PortfolioData["positions"], total: numb
 }
 
 export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
-  // Roll in today's equity snapshot server-side (server clock, not the
-  // client's) - update today's point in place if it already exists so
-  // repeated saves within the same day refine it, otherwise append a new one.
-  const existing = await getPortfolio(userId);
-  const total = data.positions.reduce((sum, p) => sum + p.value, 0);
-  const today = new Date().toISOString().slice(0, 10);
-  const history = rollInEquityPoint(existing.equityHistory, today, total);
-  // Also re-checked here (not just in the daily snapshot job) so cash
-  // crossing its target via an actual trade is caught immediately instead
-  // of waiting for the next once-a-day check.
-  const cashIdleSince = computeCashIdleSince(data.positions, total, existing.cashIdleSince, today);
+  // Locked per-user so two near-simultaneous saves (autosave firing from two
+  // open tabs, say) can't both read the same "existing" snapshot and then
+  // have the second write silently clobber fields the first one set.
+  await withFileLock(portfolioPath(userId), async () => {
+    // Roll in today's equity snapshot server-side (server clock, not the
+    // client's) - update today's point in place if it already exists so
+    // repeated saves within the same day refine it, otherwise append a new one.
+    const existing = await getPortfolio(userId);
+    const total = data.positions.reduce((sum, p) => sum + p.value, 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const history = rollInEquityPoint(existing.equityHistory, today, total);
+    // Also re-checked here (not just in the daily snapshot job) so cash
+    // crossing its target via an actual trade is caught immediately instead
+    // of waiting for the next once-a-day check.
+    const cashIdleSince = computeCashIdleSince(data.positions, total, existing.cashIdleSince, today);
 
-  // Spread `existing` first so server-maintained fields the client never
-  // submits (alertAcks, healthScoreAck, cashIdleSince) survive a save
-  // instead of being silently dropped - `data` only overrides
-  // positions/trades/ledger/nextPositionId/nextTradeId.
-  await writeStoredPortfolio(userId, { ...existing, ...data, equityHistory: history, cashIdleSince });
+    // Spread `existing` first so server-maintained fields the client never
+    // submits (alertAcks, healthScoreAck, cashIdleSince) survive a save
+    // instead of being silently dropped - `data` only overrides
+    // positions/trades/ledger/nextPositionId/nextTradeId.
+    await writeStoredPortfolio(userId, { ...existing, ...data, equityHistory: history, cashIdleSince });
+  });
 }
 
 const MAX_ALERT_ACKS = 500;
@@ -220,22 +226,24 @@ export async function updateAlertAcks(
   acks: Record<string, { value: number }>,
   healthBreakdown?: { score: number; rangeRatio: number; cashHealth: number; breachScore: number },
 ): Promise<void> {
-  const existing = await getPortfolio(userId);
-  const seenAt = new Date().toISOString();
-  const newAcks: Record<string, AlertAck> = Object.fromEntries(
-    Object.entries(acks).map(([id, { value }]) => [id, { value, seenAt }]),
-  );
-  const merged = { ...existing.alertAcks, ...newAcks };
-  const keys = Object.keys(merged);
-  if (keys.length > MAX_ALERT_ACKS) {
-    // Drop the oldest entries by seenAt so the map can't grow unbounded -
-    // in practice this only matters for a portfolio with an implausibly
-    // large number of distinct symbols/occurrences.
-    const sorted = keys.sort((a, b) => merged[a].seenAt.localeCompare(merged[b].seenAt));
-    for (const k of sorted.slice(0, keys.length - MAX_ALERT_ACKS)) delete merged[k];
-  }
-  const healthScoreAck: HealthScoreAck | undefined = healthBreakdown ? { ...healthBreakdown, seenAt } : existing.healthScoreAck;
-  await writeStoredPortfolio(userId, { ...existing, alertAcks: merged, healthScoreAck });
+  await withFileLock(portfolioPath(userId), async () => {
+    const existing = await getPortfolio(userId);
+    const seenAt = new Date().toISOString();
+    const newAcks: Record<string, AlertAck> = Object.fromEntries(
+      Object.entries(acks).map(([id, { value }]) => [id, { value, seenAt }]),
+    );
+    const merged = { ...existing.alertAcks, ...newAcks };
+    const keys = Object.keys(merged);
+    if (keys.length > MAX_ALERT_ACKS) {
+      // Drop the oldest entries by seenAt so the map can't grow unbounded -
+      // in practice this only matters for a portfolio with an implausibly
+      // large number of distinct symbols/occurrences.
+      const sorted = keys.sort((a, b) => merged[a].seenAt.localeCompare(merged[b].seenAt));
+      for (const k of sorted.slice(0, keys.length - MAX_ALERT_ACKS)) delete merged[k];
+    }
+    const healthScoreAck: HealthScoreAck | undefined = healthBreakdown ? { ...healthBreakdown, seenAt } : existing.healthScoreAck;
+    await writeStoredPortfolio(userId, { ...existing, alertAcks: merged, healthScoreAck });
+  });
 }
 
 /** Called from the daily snapshot job (not a user action) so passive market
@@ -245,20 +253,24 @@ export async function updateAlertAcks(
  * (earnings/news) - all independent of whether the user touched the app
  * today. See dailySnapshot.ts. */
 export async function updateDailySnapshot(userId: string, params: { equityValue: number; cashOverThreshold: boolean; morningBrief?: MorningBriefData }): Promise<void> {
-  const existing = await getPortfolio(userId);
-  const today = new Date().toISOString().slice(0, 10);
-  const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue);
-  const cashIdleSince = params.cashOverThreshold ? (existing.cashIdleSince ?? today) : null;
-  const morningBrief = params.morningBrief ?? existing.morningBrief;
-  await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince, morningBrief });
+  await withFileLock(portfolioPath(userId), async () => {
+    const existing = await getPortfolio(userId);
+    const today = new Date().toISOString().slice(0, 10);
+    const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue);
+    const cashIdleSince = params.cashOverThreshold ? (existing.cashIdleSince ?? today) : null;
+    const morningBrief = params.morningBrief ?? existing.morningBrief;
+    await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince, morningBrief });
+  });
 }
 
 /** Overwrites just the equity history, keeping positions/trades/ledger as
  * currently stored - used by the "rebuild from trade journal" action. */
 export async function saveEquityHistory(userId: string, history: EquityPoint[]): Promise<void> {
-  const existing = await getPortfolio(userId);
-  const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
-  await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed });
+  await withFileLock(portfolioPath(userId), async () => {
+    const existing = await getPortfolio(userId);
+    const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
+    await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed });
+  });
 }
 
 /** Every userId with a portfolio file on disk - used by the daily snapshot

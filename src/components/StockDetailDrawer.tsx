@@ -36,10 +36,18 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
 
   const [editingTarget, setEditingTarget] = useState<boolean>(false);
   const [targetInput, setTargetInput] = useState<string>("");
-  useEffect(() => {
+  // Reset the price-target edit form whenever the viewed symbol or its
+  // stored target changes. Adjusted during render (React's documented
+  // alternative to an Effect for "reset state when an identity changes")
+  // rather than in an Effect, so the reset applies before the stale value
+  // ever paints instead of flashing it for one frame first.
+  const targetResetKey = symbol + ":" + (position?.priceTarget ?? "");
+  const [appliedTargetResetKey, setAppliedTargetResetKey] = useState<string | null>(null);
+  if (targetResetKey !== appliedTargetResetKey) {
+    setAppliedTargetResetKey(targetResetKey);
     setEditingTarget(false);
     setTargetInput(position?.priceTarget != null ? String(position.priceTarget) : "");
-  }, [symbol, position?.priceTarget]);
+  }
 
   function saveTarget() {
     if (!symbol) return;
@@ -51,7 +59,11 @@ export default function StockDetailDrawer({ symbol, position, colorIndex, privac
   }
 
   useEffect(() => {
-    if (!symbol) { setDetail(null); return; }
+    // No need to clear `detail` here when the drawer closes: everything
+    // that reads it is inside the `{symbol && (...)}` render guard below, so
+    // stale detail sitting in state while closed is never shown - it just
+    // gets overwritten by the next successful load() once reopened.
+    if (!symbol) return;
     let cancelled = false;
     const seq = ++requestSeq.current;
 
