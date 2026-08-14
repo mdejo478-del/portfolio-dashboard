@@ -5,7 +5,7 @@ import { TONE_STYLES } from "@/components/dashboard/constants";
 import { fmtPct, formatMoney } from "@/components/dashboard/format";
 import { Button } from "@/components/dashboard/ui/Button";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
-import { daysUntil, daysUntilLabel, earningsHourLabel } from "@/components/dashboard/morningBriefUtils";
+import { daysUntil, daysUntilLabel, earningsHourLabel, type BigMover } from "@/components/dashboard/morningBriefUtils";
 
 const NEAR_EARNINGS_DAYS = 7;
 const PRIORITY: Record<Tone, number> = { red: 0, amber: 1, blue: 2, green: 3 };
@@ -14,6 +14,7 @@ interface MorningBriefDrawerProps {
   open: boolean;
   onClose: () => void;
   result: MorningBriefResult | null;
+  bigMovers: BigMover[];
   loading: boolean;
   error: string;
   portfolioHealth: PortfolioHealthData;
@@ -28,9 +29,8 @@ function SectionHeader({ icon, text }: { icon: React.ReactNode; text: string }) 
   );
 }
 
-export function MorningBriefDrawer({ open, onClose, result, loading, error, portfolioHealth, privacyMode }: MorningBriefDrawerProps) {
+export function MorningBriefDrawer({ open, onClose, result, bigMovers, loading, error, portfolioHealth, privacyMode }: MorningBriefDrawerProps) {
   const upcomingEarnings = result?.upcomingEarnings ?? [];
-  const bigMovers = result?.bigMovers ?? [];
   const news = result?.news ?? [];
 
   const nearEarnings = upcomingEarnings.filter((e) => { const d = daysUntil(e.date); return d >= 0 && d <= NEAR_EARNINGS_DAYS; });
@@ -39,7 +39,12 @@ export function MorningBriefDrawer({ open, onClose, result, loading, error, port
   const dailyFocus = (() => {
     if (weightBreaches.length === 0) return { text: "אין פעולה דחופה, התיק בתוך היעדים.", tone: "green" as Tone };
     const mostUrgent = [...weightBreaches].sort((a, b) => PRIORITY[a.tone] - PRIORITY[b.tone])[0];
-    return { text: mostUrgent.symbol + ": " + mostUrgent.action, tone: mostUrgent.tone };
+    // status (a state-of-the-world fact, e.g. "חריגה - דילול נדרש") not
+    // action (a specific buy/sell instruction with a dollar amount) -
+    // Morning Brief's Daily Focus surfaces what needs attention, it doesn't
+    // recommend a financial action the way the Holdings table's own
+    // "פעולה מומלצת" column intentionally does.
+    return { text: mostUrgent.symbol + ": " + mostUrgent.status, tone: mostUrgent.tone };
   })();
 
   return (

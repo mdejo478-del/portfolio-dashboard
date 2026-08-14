@@ -14,6 +14,7 @@ import type { Tone, EvaluatedPosition, Alert, UndoSnapshot } from "@/components/
 import { TONE_STYLES, PRICE_REFRESH_INTERVAL_MS } from "@/components/dashboard/constants";
 import { fmtPct, formatMoney } from "@/components/dashboard/format";
 import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
+import { computeBigMovers } from "@/components/dashboard/morningBriefUtils";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { Header } from "@/components/dashboard/Header";
 import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
@@ -254,6 +255,10 @@ export default function InvestmentDashboard({
   const [morningBriefLoading, setMorningBriefLoading] = useState<boolean>(true);
   const [morningBriefError, setMorningBriefError] = useState<string>("");
   const [briefDrawerOpen, setBriefDrawerOpen] = useState<boolean>(false);
+  // Derived from dayChangePct (already fetched by the price-refresh cycle
+  // above) instead of Morning Brief issuing its own separate quote fetch for
+  // the same symbols - see the comment on getMorningBriefAction.
+  const bigMovers = useMemo(() => computeBigMovers(positions, dayChangePct), [positions, dayChangePct]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -753,9 +758,18 @@ export default function InvestmentDashboard({
       <div className="idash" style={{ padding: "0 0 40px" }}>
 
         {globalError && (
+          // Fixed, not in normal document flow: this used to sit at the top
+          // of the page and scroll away with it, so a save failure while the
+          // user was scrolled down (e.g. mid trade-import, well below the
+          // fold) could go completely unnoticed - the exact way a real save
+          // failure was missed and a batch of trades was silently lost. Now
+          // it stays on screen regardless of scroll position, at every
+          // viewport width.
           <div style={{
-            margin: "12px 20px 0", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            position: "fixed", top: "max(12px, env(safe-area-inset-top))", left: 20, right: 20, zIndex: 100,
+            padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
             background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: "var(--radius-md)", fontSize: 13,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
           }}>
             <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
               <AlertCircle size={15} style={{ flexShrink: 0 }} /> {globalError}
@@ -817,7 +831,7 @@ export default function InvestmentDashboard({
             openDetail={openDetail} pricesConfigured={pricesConfigured} lastPriceUpdate={lastPriceUpdate}
             pricesLoading={pricesLoading} priceError={priceError} refreshPrices={refreshPrices} saveStatus={saveStatus}
             backupRunning={backupRunning} backupDoneAt={backupDoneAt} onBackupNow={handleBackupNow}
-            morningBrief={morningBrief} morningBriefLoading={morningBriefLoading} morningBriefError={morningBriefError}
+            morningBrief={morningBrief} bigMovers={bigMovers} morningBriefLoading={morningBriefLoading} morningBriefError={morningBriefError}
             onOpenMorningBrief={() => setBriefDrawerOpen(true)}
           />
 
@@ -849,6 +863,7 @@ export default function InvestmentDashboard({
         open={briefDrawerOpen}
         onClose={() => setBriefDrawerOpen(false)}
         result={morningBrief}
+        bigMovers={bigMovers}
         loading={morningBriefLoading}
         error={morningBriefError}
         portfolioHealth={portfolioHealth}

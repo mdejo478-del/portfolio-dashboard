@@ -3,6 +3,7 @@ import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck
 import type { Position } from "@/lib/portfolio";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { MorningBriefResult } from "@/app/actions/morningBrief";
+import type { BigMover } from "@/components/dashboard/morningBriefUtils";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
 import { EMPTY_POSITION_FORM } from "@/components/dashboard/constants";
 import { TONE_STYLES } from "@/components/dashboard/constants";
@@ -36,6 +37,7 @@ interface HoldingsSectionProps {
   backupDoneAt: number | null;
   onBackupNow: () => void;
   morningBrief: MorningBriefResult | null;
+  bigMovers: BigMover[];
   morningBriefLoading: boolean;
   morningBriefError: string;
   onOpenMorningBrief: () => void;
@@ -44,7 +46,7 @@ interface HoldingsSectionProps {
 export function HoldingsSection({
   evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, extendedPrices, openDetail,
   pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
-  morningBrief, morningBriefLoading, morningBriefError, onOpenMorningBrief,
+  morningBrief, bigMovers, morningBriefLoading, morningBriefError, onOpenMorningBrief,
 }: HoldingsSectionProps) {
   const isMobile = useIsMobile();
   const [editingPosId, setEditingPosId] = useState<number | null>(null);
@@ -558,7 +560,7 @@ export function HoldingsSection({
       <div className="idash-grid2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginBottom: 30, alignItems: "stretch" }}>
         <AllocationCard evaluated={evaluated} privacyMode={privacyMode} openDetail={openDetail} />
         <div className="morning-brief-card">
-          <MorningBriefCard result={morningBrief} loading={morningBriefLoading} error={morningBriefError} onOpenDrawer={onOpenMorningBrief} />
+          <MorningBriefCard result={morningBrief} bigMovers={bigMovers} loading={morningBriefLoading} error={morningBriefError} onOpenDrawer={onOpenMorningBrief} />
         </div>
       </div>
 

@@ -1,15 +1,15 @@
 import { Newspaper } from "lucide-react";
 import type { MorningBriefResult } from "@/app/actions/morningBrief";
-import { computeMorningBriefSummary } from "@/components/dashboard/morningBriefUtils";
+import { computeMorningBriefSummary, type BigMover } from "@/components/dashboard/morningBriefUtils";
 
 export function MorningBriefCard({
-  result, loading, error, onOpenDrawer,
+  result, bigMovers, loading, error, onOpenDrawer,
 }: {
-  result: MorningBriefResult | null; loading: boolean; error: string; onOpenDrawer: () => void;
+  result: MorningBriefResult | null; bigMovers: BigMover[]; loading: boolean; error: string; onOpenDrawer: () => void;
 }) {
   const today = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
   const updatedAt = result ? new Date(result.fetchedAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : null;
-  const summary = result ? computeMorningBriefSummary(result.upcomingEarnings, result.bigMovers, result.news) : null;
+  const summary = result ? computeMorningBriefSummary(result.upcomingEarnings, bigMovers, result.news) : null;
 
   return (
     <div style={{

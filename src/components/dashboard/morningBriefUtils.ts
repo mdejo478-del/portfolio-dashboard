@@ -1,6 +1,33 @@
-import type { EarningsEntry, NewsHeadline } from "@/lib/portfolio";
-import type { BigMover } from "@/app/actions/morningBrief";
+import type { EarningsEntry, NewsHeadline, Position } from "@/lib/portfolio";
 import { fmtPct } from "@/components/dashboard/format";
+
+export interface BigMover {
+  symbol: string;
+  changePct: number;
+}
+
+// Intentionally separate from alertRules.ts's dailyDropThreshold (-5%,
+// down-only, meant as an urgent push-style warning): Morning Brief's "big
+// movers" is a passive daily digest, both directions, a looser 4% - not the
+// same mechanism, just reusing the same live day-change % data.
+const BIG_MOVER_THRESHOLD = 0.04;
+
+/** Derives big movers from data the dashboard's own price-refresh cycle
+ * already fetched (dayChangePct), instead of Morning Brief issuing its own
+ * separate getQuotes() call for the same symbols - avoids hitting the price
+ * API twice for the same data on every dashboard load. */
+export function computeBigMovers(positions: Position[], dayChangePct: Record<string, number | null>): BigMover[] {
+  const movers: BigMover[] = [];
+  for (const p of positions) {
+    if (p.symbol === "CASH" || p.qty === null) continue;
+    const changePct = dayChangePct[p.symbol];
+    if (changePct != null && Math.abs(changePct) >= BIG_MOVER_THRESHOLD) {
+      movers.push({ symbol: p.symbol, changePct });
+    }
+  }
+  movers.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+  return movers;
+}
 
 const DAY_MS = 86_400_000;
 
