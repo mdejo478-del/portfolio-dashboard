@@ -188,7 +188,13 @@ function parseNum(v: string | undefined): number | null {
   let s = v.trim();
   if (s === "") return null;
   s = s.replace(/[$\s]/g, "");
-  if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  // European-style thousands separator ("1.234.567") - requires at least
+  // TWO grouped ".XXX" chunks to trigger. A single chunk (e.g. "85.865") is
+  // indistinguishable from an ordinary 3-decimal-place value and must be
+  // left alone - misreading it as European once corrupted a real trade
+  // price (85.865 -> 85865, a 1000x error) before this got a real file to
+  // test against.
+  if (/^\d{1,3}(\.\d{3}){2,}$/.test(s)) s = s.replace(/\./g, "");
   s = s.replace(/,/g, "");
   const n = parseFloat(s);
   return Number.isNaN(n) ? null : n;
