@@ -226,6 +226,15 @@ function findHeaderRow(table: string[][]): { index: number; columns: Record<stri
   return best ? { index: best.index, columns: best.columns } : null;
 }
 
+function isUnresolvedHeaderCandidate(row: string[], columns: Record<string, number>): boolean {
+  if (columns.date === undefined || columns.symbol === undefined) return false;
+  // A real data row's date cell holds an actual date value; a repeated
+  // header row's cell holds the literal column label (e.g. "Date/Time"),
+  // which never parses as a date. This is what tells the two apart.
+  const dateCell = (row[columns.date] || "").trim();
+  return dateCell === "" || parseFlexibleDate(dateCell) === null;
+}
+
 function buildParseResult(table: string[][]): ParseResult {
   if (table.length === 0) {
     return { fileError: "הקובץ ריק או שלא ניתן היה לקרוא אותו.", rows: [] };
@@ -238,14 +247,9 @@ function buildParseResult(table: string[][]): ParseResult {
       rows: [],
     };
   }
-  const { index: headerIndex, columns } = found;
+  const { index: firstHeaderIndex, columns: firstColumns } = found;
 
-  // Some broker exports (again, Interactive Brokers) have no explicit
-  // buy/sell column at all - direction is encoded as the sign of the
-  // quantity instead. Only fall back to that when there's truly no action
-  // column to read from; a file that has one is never second-guessed.
-  const inferActionFromQtySign = columns.action === undefined && columns.qty !== undefined;
-  if (columns.action === undefined && !inferActionFromQtySign) {
+  if (firstColumns.action === undefined && firstColumns.qty === undefined) {
     return {
       fileError: "לא ניתן לזהות בקובץ עמודת סוג פעולה, וגם אין עמודת כמות שממנה ניתן להסיק קנייה/מכירה. ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
       rows: [],
@@ -255,30 +259,42 @@ function buildParseResult(table: string[][]): ParseResult {
   // If the header's own first column wasn't claimed by any recognized
   // field, it's likely a section-name prefix (Interactive Brokers repeats
   // "Trades" in column 0 for every row of that section) rather than actual
-  // trade data - scope data rows to just this section, stopping the moment
+  // trade data - scope the scan to just this section, stopping the moment
   // that value changes, so later sections (Dividends, Interest, ...) can't
   // get misread as trades through the same column positions. A plain
   // single-table file has its first field claimed by a real column (date
   // is very often column 0), so this never applies there.
-  const sectionCol = !Object.values(columns).includes(0) && table[headerIndex][0] ? 0 : null;
-  let dataRows: string[][];
-  if (sectionCol !== null) {
-    const sectionName = table[headerIndex][sectionCol];
-    dataRows = [];
-    for (let i = headerIndex + 1; i < table.length; i++) {
-      const row = table[i];
-      if ((row[sectionCol] || "") !== sectionName) break;
-      if (row.some((cell) => cell.trim() !== "")) dataRows.push(row);
-    }
-  } else {
-    dataRows = table.slice(headerIndex + 1).filter((r) => r.some((cell) => cell.trim() !== ""));
-  }
-  if (dataRows.length === 0) {
-    return { fileError: "לא נמצאו שורות עסקאות בקובץ (רק כותרת).", rows: [] };
-  }
+  const sectionCol = !Object.values(firstColumns).includes(0) && table[firstHeaderIndex][0] ? 0 : null;
+  const sectionName = sectionCol !== null ? table[firstHeaderIndex][sectionCol] : null;
 
-  const rows: ParsedTradeRow[] = dataRows.map((cells, i) => {
-    const get = (field: string) => (columns[field] !== undefined ? (cells[columns[field]] || "").trim() : "");
+  // Some broker statements (again, Interactive Brokers) repeat the header
+  // mid-section with a different column layout when the sub-category
+  // changes (stocks vs. forex, say) - re-detecting columns whenever a row
+  // looks like a fresh header, instead of assuming one fixed layout for the
+  // whole section, keeps those rows from being parsed against the wrong
+  // column positions.
+  let activeColumns = firstColumns;
+  const rows: ParsedTradeRow[] = [];
+
+  for (let i = firstHeaderIndex + 1; i < table.length; i++) {
+    const row = table[i];
+    if (sectionCol !== null && (row[sectionCol] || "") !== sectionName) break;
+    if (!row.some((cell) => cell.trim() !== "")) continue;
+
+    const candidateColumns = detectColumns(row);
+    if (isUnresolvedHeaderCandidate(row, candidateColumns)) {
+      activeColumns = candidateColumns;
+      continue;
+    }
+
+    const columns = activeColumns;
+    const get = (field: string) => (columns[field] !== undefined ? (row[columns[field]] || "").trim() : "");
+    // Some broker exports (again, Interactive Brokers) have no explicit
+    // buy/sell column at all - direction is encoded as the sign of the
+    // quantity instead. Only fall back to that when there's truly no
+    // action column to read from; a section that has one is never
+    // second-guessed.
+    const inferActionFromQtySign = columns.action === undefined && columns.qty !== undefined;
 
     const dateRaw = get("date");
     const date = dateRaw ? parseFlexibleDate(dateRaw) : null;
@@ -308,7 +324,9 @@ function buildParseResult(table: string[][]): ParseResult {
     if (!dateRaw) errors.push("חסר תאריך");
     else if (!date) errors.push("תאריך לא תקין: '" + dateRaw + "'");
     if (!symbolRaw && !isCashMove) errors.push("חסר סימול/נכס");
-    if (inferActionFromQtySign) {
+    if (columns.action === undefined && columns.qty === undefined) {
+      errors.push("חסר סוג פעולה");
+    } else if (inferActionFromQtySign) {
       if (action === null) errors.push("לא ניתן להסיק קנייה/מכירה מכמות ריקה או אפס");
     } else if (!actionRaw) {
       errors.push("חסר סוג פעולה");
@@ -328,14 +346,16 @@ function buildParseResult(table: string[][]): ParseResult {
       }
     }
 
-    return {
-      // +2, not +1: rows are 1-based and the header itself occupies row
-      // headerIndex+1, so the first data row is headerIndex+2.
-      rowNumber: headerIndex + i + 2,
+    rows.push({
+      rowNumber: i + 1,
       date, symbol: symbol || null, action, qty, price, fee, pnlOverride, strategy, notes,
       error: errors.length > 0 ? errors.join(" · ") : null,
-    };
-  });
+    });
+  }
+
+  if (rows.length === 0) {
+    return { fileError: "לא נמצאו שורות עסקאות בקובץ (רק כותרת).", rows: [] };
+  }
 
   return { fileError: null, rows };
 }
