@@ -80,20 +80,24 @@ export async function completeOnboarding(session: SessionPayload): Promise<void>
   await setSessionCookie({ ...session, onboardingCompleted: true });
 }
 
+// Second check beyond the signature: the account must still exist, and this
+// token must not predate a "log out everywhere" / password-change
+// revocation. Both require a lookup decodeSession alone can't do. Shared
+// between getSession() (protected pages/actions) and proxy.ts (which needs
+// the same answer for its own, narrower reason - see the comment there).
+export async function isSessionStillValid(session: SessionPayload): Promise<boolean> {
+  const user = await findUserById(session.userId);
+  if (!user) return false;
+  if (user.sessionsValidAfter && session.iat < user.sessionsValidAfter) return false;
+  return true;
+}
+
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const h = await headers();
   const session = decodeSession(cookieStore.get(COOKIE_NAME)?.value, h.get("user-agent"));
   if (!session) return null;
-
-  // Second check beyond the signature: the account must still exist, and
-  // this token must not predate a "log out everywhere" / password-change
-  // revocation. Both require a lookup we can't do from the signed token
-  // alone.
-  const user = await findUserById(session.userId);
-  if (!user) return null;
-  if (user.sessionsValidAfter && session.iat < user.sessionsValidAfter) return null;
-
+  if (!(await isSessionStillValid(session))) return null;
   return session;
 }
 
