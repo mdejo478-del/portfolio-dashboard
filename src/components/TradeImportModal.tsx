@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X, AlertTriangle, CheckCircle2, FileWarning, ArrowRight, ArrowLeft } from "lucide-react";
+import { X, AlertTriangle, CheckCircle2, FileWarning, ArrowRight, ArrowLeft, PackageOpen } from "lucide-react";
 import {
   FIELD_DEFS, suggestHeaderRowIndex, suggestColumnMapping, parseRowsWithMapping,
-  type FieldKey, type ParsedTradeRow,
+  detectOpeningBalanceNeeds, buildOpeningBalanceRow,
+  type FieldKey, type ParsedTradeRow, type LedgerLike,
 } from "@/lib/tradeImport";
-import { fmtUSD } from "@/components/dashboard/format";
+import { fmtUSD, parseNum } from "@/components/dashboard/format";
 import type { Tone } from "@/components/dashboard/types";
 import { Badge } from "@/components/dashboard/ui/Badge";
 import { Button } from "@/components/dashboard/ui/Button";
@@ -18,11 +19,12 @@ const ACTION_TONE: Record<string, Tone> = {
 const HEADER_ROW_PREVIEW_LIMIT = 20;
 const SAMPLE_ROW_SCAN_LIMIT = 30; // how far past the header to look for a non-blank sample value per column
 
-type Step = "header" | "mapping" | "preview";
+type Step = "header" | "mapping" | "opening" | "preview";
 
 interface TradeImportModalProps {
   table: string[][];
   fileName: string;
+  existingLedger: Record<string, LedgerLike>;
   onConfirm: (rows: ParsedTradeRow[]) => void;
   onClose: () => void;
 }
@@ -33,7 +35,7 @@ function cellPreview(cell: string): string {
   return s.slice(0, 40) + "…";
 }
 
-export default function TradeImportModal({ table, fileName, onConfirm, onClose }: TradeImportModalProps) {
+export default function TradeImportModal({ table, fileName, existingLedger, onConfirm, onClose }: TradeImportModalProps) {
   const [step, setStep] = useState<Step>("header");
   const [headerRowIndex, setHeaderRowIndex] = useState<number>(() => suggestHeaderRowIndex(table));
   const [mapping, setMapping] = useState<Partial<Record<FieldKey, number>>>(() =>
@@ -89,17 +91,65 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
     [table, headerRowIndex, mapping, inferAction]
   );
 
-  // Re-select every error-free row whenever the header/mapping choice
-  // changes the parse result - adjusted during render (rather than in an
-  // Effect) since it's a pure reset keyed off parsedRows' own identity, not
-  // state that needs to persist across changes.
-  const [checkedForRows, setCheckedForRows] = useState(parsedRows);
-  if (parsedRows !== checkedForRows) {
-    setCheckedForRows(parsedRows);
-    setCheckedRows(new Set(parsedRows.filter((r) => !r.error).map((r) => r.rowNumber)));
+  // Symbols whose sells in this batch aren't fully explained by prior buys
+  // (already on the books, or earlier in this same batch) - importing just
+  // a partial slice of a symbol's real history (a single month's statement
+  // for a position opened earlier, say) otherwise produces a realized P&L
+  // that's not just incomplete but actively wrong, computed against a cost
+  // basis of $0 or whatever the first visible buy happened to cost.
+  const openingNeeds = useMemo(
+    () => detectOpeningBalanceNeeds(parsedRows.filter((r) => !r.error), existingLedger),
+    [parsedRows, existingLedger]
+  );
+  const [openingInputs, setOpeningInputs] = useState<Record<string, { qty: string; avgCost: string; skip: boolean }>>({});
+
+  function updateOpeningInput(symbol: string, patch: Partial<{ qty: string; avgCost: string; skip: boolean }>) {
+    setOpeningInputs((prev) => {
+      const current = prev[symbol] ?? { qty: "", avgCost: "", skip: false };
+      return { ...prev, [symbol]: { ...current, ...patch } };
+    });
   }
 
-  const checkedCount = parsedRows.filter((r) => !r.error && checkedRows.has(r.rowNumber)).length;
+  const openingRows = useMemo(() => {
+    const rows: ParsedTradeRow[] = [];
+    let syntheticRowNumber = -1;
+    for (const need of openingNeeds) {
+      const input = openingInputs[need.symbol];
+      if (!input || input.skip) continue;
+      const qty = parseNum(input.qty);
+      const avgCost = parseNum(input.avgCost);
+      if (qty !== null && qty > 0 && avgCost !== null && avgCost > 0) {
+        rows.push(buildOpeningBalanceRow(syntheticRowNumber--, need.symbol, qty, avgCost, need.firstDate));
+      }
+    }
+    return rows;
+  }, [openingNeeds, openingInputs]);
+
+  // Needs neither skipped nor covered by a valid opening-balance entry yet -
+  // gates leaving the "opening" step and is shown as a standing warning in
+  // the preview if the user chose to skip past it anyway.
+  const unresolvedNeeds = useMemo(() => {
+    return openingNeeds.filter((need) => {
+      const input = openingInputs[need.symbol];
+      if (input?.skip) return false;
+      const covered = openingRows.some((r) => r.symbol === need.symbol);
+      return !covered;
+    });
+  }, [openingNeeds, openingInputs, openingRows]);
+
+  const finalRows = useMemo(() => [...openingRows, ...parsedRows], [openingRows, parsedRows]);
+
+  // Re-select every error-free row whenever the header/mapping/opening-
+  // balance choices change the parse result - adjusted during render
+  // (rather than in an Effect) since it's a pure reset keyed off finalRows'
+  // own identity, not state that needs to persist across changes.
+  const [checkedForRows, setCheckedForRows] = useState(finalRows);
+  if (finalRows !== checkedForRows) {
+    setCheckedForRows(finalRows);
+    setCheckedRows(new Set(finalRows.filter((r) => !r.error).map((r) => r.rowNumber)));
+  }
+
+  const checkedCount = finalRows.filter((r) => !r.error && checkedRows.has(r.rowNumber)).length;
 
   function toggleRow(rowNumber: number) {
     setCheckedRows((prev) => {
@@ -110,9 +160,17 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
   }
 
   function handleConfirm() {
-    const selected = parsedRows.filter((r) => !r.error && checkedRows.has(r.rowNumber));
+    const selected = finalRows.filter((r) => !r.error && checkedRows.has(r.rowNumber));
     onConfirm(selected);
   }
+
+  const openingStepValid = openingNeeds.every((need) => {
+    const input = openingInputs[need.symbol];
+    if (input?.skip) return true;
+    const qty = parseNum(input?.qty ?? "");
+    const avgCost = parseNum(input?.avgCost ?? "");
+    return qty !== null && qty > 0 && avgCost !== null && avgCost > 0;
+  });
 
   return (
     <div
@@ -139,7 +197,8 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
               ייבוא עסקאות מקובץ
               {step === "header" && " — שלב 1: שורת כותרת"}
               {step === "mapping" && " — שלב 2: מיפוי עמודות"}
-              {step === "preview" && " — שלב 3: אישור סופי"}
+              {step === "opening" && " — שלב 3: יתרת פתיחה"}
+              {step === "preview" && (openingNeeds.length > 0 ? " — שלב 4: אישור סופי" : " — שלב 3: אישור סופי")}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 3 }}>{fileName}</div>
           </div>
@@ -239,21 +298,79 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
                 </div>
               )}
             </>
+          ) : step === "opening" ? (
+            <>
+              <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: "var(--space-4)" }}>
+                הקובץ מכיל מכירות של נכסים שאין להם מספיק קניות מוסברות - כנראה שהוחזקו עוד לפני תחילת הקובץ. בלי לדעת כמה יחידות ובאיזה מחיר ממוצע, הרווח/הפסד שיחושב לנכסים האלו יהיה שגוי, לא רק חסר. הזן יתרת פתיחה (כמות + מחיר ממוצע) נכון ליום שלפני העסקה הראשונה בקובץ, או דלג במפורש אם אין לך את המידע.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+                {openingNeeds.map((need) => {
+                  const input = openingInputs[need.symbol] ?? { qty: "", avgCost: "", skip: false };
+                  return (
+                    <div key={need.symbol} style={{
+                      padding: "10px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)" }}>{need.symbol}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+                          חסרות לפחות {need.deficitQty} יחידות לפני {need.firstDate}
+                        </div>
+                      </div>
+                      {!input.skip && (
+                        <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                          <input
+                            type="text" inputMode="decimal" placeholder="כמות"
+                            value={input.qty} onChange={(e) => updateOpeningInput(need.symbol, { qty: e.target.value })}
+                            style={{ flex: 1, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)", padding: "6px 8px", fontSize: 12.5 }}
+                          />
+                          <input
+                            type="text" inputMode="decimal" placeholder="מחיר ממוצע"
+                            value={input.avgCost} onChange={(e) => updateOpeningInput(need.symbol, { avgCost: e.target.value })}
+                            style={{ flex: 1, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)", padding: "6px 8px", fontSize: 12.5 }}
+                          />
+                        </div>
+                      )}
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-faint)", cursor: "pointer" }}>
+                        <input type="checkbox" checked={input.skip} onChange={(e) => updateOpeningInput(need.symbol, { skip: e.target.checked })} />
+                        אין לי את המידע - דלג (הרווח/הפסד עבור {need.symbol} עלול להיות שגוי)
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              {!openingStepValid && (
+                <div style={{ marginTop: "var(--space-4)", fontSize: 12.5, color: "var(--loss)" }}>
+                  לכל נכס למעלה: מלא כמות ומחיר ממוצע תקינים, או סמן &quot;דלג&quot;.
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--gain)", fontSize: 13, fontWeight: 700 }}>
                   <CheckCircle2 size={15} /> {checkedCount} עסקאות מסומנות להוספה ליומן
                 </div>
-                {parsedRows.some((r) => r.error) && (
+                {finalRows.some((r) => r.error) && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
-                    <AlertTriangle size={15} /> {parsedRows.filter((r) => r.error).length} שורות עם שגיאה - לא ניתנות לבחירה
+                    <AlertTriangle size={15} /> {finalRows.filter((r) => r.error).length} שורות עם שגיאה - לא ניתנות לבחירה
                   </div>
                 )}
               </div>
               <p style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: "var(--space-3)" }}>
                 בטל סימון של כל שורה שנראית לא נכונה לפני האישור - רק שורות מסומנות ייכנסו ליומן המסחר.
               </p>
+              {unresolvedNeeds.length > 0 && (
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 8, marginBottom: "var(--space-3)", padding: "10px 12px",
+                  background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: "var(--radius-md)",
+                  fontSize: 12.5, color: "var(--loss)",
+                }}>
+                  <PackageOpen size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    דילגת על יתרת פתיחה עבור: {unresolvedNeeds.map((n) => n.symbol).join(", ")}. הרווח/הפסד המחושב לנכסים האלו כנראה שגוי, לא רק חסר.
+                  </span>
+                </div>
+              )}
 
               <div style={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto", maxHeight: "48vh" }}>
                 <table>
@@ -266,7 +383,7 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
                     </tr>
                   </thead>
                   <tbody>
-                    {parsedRows.map((row) => (
+                    {finalRows.map((row) => (
                       <tr key={row.rowNumber} style={row.error ? { background: "var(--loss-subtle)" } : undefined}>
                         <td className="center">
                           <input
@@ -310,7 +427,14 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between", padding: "16px 22px", borderTop: "1px solid var(--border)" }}>
           <div>
             {step !== "header" && table.length > 0 && (
-              <Button variant="ghost" onClick={() => setStep(step === "preview" ? "mapping" : "header")}>
+              <Button
+                variant="ghost"
+                onClick={() => setStep(
+                  step === "preview" ? (openingNeeds.length > 0 ? "opening" : "mapping")
+                  : step === "opening" ? "mapping"
+                  : "header"
+                )}
+              >
                 <ArrowRight size={14} /> חזור
               </Button>
             )}
@@ -323,7 +447,15 @@ export default function TradeImportModal({ table, fileName, onConfirm, onClose }
               </Button>
             )}
             {table.length > 0 && step === "mapping" && (
-              <Button variant="primary" disabled={!mappingValid} onClick={() => setStep("preview")}>
+              <Button
+                variant="primary" disabled={!mappingValid}
+                onClick={() => setStep(openingNeeds.length > 0 ? "opening" : "preview")}
+              >
+                המשך <ArrowLeft size={14} />
+              </Button>
+            )}
+            {table.length > 0 && step === "opening" && (
+              <Button variant="primary" disabled={!openingStepValid} onClick={() => setStep("preview")}>
                 המשך לתצוגה מקדימה <ArrowLeft size={14} />
               </Button>
             )}

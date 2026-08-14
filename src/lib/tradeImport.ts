@@ -328,3 +328,75 @@ export function parseRowsWithMapping(
 
   return rows;
 }
+
+export interface LedgerLike { qty: number; avgCost: number }
+
+export interface OpeningBalanceNeed {
+  symbol: string;
+  /** How much quantity is missing to explain the sells in this batch without
+   * the running position going negative - the minimum opening balance that
+   * would make every sale in the batch cover-able. */
+  deficitQty: number;
+  /** Earliest date this symbol appears in the batch - the opening balance
+   * is understood to exist as of just before this date. */
+  firstDate: string;
+}
+
+/** Replays a chronologically-sorted set of rows against an existing ledger
+ * (exactly the same buy/sell bookkeeping confirmImport itself does - this
+ * only ever reads that logic's *result*, never changes it) to find any
+ * symbol whose sells aren't fully explained by prior buys, whether already
+ * on the books or earlier in this same batch. That's expected whenever an
+ * import only covers part of a symbol's real history (e.g. a single
+ * month's statement for a position opened earlier) - without a starting
+ * balance for it, the resulting realized P&L for that symbol is wrong, not
+ * just incomplete. */
+export function detectOpeningBalanceNeeds(rows: ParsedTradeRow[], existingLedger: Record<string, LedgerLike>): OpeningBalanceNeed[] {
+  const bySymbol = new Map<string, { qty: number; minQty: number; firstDate: string }>();
+
+  const chronological = [...rows]
+    .filter((r) => !r.error && r.symbol && r.symbol !== "CASH" && r.date)
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
+
+  for (const row of chronological) {
+    const symbol = row.symbol as string;
+    const entry = bySymbol.get(symbol) ?? {
+      qty: existingLedger[symbol]?.qty ?? 0,
+      minQty: existingLedger[symbol]?.qty ?? 0,
+      firstDate: row.date as string,
+    };
+    if (row.action === "קנייה") {
+      entry.qty += row.qty as number;
+    } else if (row.action === "מכירה") {
+      entry.qty -= row.qty as number;
+    }
+    entry.minQty = Math.min(entry.minQty, entry.qty);
+    bySymbol.set(symbol, entry);
+  }
+
+  const needs: OpeningBalanceNeed[] = [];
+  for (const [symbol, entry] of bySymbol) {
+    if (entry.minQty < 0) {
+      needs.push({ symbol, deficitQty: -entry.minQty, firstDate: entry.firstDate });
+    }
+  }
+  return needs.sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+/** Turns a user-entered opening balance into a synthetic "buy" row dated
+ * the day before the symbol's earliest trade in the batch, so it's simply
+ * the first thing confirmImport's own chronological replay sees for that
+ * symbol - no change to that replay logic itself, just an earlier, honest
+ * data point feeding into it. Shows up in the trade journal like any other
+ * entry (clearly labeled), not hidden. */
+export function buildOpeningBalanceRow(rowNumber: number, symbol: string, qty: number, avgCost: number, beforeDate: string): ParsedTradeRow {
+  const d = new Date(beforeDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  const date = d.toISOString().slice(0, 10);
+  return {
+    rowNumber,
+    date, symbol, action: "קנייה", qty, price: avgCost, fee: 0, pnlOverride: null,
+    strategy: "📋 יתרת פתיחה (הוזן ידנית)", notes: "יתרת פתיחה שהוזנה ידנית לפני ייבוא קובץ עסקאות",
+    error: null,
+  };
+}

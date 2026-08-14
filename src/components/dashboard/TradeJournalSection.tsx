@@ -494,6 +494,7 @@ export function TradeJournalSection({
         <TradeImportModal
           table={importTable}
           fileName={importFileName}
+          existingLedger={ledger}
           onConfirm={confirmImport}
           onClose={closeImportModal}
         />
