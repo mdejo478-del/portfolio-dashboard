@@ -13,9 +13,8 @@ import { Button } from "@/components/dashboard/ui/Button";
 import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
-import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import TradeImportModal from "@/components/TradeImportModal";
-import { parseCsvToTable, parseWorkbookToTable, type ParsedTradeRow } from "@/lib/tradeImport";
+import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface TradeStats {
@@ -47,10 +46,9 @@ export function TradeJournalSection({
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [tradeFormError, setTradeFormError] = useState<string>("");
 
-  const [importTable, setImportTable] = useState<string[][] | null>(null);
+  const [importResult, setImportResult] = useState<ParseResult | null>(null);
   const [importFileName, setImportFileName] = useState<string>("");
   const [importLoading, setImportLoading] = useState<boolean>(false);
-  const [importFileError, setImportFileError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -84,34 +82,38 @@ export function TradeJournalSection({
     e.target.value = "";
     if (!file) return;
     setImportFileName(file.name);
-    setImportFileError("");
     const lowerName = file.name.toLowerCase();
     const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
     const isCsv = lowerName.endsWith(".csv");
     if (!isExcel && !isCsv) {
-      setImportFileError("פורמט קובץ לא נתמך. יש להעלות קובץ CSV (.csv) או Excel (.xlsx/.xls).");
+      setImportResult({
+        fileError: "פורמט קובץ לא נתמך. יש להעלות קובץ CSV (.csv) או Excel (.xlsx/.xls).",
+        rows: [],
+      });
       return;
     }
     setImportLoading(true);
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const result = isExcel
-          ? await parseWorkbookToTable(reader.result as ArrayBuffer)
-          : parseCsvToTable(typeof reader.result === "string" ? reader.result : "");
-        if (result.fileError) setImportFileError(result.fileError);
-        else setImportTable(result.table);
+        if (isExcel) {
+          const buffer = reader.result as ArrayBuffer;
+          setImportResult(await parseTradeWorkbook(buffer));
+        } else {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          setImportResult(parseTradeFile(text));
+        }
       } finally {
         setImportLoading(false);
       }
     };
-    reader.onerror = () => { setImportFileError("שגיאה בקריאת הקובץ. נסה שוב."); setImportLoading(false); };
+    reader.onerror = () => { setImportResult({ fileError: "שגיאה בקריאת הקובץ. נסה שוב.", rows: [] }); setImportLoading(false); };
     if (isExcel) reader.readAsArrayBuffer(file);
     else reader.readAsText(file, "utf-8");
   }
 
   function closeImportModal() {
-    setImportTable(null);
+    setImportResult(null);
     setImportFileName("");
   }
 
@@ -308,12 +310,6 @@ export function TradeJournalSection({
         </div>
       </div>
 
-      {importFileError && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
-          <ErrorBanner message={importFileError} />
-        </div>
-      )}
-
       {showForm && (
         <div ref={formRef} style={{ background: "var(--panel)", border: "1px solid " + (editingId !== null ? "var(--info-subtle-border)" : "var(--border)"), borderRadius: "var(--radius-lg)", padding: 18, marginBottom: "var(--space-5)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -490,11 +486,10 @@ export function TradeJournalSection({
         כל הנתונים מבוססים על קובץ האקסל שהועלה · החישובים מתעדכנים אוטומטית עם כל עסקה שנוספה, נערכת או נמחקת
       </div>
 
-      {importTable && (
+      {importResult && (
         <TradeImportModal
-          table={importTable}
+          result={importResult}
           fileName={importFileName}
-          existingLedger={ledger}
           onConfirm={confirmImport}
           onClose={closeImportModal}
         />
