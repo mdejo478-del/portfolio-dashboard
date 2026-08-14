@@ -58,7 +58,10 @@ function parseCSV(text: string): string[][] {
 
 const HEADER_KEYWORDS: Record<string, string[]> = {
   date: ["תאריך", "date"],
-  symbol: ["סימול", "נכס", "טיקר", "symbol", "ticker", "asset"],
+  // "asset" alone is deliberately excluded: broker exports commonly have an
+  // "Asset Category"/"Asset Class" column (e.g. "Stocks") that isn't the
+  // ticker - matching on it would silently misidentify the symbol column.
+  symbol: ["סימול", "נכס", "טיקר", "symbol", "ticker"],
   action: ["סוג פעולה", "פעולה", "action", "type", "side"],
   qty: ["כמות", "qty", "quantity", "units", "shares"],
   price: ["מחיר", "price"],
@@ -132,6 +135,11 @@ function parseFlexibleDate(raw: string): string | null {
     return isoIfValid(+y, month, day);
   }
 
+  // Leading ISO date followed by a time/other junk (e.g. Interactive
+  // Brokers' Date/Time column, "2026-01-15, 10:30:00") - grab just the date.
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[,T ]/);
+  if (m) return isoIfValid(+m[1], +m[2], +m[3]);
+
   // Excel serial date number (days since 1899-12-30)
   if (/^\d{4,6}(\.\d+)?$/.test(s)) {
     const serial = parseFloat(s);
@@ -197,26 +205,74 @@ export async function parseTradeWorkbook(buffer: ArrayBuffer): Promise<ParseResu
   return buildParseResult(table);
 }
 
+const HEADER_SEARCH_LIMIT = 1000; // bound the scan on a pathologically large/junk file
+
+/** Finds the row that best looks like a trade-table header, anywhere in the
+ * file - not just row 0. Broker "activity statement" exports (Interactive
+ * Brokers being the common one) bundle several report sections into one
+ * CSV (account info, NAV, trades, dividends, ...), each with its own header
+ * row buried wherever it falls, not at the top of the file. Requires at
+ * least date+symbol to count as a candidate; the row with the most
+ * recognized columns wins. */
+function findHeaderRow(table: string[][]): { index: number; columns: Record<string, number> } | null {
+  let best: { index: number; columns: Record<string, number>; score: number } | null = null;
+  const limit = Math.min(table.length, HEADER_SEARCH_LIMIT);
+  for (let i = 0; i < limit; i++) {
+    const columns = detectColumns(table[i]);
+    if (columns.date === undefined || columns.symbol === undefined) continue;
+    const score = Object.keys(columns).length;
+    if (!best || score > best.score) best = { index: i, columns, score };
+  }
+  return best ? { index: best.index, columns: best.columns } : null;
+}
+
 function buildParseResult(table: string[][]): ParseResult {
   if (table.length === 0) {
     return { fileError: "הקובץ ריק או שלא ניתן היה לקרוא אותו.", rows: [] };
   }
-  const header = table[0];
-  const columns = detectColumns(header);
 
-  const missing: string[] = [];
-  if (columns.date === undefined) missing.push("תאריך");
-  if (columns.symbol === undefined) missing.push("סימול/נכס");
-  if (columns.action === undefined) missing.push("סוג פעולה");
-  if (missing.length > 0) {
+  const found = findHeaderRow(table);
+  if (!found) {
     return {
-      fileError: "לא ניתן לזהות בקובץ את העמודות הבאות: " + missing.join(", ") +
-        ". ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
+      fileError: "לא ניתן לזהות בקובץ עמודות תאריך וסימול/נכס. ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
+      rows: [],
+    };
+  }
+  const { index: headerIndex, columns } = found;
+
+  // Some broker exports (again, Interactive Brokers) have no explicit
+  // buy/sell column at all - direction is encoded as the sign of the
+  // quantity instead. Only fall back to that when there's truly no action
+  // column to read from; a file that has one is never second-guessed.
+  const inferActionFromQtySign = columns.action === undefined && columns.qty !== undefined;
+  if (columns.action === undefined && !inferActionFromQtySign) {
+    return {
+      fileError: "לא ניתן לזהות בקובץ עמודת סוג פעולה, וגם אין עמודת כמות שממנה ניתן להסיק קנייה/מכירה. ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
       rows: [],
     };
   }
 
-  const dataRows = table.slice(1).filter((r) => r.some((cell) => cell.trim() !== ""));
+  // If the header's own first column wasn't claimed by any recognized
+  // field, it's likely a section-name prefix (Interactive Brokers repeats
+  // "Trades" in column 0 for every row of that section) rather than actual
+  // trade data - scope data rows to just this section, stopping the moment
+  // that value changes, so later sections (Dividends, Interest, ...) can't
+  // get misread as trades through the same column positions. A plain
+  // single-table file has its first field claimed by a real column (date
+  // is very often column 0), so this never applies there.
+  const sectionCol = !Object.values(columns).includes(0) && table[headerIndex][0] ? 0 : null;
+  let dataRows: string[][];
+  if (sectionCol !== null) {
+    const sectionName = table[headerIndex][sectionCol];
+    dataRows = [];
+    for (let i = headerIndex + 1; i < table.length; i++) {
+      const row = table[i];
+      if ((row[sectionCol] || "") !== sectionName) break;
+      if (row.some((cell) => cell.trim() !== "")) dataRows.push(row);
+    }
+  } else {
+    dataRows = table.slice(headerIndex + 1).filter((r) => r.some((cell) => cell.trim() !== ""));
+  }
   if (dataRows.length === 0) {
     return { fileError: "לא נמצאו שורות עסקאות בקובץ (רק כותרת).", rows: [] };
   }
@@ -227,16 +283,24 @@ function buildParseResult(table: string[][]): ParseResult {
     const dateRaw = get("date");
     const date = dateRaw ? parseFlexibleDate(dateRaw) : null;
     const symbolRaw = get("symbol").toUpperCase();
-    const actionRaw = get("action");
-    const action = actionRaw ? normalizeAction(actionRaw) : null;
-    const isCashMove = action === "הפקדה" || action === "משיכה";
-    const symbol = symbolRaw || (isCashMove ? "CASH" : "");
 
     let qty = parseNum(get("qty"));
     let price = parseNum(get("price"));
     const value = parseNum(get("value"));
     const fee = parseNum(get("fee")) ?? 0;
     const pnlOverride = parseNum(get("pnl"));
+
+    const actionRaw = get("action");
+    let action: string | null;
+    if (inferActionFromQtySign) {
+      action = qty === null || qty === 0 ? null : qty > 0 ? "קנייה" : "מכירה";
+      if (qty !== null) qty = Math.abs(qty);
+    } else {
+      action = actionRaw ? normalizeAction(actionRaw) : null;
+    }
+    const isCashMove = action === "הפקדה" || action === "משיכה";
+    const symbol = symbolRaw || (isCashMove ? "CASH" : "");
+
     const strategy = get("strategy") || (action ? STRATEGY_DEFAULTS[action] : null);
     const notes = get("notes") || null;
 
@@ -244,8 +308,13 @@ function buildParseResult(table: string[][]): ParseResult {
     if (!dateRaw) errors.push("חסר תאריך");
     else if (!date) errors.push("תאריך לא תקין: '" + dateRaw + "'");
     if (!symbolRaw && !isCashMove) errors.push("חסר סימול/נכס");
-    if (!actionRaw) errors.push("חסר סוג פעולה");
-    else if (!action) errors.push("סוג פעולה לא מזוהה: '" + actionRaw + "'");
+    if (inferActionFromQtySign) {
+      if (action === null) errors.push("לא ניתן להסיק קנייה/מכירה מכמות ריקה או אפס");
+    } else if (!actionRaw) {
+      errors.push("חסר סוג פעולה");
+    } else if (!action) {
+      errors.push("סוג פעולה לא מזוהה: '" + actionRaw + "'");
+    }
 
     if ((qty === null || qty <= 0) || (price === null || price <= 0)) {
       // For cash movements a single "value/amount" column is enough on its own.
@@ -260,7 +329,9 @@ function buildParseResult(table: string[][]): ParseResult {
     }
 
     return {
-      rowNumber: i + 2,
+      // +2, not +1: rows are 1-based and the header itself occupies row
+      // headerIndex+1, so the first data row is headerIndex+2.
+      rowNumber: headerIndex + i + 2,
       date, symbol: symbol || null, action, qty, price, fee, pnlOverride, strategy, notes,
       error: errors.length > 0 ? errors.join(" · ") : null,
     };
