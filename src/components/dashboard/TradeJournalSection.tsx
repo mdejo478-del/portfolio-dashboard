@@ -14,7 +14,8 @@ import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import TradeImportModal from "@/components/TradeImportModal";
-import { parseTradeFile, parseTradeWorkbook, decodeCsvBuffer, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
+import TradeColumnMappingModal from "@/components/TradeColumnMappingModal";
+import { parseTradeFile, parseTradeWorkbook, decodeCsvBuffer, parseWithManualMapping, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface TradeStats {
@@ -487,7 +488,18 @@ export function TradeJournalSection({
         כל הנתונים מבוססים על קובץ האקסל שהועלה · החישובים מתעדכנים אוטומטית עם כל עסקה שנוספה, נערכת או נמחקת
       </div>
 
-      {importResult && (
+      {importResult?.needsMapping && (
+        <TradeColumnMappingModal
+          request={importResult.needsMapping}
+          fileName={importFileName}
+          onCancel={closeImportModal}
+          onContinue={(mapping) => {
+            const request = importResult.needsMapping!;
+            setImportResult(parseWithManualMapping(request.table, request.headerRowIndex, mapping));
+          }}
+        />
+      )}
+      {importResult && !importResult.needsMapping && (
         <TradeImportModal
           result={importResult}
           fileName={importFileName}

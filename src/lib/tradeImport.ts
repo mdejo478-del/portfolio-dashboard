@@ -18,9 +18,26 @@ export interface ParsedTradeRow {
   error: string | null;
 }
 
+// The fields a user can manually assign a column to when auto-detection
+// isn't confident enough to proceed on its own. Deliberately narrower than
+// the full HEADER_KEYWORDS field set (which also covers optional columns
+// like fee/pnl/strategy/notes) - those stay auto-detect-only or blank.
+export type RequiredMappingField = "date" | "symbol" | "qty" | "price" | "action";
+
+export interface ManualMappingRequest {
+  table: string[][]; // the full parsed table, so a chosen mapping can be re-run without re-reading the file
+  headerRowIndex: number; // best-guess row to treat as "the header" for labeling/sample purposes
+  suggested: Partial<Record<RequiredMappingField, number>>; // auto-detected columns, to pre-fill the picker
+}
+
 export interface ParseResult {
   fileError: string | null;
   rows: ParsedTradeRow[];
+  // Present when auto-detection couldn't confidently resolve all of
+  // date/symbol/qty/action on its own - the caller should show a manual
+  // column-mapping UI instead of just displaying fileError. fileError is
+  // null whenever this is set.
+  needsMapping?: ManualMappingRequest;
 }
 
 // Some regional Excel installations (Hebrew/Israeli locales, where a comma
@@ -79,7 +96,11 @@ const HEADER_KEYWORDS: Record<string, string[]> = {
   // "Asset Category"/"Asset Class" column (e.g. "Stocks") that isn't the
   // ticker - matching on it would silently misidentify the symbol column.
   symbol: ["סימול", "נכס", "טיקר", "symbol", "ticker"],
-  action: ["סוג פעולה", "פעולה", "action", "type", "side"],
+  // "סוג" alone is broad (could collide with an unrelated "סוג נכס"/asset-type
+  // column on some exotic file), but is common enough as a lone action-column
+  // header on its own that it's worth the small risk - "date"/"symbol" are
+  // matched first, above, so they never lose out to it.
+  action: ["סוג פעולה", "פעולה", "action", "type", "side", "סוג"],
   qty: ["כמות", "qty", "quantity", "units", "shares"],
   price: ["מחיר", "price"],
   value: ["שווי", "value", "amount", "סכום"],
@@ -107,8 +128,8 @@ function detectColumns(header: string[]): Record<string, number> {
 }
 
 const ACTION_KEYWORDS: Record<string, string[]> = {
-  "קנייה": ["קנייה", "קניה", "buy", "purchase"],
-  "מכירה": ["מכירה", "sell", "sale"],
+  "קנייה": ["קנייה", "קניה", "קניית", "buy", "purchase"],
+  "מכירה": ["מכירה", "מכירת", "sell", "sale"],
   "הפקדה": ["הפקדה", "deposit"],
   "משיכה": ["משיכה", "withdraw", "withdrawal"],
   "אחר": ["אחר", "other", "misc", "adjustment"],
@@ -118,6 +139,22 @@ function normalizeAction(raw: string): string | null {
   const s = raw.trim().toLowerCase();
   for (const [canonical, keywords] of Object.entries(ACTION_KEYWORDS)) {
     if (keywords.some((k) => s === k.toLowerCase() || s.includes(k.toLowerCase()))) return canonical;
+  }
+  return null;
+}
+
+/** Last-resort action detection: scans a whole data row's text (every cell,
+ * not just a dedicated action column) for an unambiguous buy/sell/deposit/
+ * withdraw word - covers formats that encode direction in a free-text
+ * description cell instead of a structured column. Deliberately excludes
+ * the "אחר" (other) bucket: its keywords ("אחר"/"other"/"misc") are common
+ * enough words that blind-matching them across an entire row risks false
+ * positives no single-column check would have. */
+function scanRowForActionKeyword(row: string[]): string | null {
+  const rowText = row.join(" ").toLowerCase();
+  for (const [canonical, keywords] of Object.entries(ACTION_KEYWORDS)) {
+    if (canonical === "אחר") continue;
+    if (keywords.some((k) => rowText.includes(k.toLowerCase()))) return canonical;
   }
   return null;
 }
@@ -247,12 +284,13 @@ export async function parseTradeWorkbook(buffer: ArrayBuffer): Promise<ParseResu
 const HEADER_SEARCH_LIMIT = 1000; // bound the scan on a pathologically large/junk file
 
 /** Finds the row that best looks like a trade-table header, anywhere in the
- * file - not just row 0. Broker "activity statement" exports (Interactive
- * Brokers being the common one) bundle several report sections into one
- * CSV (account info, NAV, trades, dividends, ...), each with its own header
- * row buried wherever it falls, not at the top of the file. Requires at
- * least date+symbol to count as a candidate; the row with the most
- * recognized columns wins. */
+ * file - not just row 0. Multi-section broker "activity statement" exports
+ * (Interactive Brokers is one example, not a dependency - this only relies
+ * on the generic HEADER_KEYWORDS match, never IBKR-specific column names)
+ * bundle several report sections into one file (account info, NAV, trades,
+ * dividends, ...), each with its own header row buried wherever it falls,
+ * not at the top of the file. Requires at least date+symbol to count as a
+ * candidate; the row with the most recognized columns wins. */
 function findHeaderRow(table: string[][]): { index: number; columns: Record<string, number> } | null {
   let best: { index: number; columns: Record<string, number>; score: number } | null = null;
   const limit = Math.min(table.length, HEADER_SEARCH_LIMIT);
@@ -280,11 +318,6 @@ function bestGuessHeaderRow(table: string[][]): number {
   return bestIdx;
 }
 
-function describeRawHeaders(row: string[]): string {
-  const cells = row.map((h) => h.trim()).filter((h) => h !== "");
-  return cells.length > 0 ? cells.join(", ") : "(לא נמצאו כותרות עמודה בשורה שנבדקה)";
-}
-
 function isUnresolvedHeaderCandidate(row: string[], columns: Record<string, number>): boolean {
   if (columns.date === undefined || columns.symbol === undefined) return false;
   // A real data row's date cell holds an actual date value; a repeated
@@ -292,6 +325,84 @@ function isUnresolvedHeaderCandidate(row: string[], columns: Record<string, numb
   // which never parses as a date. This is what tells the two apart.
   const dateCell = (row[columns.date] || "").trim();
   return dateCell === "" || parseFlexibleDate(dateCell) === null;
+}
+
+/** Turns one raw row + a column mapping into a validated trade row. Shared
+ * by the auto-detect path and the manual-mapping path (parseWithManualMapping)
+ * so the actual field-extraction/validation logic - date parsing, the
+ * action-detection cascade, cash-move value fallback, error messages - only
+ * exists once regardless of how the column mapping was decided. */
+function buildTradeRow(row: string[], columns: Record<string, number>, rowNumber: number): ParsedTradeRow {
+  const get = (field: string) => (columns[field] !== undefined ? (row[columns[field]] || "").trim() : "");
+
+  const dateRaw = get("date");
+  const date = dateRaw ? parseFlexibleDate(dateRaw) : null;
+  const symbolRaw = get("symbol").toUpperCase();
+
+  let qty = parseNum(get("qty"));
+  let price = parseNum(get("price"));
+  const value = parseNum(get("value"));
+  const fee = parseNum(get("fee")) ?? 0;
+  const pnlOverride = parseNum(get("pnl"));
+
+  // Three-tier cascade for buy/sell direction, in order of confidence:
+  // (1) an explicit action-column value that resolves via normalizeAction;
+  // (2) no explicit column, or its value didn't resolve - fall back to the
+  //     sign of the quantity (a common broker-export convention); (3) still
+  //     nothing - scan the row's own text as a last resort. Each tier only
+  //     runs if the previous one came up empty, regardless of *why* (missing
+  //     column vs. present-but-unrecognized value are treated the same).
+  const actionRaw = get("action");
+  const fromColumn = actionRaw ? normalizeAction(actionRaw) : null;
+  let action: string | null;
+  if (fromColumn) {
+    action = fromColumn;
+  } else if (qty !== null && qty !== 0) {
+    action = qty > 0 ? "קנייה" : "מכירה";
+    qty = Math.abs(qty);
+  } else {
+    action = scanRowForActionKeyword(row);
+  }
+
+  const isCashMove = action === "הפקדה" || action === "משיכה";
+  const symbol = symbolRaw || (isCashMove ? "CASH" : "");
+
+  const strategy = get("strategy") || (action ? STRATEGY_DEFAULTS[action] : null);
+  const notes = get("notes") || null;
+
+  const errors: string[] = [];
+  if (!dateRaw) errors.push("חסר תאריך");
+  else if (!date) errors.push("תאריך לא תקין: '" + dateRaw + "'");
+  if (!symbolRaw && !isCashMove) errors.push("חסר סימול/נכס");
+  if (!action) errors.push("לא ניתן לזהות סוג פעולה (קנייה/מכירה) בשורה זו");
+
+  if ((qty === null || qty <= 0) || (price === null || price <= 0)) {
+    // For cash movements a single "value/amount" column is enough on its own.
+    if (isCashMove && value !== null && value > 0) {
+      if (qty !== null && qty > 0) price = value / qty;
+      else if (price !== null && price > 0) qty = value / price;
+      else { qty = value; price = 1; }
+    } else {
+      if (qty === null || qty <= 0) errors.push("חסרה כמות תקינה");
+      if (price === null || price <= 0) errors.push("חסר מחיר תקין");
+    }
+  }
+
+  return {
+    rowNumber,
+    date, symbol: symbol || null, action, qty, price, fee, pnlOverride, strategy, notes,
+    error: errors.length > 0 ? errors.join(" · ") : null,
+  };
+}
+
+/** A row with no valid date, no valid price, and no resolvable buy/sell
+ * direction essentially never corresponds to a real individual trade -
+ * structure-agnostically, it's far more likely a computed summary line, a
+ * blank/filler row, or stray text that ended up inside the data range.
+ * Used to silently drop such rows instead of showing them as a "missing
+ * data" error, which would misrepresent a non-trade row as broken data. */
+function looksLikeNonTradeRow(trade: ParsedTradeRow): boolean {
+  return !trade.date && trade.price === null && !trade.action;
 }
 
 function buildParseResult(table: string[][]): ParseResult {
@@ -303,18 +414,18 @@ function buildParseResult(table: string[][]): ParseResult {
   if (!found) {
     const guessIdx = bestGuessHeaderRow(table);
     return {
-      fileError: "לא ניתן לזהות בקובץ עמודות תאריך וסימול/נכס. העמודות שזוהו בקובץ: " + describeRawHeaders(table[guessIdx]) +
-        ". ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
+      fileError: null,
       rows: [],
+      needsMapping: { table, headerRowIndex: guessIdx, suggested: detectColumns(table[guessIdx]) },
     };
   }
   const { index: firstHeaderIndex, columns: firstColumns } = found;
 
   if (firstColumns.action === undefined && firstColumns.qty === undefined) {
     return {
-      fileError: "לא ניתן לזהות בקובץ עמודת סוג פעולה, וגם אין עמודת כמות שממנה ניתן להסיק קנייה/מכירה. העמודות שזוהו בקובץ: " +
-        describeRawHeaders(table[firstHeaderIndex]) + ". ודא שיש כותרות עמודה ברורות (למשל: תאריך, סימול, סוג פעולה, כמות, מחיר).",
+      fileError: null,
       rows: [],
+      needsMapping: { table, headerRowIndex: firstHeaderIndex, suggested: firstColumns },
     };
   }
 
@@ -329,15 +440,14 @@ function buildParseResult(table: string[][]): ParseResult {
   const sectionCol = !Object.values(firstColumns).includes(0) && table[firstHeaderIndex][0] ? 0 : null;
   const sectionName = sectionCol !== null ? table[firstHeaderIndex][sectionCol] : null;
 
-  // Statement exports that use the section-name-prefix convention also mark
-  // each row's own kind in the very next column (Header/Data/SubTotal/Total
-  // - Interactive Brokers' vocabulary, but a common statement-generator
-  // pattern). SubTotal/Total rows are the broker's own computed aggregates
-  // (e.g. net quantity per symbol) - they never carry a date or price
-  // because they're not individual trades, not because anything is
-  // missing. Without this they'd be parsed as trade rows and flagged as
-  // "error: missing date/price", which misrepresents genuinely complete
-  // data as broken.
+  // Statement exports that use the section-name-prefix convention often also
+  // mark each row's own kind in the very next column (a "Header"/"Data"/
+  // "SubTotal"/"Total" style vocabulary - Interactive Brokers is the common
+  // example, but this is a general statement-generator pattern, not IBKR-
+  // specific). Skip anything that isn't plainly a data row or a header row
+  // by that column's own word, whatever the exact label a given broker uses
+  // for its computed aggregates - those rows never carry a date or price
+  // because they're not individual trades, not because anything is missing.
   const rowTypeCol = sectionCol !== null ? sectionCol + 1 : null;
 
   // Some broker statements (again, Interactive Brokers) repeat the header
@@ -356,7 +466,7 @@ function buildParseResult(table: string[][]): ParseResult {
 
     if (rowTypeCol !== null) {
       const rowType = (row[rowTypeCol] || "").trim().toLowerCase();
-      if (rowType === "subtotal" || rowType === "total") continue;
+      if (rowType !== "" && rowType !== "data" && rowType !== "header") continue;
     }
 
     const candidateColumns = detectColumns(row);
@@ -365,70 +475,42 @@ function buildParseResult(table: string[][]): ParseResult {
       continue;
     }
 
-    const columns = activeColumns;
-    const get = (field: string) => (columns[field] !== undefined ? (row[columns[field]] || "").trim() : "");
-    // Some broker exports (again, Interactive Brokers) have no explicit
-    // buy/sell column at all - direction is encoded as the sign of the
-    // quantity instead. Only fall back to that when there's truly no
-    // action column to read from; a section that has one is never
-    // second-guessed.
-    const inferActionFromQtySign = columns.action === undefined && columns.qty !== undefined;
+    const trade = buildTradeRow(row, activeColumns, i + 1);
+    if (looksLikeNonTradeRow(trade)) continue;
+    rows.push(trade);
+  }
 
-    const dateRaw = get("date");
-    const date = dateRaw ? parseFlexibleDate(dateRaw) : null;
-    const symbolRaw = get("symbol").toUpperCase();
+  if (rows.length === 0) {
+    return { fileError: "לא נמצאו שורות עסקאות בקובץ (רק כותרת).", rows: [] };
+  }
 
-    let qty = parseNum(get("qty"));
-    let price = parseNum(get("price"));
-    const value = parseNum(get("value"));
-    const fee = parseNum(get("fee")) ?? 0;
-    const pnlOverride = parseNum(get("pnl"));
+  return { fileError: null, rows };
+}
 
-    const actionRaw = get("action");
-    let action: string | null;
-    if (inferActionFromQtySign) {
-      action = qty === null || qty === 0 ? null : qty > 0 ? "קנייה" : "מכירה";
-      if (qty !== null) qty = Math.abs(qty);
-    } else {
-      action = actionRaw ? normalizeAction(actionRaw) : null;
-    }
-    const isCashMove = action === "הפקדה" || action === "משיכה";
-    const symbol = symbolRaw || (isCashMove ? "CASH" : "");
+/** Finalizes a parse once the user has manually assigned columns to fields
+ * (the ManualMappingRequest fallback path). Applies the same per-row
+ * extraction/validation as the auto-detect path (via buildTradeRow) and the
+ * same non-trade-row filter, but without the auto-detect-only structural
+ * machinery (section scoping, repeated-header re-detection, row-type
+ * filtering) - those exist to recover a layout automatically, which is
+ * moot once the user has told us the layout directly. */
+export function parseWithManualMapping(
+  table: string[][],
+  headerRowIndex: number,
+  mapping: Partial<Record<RequiredMappingField, number>>
+): ParseResult {
+  const columns: Record<string, number> = {};
+  for (const [field, idx] of Object.entries(mapping)) {
+    if (typeof idx === "number" && idx >= 0) columns[field] = idx;
+  }
 
-    const strategy = get("strategy") || (action ? STRATEGY_DEFAULTS[action] : null);
-    const notes = get("notes") || null;
-
-    const errors: string[] = [];
-    if (!dateRaw) errors.push("חסר תאריך");
-    else if (!date) errors.push("תאריך לא תקין: '" + dateRaw + "'");
-    if (!symbolRaw && !isCashMove) errors.push("חסר סימול/נכס");
-    if (columns.action === undefined && columns.qty === undefined) {
-      errors.push("חסר סוג פעולה");
-    } else if (inferActionFromQtySign) {
-      if (action === null) errors.push("לא ניתן להסיק קנייה/מכירה מכמות ריקה או אפס");
-    } else if (!actionRaw) {
-      errors.push("חסר סוג פעולה");
-    } else if (!action) {
-      errors.push("סוג פעולה לא מזוהה: '" + actionRaw + "'");
-    }
-
-    if ((qty === null || qty <= 0) || (price === null || price <= 0)) {
-      // For cash movements a single "value/amount" column is enough on its own.
-      if (isCashMove && value !== null && value > 0) {
-        if (qty !== null && qty > 0) price = value / qty;
-        else if (price !== null && price > 0) qty = value / price;
-        else { qty = value; price = 1; }
-      } else {
-        if (qty === null || qty <= 0) errors.push("חסרה כמות תקינה");
-        if (price === null || price <= 0) errors.push("חסר מחיר תקין");
-      }
-    }
-
-    rows.push({
-      rowNumber: i + 1,
-      date, symbol: symbol || null, action, qty, price, fee, pnlOverride, strategy, notes,
-      error: errors.length > 0 ? errors.join(" · ") : null,
-    });
+  const rows: ParsedTradeRow[] = [];
+  for (let i = headerRowIndex + 1; i < table.length; i++) {
+    const row = table[i];
+    if (!row.some((cell) => cell.trim() !== "")) continue;
+    const trade = buildTradeRow(row, columns, i + 1);
+    if (looksLikeNonTradeRow(trade)) continue;
+    rows.push(trade);
   }
 
   if (rows.length === 0) {
