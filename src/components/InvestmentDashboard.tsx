@@ -522,6 +522,28 @@ export default function InvestmentDashboard({
 
   const unseenAlertCount = newAlertIds.size;
 
+  // Seeds the health-score baseline (#5) the very first time it's ever
+  // computed for this account. The alert above only fires by comparing the
+  // live score against a previously-seen breakdown, and that breakdown is
+  // otherwise only ever captured when the alert itself gets acked - which
+  // requires it to already be in the shown list, which requires a baseline
+  // to already exist. Without this seed the alert could never get its first
+  // baseline and would stay permanently silent for every account, old and
+  // new. Runs once (healthScoreAckState is truthy on every later render, so
+  // the guard below skips it), persists server-side the same way an actual
+  // ack would, and - per the comment above the alert block - deliberately
+  // doesn't add anything to the visible list on this first run.
+  useEffect(() => {
+    if (healthScoreAckState) return;
+    const snapshot = {
+      score: portfolioHealth.score, rangeRatio: portfolioHealth.rangeRatio,
+      cashHealth: portfolioHealth.cashHealth, breachScore: portfolioHealth.breachScore,
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHealthScoreAckState({ ...snapshot, seenAt: new Date().toISOString() });
+    ackAlertsAction({ acks: {}, healthScoreAck: snapshot }).catch(() => { /* best-effort, see ackAlertsNow below */ });
+  }, [healthScoreAckState, portfolioHealth]);
+
   // Acknowledges the given alert ids at their current tracked value/health
   // breakdown: optimistic local update (so the UI reacts immediately) plus a
   // best-effort server write - losing that write just means an alert may

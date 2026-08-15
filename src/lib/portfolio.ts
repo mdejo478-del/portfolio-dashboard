@@ -252,14 +252,22 @@ export async function updateAlertAcks(
  * its own target, and optionally refreshes the cached Morning Brief data
  * (earnings/news) - all independent of whether the user touched the app
  * today. See dailySnapshot.ts. */
-export async function updateDailySnapshot(userId: string, params: { equityValue: number; cashOverThreshold: boolean; morningBrief?: MorningBriefData }): Promise<void> {
+export async function updateDailySnapshot(
+  userId: string,
+  params: { equityValue: number; cashOverThreshold: boolean; morningBrief?: MorningBriefData; healthScoreAck?: HealthScoreAck }
+): Promise<void> {
   await withFileLock(portfolioPath(userId), async () => {
     const existing = await getPortfolio(userId);
     const today = new Date().toISOString().slice(0, 10);
     const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue);
     const cashIdleSince = params.cashOverThreshold ? (existing.cashIdleSince ?? today) : null;
     const morningBrief = params.morningBrief ?? existing.morningBrief;
-    await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince, morningBrief });
+    // Seed-only: never overwrites an ack that already exists (from the user
+    // dismissing the alert, or an earlier daily run) - see the comment where
+    // this is computed in dailySnapshot.ts for why a baseline needs seeding
+    // at all.
+    const healthScoreAck = existing.healthScoreAck ?? params.healthScoreAck;
+    await writeStoredPortfolio(userId, { ...existing, equityHistory: history, cashIdleSince, morningBrief, healthScoreAck });
   });
 }
 

@@ -1,7 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { getPortfolio, listPortfolioUserIds, updateDailySnapshot, type MorningBriefData } from "@/lib/portfolio";
+import { getPortfolio, listPortfolioUserIds, updateDailySnapshot, type MorningBriefData, type HealthScoreAck } from "@/lib/portfolio";
 import { getQuotes, getEarningsCalendar, getCompanyNews, type RawEarningsEntry, type RawNewsHeadline } from "@/lib/prices";
+import { computePortfolioHealth } from "@/lib/portfolioHealth";
+import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
+import type { EvaluatedPosition } from "@/components/dashboard/types";
 
 // Fixes gaps that only mattered once alerts and Morning Brief started
 // depending on history the app previously only ever wrote as a side effect
@@ -104,8 +107,18 @@ async function snapshotUser(
   // overwrite it with a redundant one.
   const needsEquitySnapshot = !(lastEquity && lastEquity.date === today);
   const needsBriefRefresh = !(portfolio.morningBrief && portfolio.morningBrief.generatedAt.slice(0, 10) === today);
+  // Health-score baseline (#5 alert): the alert only fires by comparing the
+  // live score against a previously-seen breakdown, so an account that's
+  // never had one needs a silent one-time seed before the comparison can
+  // ever run. InvestmentDashboard.tsx seeds this too on first dashboard
+  // load, but that only covers users who actually open the app - this is
+  // the fallback for anyone who signs up (or already has an account from
+  // before this existed) and doesn't visit today, so the alert isn't
+  // permanently silent for them either. Only ever runs once per account:
+  // updateDailySnapshot never overwrites an ack that already exists.
+  const needsHealthScoreSeed = !portfolio.healthScoreAck;
 
-  if (!needsEquitySnapshot && !needsBriefRefresh) return;
+  if (!needsEquitySnapshot && !needsBriefRefresh && !needsHealthScoreSeed) return;
 
   let equityValue: number;
   if (needsEquitySnapshot) {
@@ -131,7 +144,14 @@ async function snapshotUser(
     ? await buildMorningBrief(portfolio, earningsBySymbol, newsCache, today, newsFrom)
     : undefined;
 
-  await updateDailySnapshot(userId, { equityValue, cashOverThreshold, morningBrief });
+  let healthScoreAck: HealthScoreAck | undefined;
+  if (needsHealthScoreSeed) {
+    const evaluated: EvaluatedPosition[] = portfolio.positions.map((p) => ({ ...p, ...evaluatePosition(p, equityValue, false) }));
+    const health = computePortfolioHealth(evaluated);
+    healthScoreAck = { score: health.score, rangeRatio: health.rangeRatio, cashHealth: health.cashHealth, breachScore: health.breachScore, seenAt: new Date().toISOString() };
+  }
+
+  await updateDailySnapshot(userId, { equityValue, cashOverThreshold, morningBrief, healthScoreAck });
 }
 
 async function runSnapshotNow(): Promise<void> {
