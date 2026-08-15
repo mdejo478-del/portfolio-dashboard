@@ -13,6 +13,14 @@ export const ALERT_RULES = {
   /** #2 weight deviation: re-alert once |dev| has moved this many
    * percentage points further from where it was last acknowledged. */
   devRearmStep: 0.02,
+  /** #2 weight deviation hysteresis: a position enters an alert state
+   * (below-min/over-max/dilute-breach) the instant its raw weight crosses
+   * the relevant boundary - no delay on getting worse - but only leaves
+   * the alert list once its weight has recovered by this many percentage
+   * points back inside [min, max], not merely crossed back over the exact
+   * line. Prevents a position sitting right at a boundary from flickering
+   * in and out of the alerts list on every price-refresh tick. */
+  weightAlertClearMargin: 0.02,
   /** #3 ATH drawdown: fires once the portfolio is down this much from its
    * all-time high... */
   athAlertDrawdown: -0.10,

@@ -367,6 +367,62 @@ export default function InvestmentDashboard({
     setCashIdleSince((prev) => (overThreshold ? (prev ?? new Date().toISOString().slice(0, 10)) : null));
   }, [evaluated]);
 
+  // Hysteresis latch for the ATH-drawdown alert (#3): athDrawdownPct alone
+  // is a pure snapshot, so gating the alert directly on "<= athAlertDrawdown"
+  // flips it in and out of the list every time a portfolio hovering near
+  // -10% ticks a hair to either side - exactly the flicker athClearDrawdown
+  // was named for, but never actually wired into a comparison. This tracks
+  // whether the alert is currently *active* as real state: it latches on
+  // the instant drawdown reaches athAlertDrawdown (-10%, no delay on
+  // getting worse) and only latches back off once drawdown has recovered
+  // past athClearDrawdown (-3%) - a real band, not a single line. Lazily
+  // initialized from the live value so there's no one-render flash on
+  // first mount either way.
+  const [athDrawdownActive, setAthDrawdownActive] = useState<boolean>(
+    () => athDrawdownPct <= ALERT_RULES.athAlertDrawdown
+  );
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAthDrawdownActive((prev) => {
+      if (athDrawdownPct <= ALERT_RULES.athAlertDrawdown) return true;
+      if (athDrawdownPct > ALERT_RULES.athClearDrawdown) return false;
+      return prev; // inside the hysteresis band - keep whatever it already was
+    });
+  }, [athDrawdownPct]);
+
+  // Same idea, per position, for weight-based alerts (#2: below-min/over-
+  // max/dilute-breach). evaluatePosition's status is deliberately a pure,
+  // un-hysteresis'd snapshot (it also drives the live holdings-table badge,
+  // which should always show the immediate truth) - so without a separate
+  // latch here, a position sitting right at min/max/dilute flickers its
+  // alert in and out of the list on every price-refresh tick. This latches
+  // on the instant the raw status leaves "healthy" (no delay on getting
+  // worse) and only clears once weight has recovered a real margin back
+  // inside [min, max], not merely crossed the exact boundary. Which
+  // specific alert to show while latched active is still read live from
+  // the current status each render - only "is there anything to show at
+  // all" has hysteresis, not which one.
+  const [weightAlertActive, setWeightAlertActive] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const p of evaluated) if (!p.hodl) init[p.symbol] = p.status !== "✅ תקין";
+    return init;
+  });
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWeightAlertActive((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const p of evaluated) {
+        if (p.hodl) continue;
+        // Clamp the margin so it can never make the "recovered" band
+        // inverted/empty for an unusually narrow [min, max] target range.
+        const margin = Math.min(ALERT_RULES.weightAlertClearMargin, (p.max - p.min) / 4);
+        const recovered = p.weight >= p.min + margin && p.weight <= p.max - margin;
+        next[p.symbol] = p.status !== "✅ תקין" ? true : (prev[p.symbol] ?? false) && !recovered;
+      }
+      return next;
+    });
+  }, [evaluated]);
+
   // Alerts: only conditions that genuinely need attention. Two shapes:
   //  - Persistent conditions (weight deviation #2, ATH drawdown #3, the
   //    aggregate rebalance recommendation) stay listed for as long as the
@@ -404,18 +460,26 @@ export default function InvestmentDashboard({
       const isCash = p.symbol === "CASH";
 
       if (!p.hodl) {
-        if (p.status === "דורש חיזוק") {
-          pushPersistent("below-min:" + p.symbol, "amber",
-            isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
-            p.action, p.dev, ALERT_RULES.devRearmStep);
-        } else if (p.status === "חריגה - דילול נדרש") {
-          pushPersistent("dilute-breach:" + p.symbol, "red",
-            isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
-            p.action, p.dev, ALERT_RULES.devRearmStep);
-        } else if (p.status === "מעל היעד") {
-          pushPersistent("over-max:" + p.symbol, "amber",
-            isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
-            p.action, p.dev, ALERT_RULES.devRearmStep);
+        if (weightAlertActive[p.symbol]) {
+          // Latched active - which specific alert to show is still read
+          // live from the current status. If the raw status has already
+          // recovered to "healthy" but the latch hasn't cleared yet (inside
+          // the hysteresis margin), none of these match and nothing is
+          // pushed for this position this render - a quiet gap right at
+          // the recovery boundary instead of a stale/wrong message.
+          if (p.status === "דורש חיזוק") {
+            pushPersistent("below-min:" + p.symbol, "amber",
+              isCash ? "אחוז המזומן נמוך מהיעד" : p.symbol + " מתחת ליעד המינימום",
+              p.action, p.dev, ALERT_RULES.devRearmStep);
+          } else if (p.status === "חריגה - דילול נדרש") {
+            pushPersistent("dilute-breach:" + p.symbol, "red",
+              isCash ? "אחוז המזומן גבוה משמעותית מהיעד" : p.symbol + " חריגה - נדרש דילול",
+              p.action, p.dev, ALERT_RULES.devRearmStep);
+          } else if (p.status === "מעל היעד") {
+            pushPersistent("over-max:" + p.symbol, "amber",
+              isCash ? "אחוז המזומן מעל היעד" : p.symbol + " מעל יעד המקסימום",
+              p.action, p.dev, ALERT_RULES.devRearmStep);
+          }
         } else if (p.status === "✅ תקין") {
           // A quiet positive callout: only when weight sits right at the center
           // of the target range, not for merely "somewhere inside" it (that's
@@ -460,11 +524,11 @@ export default function InvestmentDashboard({
       }
     }
 
-    // #3 ATH drawdown - stays listed while the drawdown holds, re-highlights
-    // as new if it worsens by another athRearmStep after being seen; the
-    // hysteresis between athAlertDrawdown and athClearDrawdown just keeps it
-    // from flickering right at the -10% line.
-    if (athDrawdownPct <= ALERT_RULES.athAlertDrawdown) {
+    // #3 ATH drawdown - stays listed while the drawdown holds (per the
+    // athDrawdownActive hysteresis latch above, not a raw threshold
+    // comparison), re-highlights as new if it worsens by another
+    // athRearmStep after being seen.
+    if (athDrawdownActive) {
       pushPersistent("ath-drawdown", "red", "ירידה משמעותית משיא התיק",
         "התיק ירד " + fmtPct(Math.abs(athDrawdownPct)) + " מנקודת השיא ההיסטורית שלו.",
         athDrawdownPct, ALERT_RULES.athRearmStep);
@@ -518,7 +582,7 @@ export default function InvestmentDashboard({
     const priority: Record<Tone, number> = { red: 0, amber: 1, blue: 2, green: 3 };
     list.sort((a, b) => priority[a.tone] - priority[b.tone]);
     return { alerts: list, alertTrackedValues: trackedValues, newAlertIds: newIds };
-  }, [evaluated, portfolioHealth, alertAcksState, healthScoreAckState, athDrawdownPct, cashIdleSince, dayChangePct, privacyMode]);
+  }, [evaluated, portfolioHealth, alertAcksState, healthScoreAckState, athDrawdownPct, athDrawdownActive, weightAlertActive, cashIdleSince, dayChangePct, privacyMode]);
 
   const unseenAlertCount = newAlertIds.size;
 
