@@ -60,6 +60,38 @@ export default function InvestmentDashboard({
   initialCashIdleSince,
 }: InvestmentDashboardProps) {
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
+  useEffect(() => {
+    // Reads the saved preference once on mount - deliberately post-mount,
+    // not a lazy useState initializer, since this component also renders
+    // server-side where localStorage doesn't exist (same SSR-safe pattern
+    // useTheme uses for the theme preference: default false renders on the
+    // server and the client's first render too, then this effect corrects
+    // it a tick later instead of causing a hydration mismatch).
+    try {
+      const saved = localStorage.getItem("privacyMode");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved !== null) setPrivacyMode(saved === "true");
+    } catch {
+      // localStorage unavailable (private browsing, etc.) - privacy mode
+      // still works for this page view, just won't persist across reloads.
+    }
+  }, []);
+  // Wraps the raw setter so every explicit toggle also persists - unlike a
+  // separate useEffect watching privacyMode, this can't race the mount
+  // effect above and clobber a just-loaded "true" back to "false" on first
+  // render, since it only ever writes at the exact moment of a real toggle,
+  // matching useTheme's toggleTheme.
+  const togglePrivacyMode = useCallback((updater: (v: boolean) => boolean) => {
+    setPrivacyMode((prev) => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem("privacyMode", String(next));
+      } catch {
+        // ignore, see above
+      }
+      return next;
+    });
+  }, []);
   const [globalError, setGlobalError] = useState<string>("");
   useEffect(() => {
     const fallback = "אירעה שגיאה בלתי צפויה. נסה לרענן את הדף.";
@@ -868,7 +900,7 @@ export default function InvestmentDashboard({
         )}
 
         <Header
-          userName={userName} total={total} cashFree={cashFree} privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
+          userName={userName} total={total} cashFree={cashFree} privacyMode={privacyMode} setPrivacyMode={togglePrivacyMode}
           visibleAlerts={alerts} unseenAlertCount={unseenAlertCount} newAlertIds={newAlertIds}
           alertsOpen={alertsOpen} toggleAlerts={toggleAlerts} closeAlerts={() => setAlertsOpen(false)} dismissAlert={dismissAlert}
           undoSnapshot={undoSnapshot} undoLastAction={undoLastAction}
