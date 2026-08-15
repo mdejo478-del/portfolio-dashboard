@@ -3,7 +3,15 @@ import type { PositionEval } from "./types";
 import { formatMoney } from "./format";
 
 export function evaluatePosition(p: Position, total: number, masked: boolean): PositionEval {
-  const weight = p.value / total;
+  // A zero (freshly-liquidated or not-yet-funded) or negative (shouldn't
+  // normally happen, but nothing currently stops it) portfolio total would
+  // otherwise make this NaN/Infinity - comparisons against NaN are always
+  // false, so every branch below would fall through to "healthy" and
+  // silently show a broken portfolio as fine, with "NaN%"/"Infinity%"
+  // wherever weight gets rendered. 0 reads as "owns none of a portfolio
+  // that has nothing in it," which still correctly flags as under target
+  // for any position with a positive min, instead of masking the problem.
+  const weight = total > 0 ? p.value / total : 0;
   // Deviation from the target range: how far below min (negative) or above
   // max (positive) the current weight sits; 0 while inside [min, max].
   // Computed fresh every time from the live weight/min/max so it always
