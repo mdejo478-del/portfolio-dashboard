@@ -93,7 +93,12 @@ export async function login(
     return { error: "נא להזין אימייל וסיסמה." };
   }
 
-  const user = await verifyCredentials(email, password);
+  let user: Awaited<ReturnType<typeof verifyCredentials>>;
+  try {
+    user = await verifyCredentials(email, password);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
   if (!user) {
     const ipResult = recordLoginFailure(ipKey);
     const emailResult = emailKey ? recordLoginFailure(emailKey) : { allowed: true, retryAfterSeconds: 0 };
@@ -107,11 +112,19 @@ export async function login(
   if (emailKey) resetLoginFailures(emailKey);
 
   if (!user.verified) {
-    await createPendingVerification(user);
+    try {
+      await createPendingVerification(user);
+    } catch {
+      return { error: "אירעה שגיאה. נסה שוב." };
+    }
     redirect("/verify?reason=login");
   }
 
-  await createSession(user);
+  try {
+    await createSession(user);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
   redirect("/");
 }
 
@@ -125,19 +138,34 @@ export async function verifyCode(
 
   const code = String(formData.get("code") || "").trim();
 
-  const pending = await getPendingVerification();
+  let pending: Awaited<ReturnType<typeof getPendingVerification>> = null;
+  let user: Awaited<ReturnType<typeof findUserById>> = undefined;
+  try {
+    pending = await getPendingVerification();
+    if (pending) user = await findUserById(pending.userId);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
+
   if (!pending) {
     return { error: "פג תוקף תהליך האימות. נא להתחבר שוב כדי לקבל קוד חדש." };
   }
 
-  const user = await findUserById(pending.userId);
   if (!user) {
-    await clearPendingVerification();
+    try {
+      await clearPendingVerification();
+    } catch {
+      return { error: "אירעה שגיאה. נסה שוב." };
+    }
     return { error: "המשתמש לא נמצא." };
   }
 
   if (user.verified) {
-    await clearPendingVerification();
+    try {
+      await clearPendingVerification();
+    } catch {
+      return { error: "אירעה שגיאה. נסה שוב." };
+    }
     redirect("/login");
   }
 
@@ -145,8 +173,12 @@ export async function verifyCode(
     return { error: "קוד האימות שגוי." };
   }
 
-  await markUserVerified(user.id);
-  await clearPendingVerification();
+  try {
+    await markUserVerified(user.id);
+    await clearPendingVerification();
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
   redirect("/login");
 }
 
@@ -201,7 +233,12 @@ export async function changePassword(
     return { error: "הסיסמה החדשה ואימות הסיסמה אינם תואמים." };
   }
 
-  const result = await updatePassword(session.userId, currentPassword, newPassword);
+  let result: Awaited<ReturnType<typeof updatePassword>>;
+  try {
+    result = await updatePassword(session.userId, currentPassword, newPassword);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
   if (result === "WRONG_PASSWORD") return { error: "הסיסמה הנוכחית שגויה." };
   if (result === "NOT_FOUND") return { error: "אירעה שגיאה. נסה שוב." };
 
@@ -209,8 +246,12 @@ export async function changePassword(
   // attacker who had the old password is holding). Bump the cutoff, then
   // immediately re-issue a fresh token for this device so the person who
   // just did this isn't logged out too.
-  await invalidateAllSessions(session.userId);
-  await refreshSession(session);
+  try {
+    await invalidateAllSessions(session.userId);
+    await refreshSession(session);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
 
   return { success: true };
 }
@@ -241,9 +282,13 @@ export async function deleteAccount(
   // a user that no longer exists (harmless, orphaned) than a deleted
   // portfolio still attached to a user who can log back in and be confused
   // by an empty account.
-  await deletePortfolio(session.userId);
-  await deleteUserPortfolioBackups(session.userId);
-  await deleteUser(session.userId);
-  await deleteSession();
+  try {
+    await deletePortfolio(session.userId);
+    await deleteUserPortfolioBackups(session.userId);
+    await deleteUser(session.userId);
+    await deleteSession();
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
   redirect("/login");
 }
