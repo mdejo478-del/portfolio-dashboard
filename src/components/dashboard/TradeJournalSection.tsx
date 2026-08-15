@@ -14,7 +14,7 @@ import { Card } from "@/components/dashboard/ui/Card";
 import { PageBanner, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import TradeImportModal from "@/components/TradeImportModal";
-import { parseTradeFile, parseTradeWorkbook, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
+import { parseTradeFile, parseTradeWorkbook, decodeCsvBuffer, type ParseResult, type ParsedTradeRow } from "@/lib/tradeImport";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
 interface TradeStats {
@@ -96,20 +96,21 @@ export function TradeJournalSection({
     const reader = new FileReader();
     reader.onload = async () => {
       try {
+        const buffer = reader.result as ArrayBuffer;
         if (isExcel) {
-          const buffer = reader.result as ArrayBuffer;
           setImportResult(await parseTradeWorkbook(buffer));
         } else {
-          const text = typeof reader.result === "string" ? reader.result : "";
-          setImportResult(parseTradeFile(text));
+          // Read as raw bytes rather than text so the encoding can be
+          // detected instead of assumed - CSV exports from Hebrew/Israeli
+          // Excel installations are commonly Windows-1255, not UTF-8.
+          setImportResult(parseTradeFile(decodeCsvBuffer(buffer)));
         }
       } finally {
         setImportLoading(false);
       }
     };
     reader.onerror = () => { setImportResult({ fileError: "שגיאה בקריאת הקובץ. נסה שוב.", rows: [] }); setImportLoading(false); };
-    if (isExcel) reader.readAsArrayBuffer(file);
-    else reader.readAsText(file, "utf-8");
+    reader.readAsArrayBuffer(file);
   }
 
   function closeImportModal() {
