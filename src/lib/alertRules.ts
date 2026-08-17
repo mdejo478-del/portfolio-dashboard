@@ -11,8 +11,12 @@ import type { AlertAck } from "@/lib/portfolioTypes";
 
 export const ALERT_RULES = {
   /** #2 weight deviation: re-alert once |dev| has moved this many
-   * percentage points further from where it was last acknowledged. */
-  devRearmStep: 0.02,
+   * percentage points further from where it was last acknowledged. Was
+   * 0.02 - raised to 0.03 since 2 points translates to a large real price
+   * move for a concentrated position (e.g. ~12% for a 20%-weighted one)
+   * yet still felt too easy to cross from ordinary volatility, re-arming
+   * "new" without the position's situation having meaningfully changed. */
+  devRearmStep: 0.03,
   /** #2 weight deviation hysteresis: a position enters an alert state
    * (below-min/over-max/dilute-breach) the instant its raw weight crosses
    * the relevant boundary - no delay on getting worse - but only leaves
