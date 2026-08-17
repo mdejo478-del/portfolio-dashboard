@@ -286,7 +286,16 @@ export function HoldingsSection({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: "var(--space-3)" }}>
         <div style={{ fontSize: 11.5, color: "var(--text-faint)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
           {pricesConfigured === false
-            ? "לא הצלחנו לעדכן מחירים כרגע."
+            // Deliberately worded without any "will retry"/"right now" framing:
+            // pricesConfigured === false means the server told us it has no
+            // FINNHUB_API_KEY at all (prices.ts's getQuotes returns this
+            // directly, it never throws for a missing key) - a permanent
+            // configuration state, not a transient failure, so promising a
+            // retry here would be a false promise that can never come true.
+            // priceError (rendered separately below) covers the genuinely
+            // transient case - network/timeout/rate-limit - and keeps its
+            // own "ננסה שוב אוטומטית" wording, which is accurate there.
+            ? "עדכון מחירים חי אינו מוגדר במערכת זו"
             : lastPriceUpdate
               ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
               : <>טוען מחירים <span className="ds-skeleton" style={{ display: "inline-block", width: 70, height: 10, borderRadius: 4, verticalAlign: "middle" }} /></>}
