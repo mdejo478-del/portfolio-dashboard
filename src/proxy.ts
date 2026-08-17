@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { decodeSession, isSessionStillValid } from "@/lib/session";
 
-const PUBLIC_ROUTES = new Set(["/login", "/register", "/verify"]);
+const PUBLIC_ROUTES = new Set(["/login", "/register", "/verify", "/forgot-password", "/reset-password"]);
+// Reset links are a one-time, token-scoped action that should work
+// regardless of whether the visiting browser also happens to hold an
+// unrelated valid session (e.g. requested from a phone, opened on a
+// laptop that's still logged in elsewhere) - unlike /login etc., a
+// logged-in visitor should not be bounced away before they can use it.
+const SKIP_LOGGED_IN_REDIRECT = new Set(["/reset-password"]);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -12,7 +18,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (isPublicRoute && session) {
+  if (isPublicRoute && session && !SKIP_LOGGED_IN_REDIRECT.has(pathname)) {
     // decodeSession only checks the signature/expiry/fingerprint - a cookie
     // can pass that and still be stale (password changed or "log out
     // everywhere" clicked on another device, bumping sessionsValidAfter

@@ -1,7 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createUser, verifyCredentials, findUserById, markUserVerified, markOnboardingCompleted, updatePassword, deleteUser, invalidateAllSessions } from "@/lib/users";
+import {
+  createUser, verifyCredentials, findUserById, findUserByEmail, markUserVerified,
+  markOnboardingCompleted, updatePassword, resetPasswordWithToken, deleteUser, invalidateAllSessions,
+} from "@/lib/users";
 import {
   createSession, deleteSession, getSession, refreshSession,
   acceptDisclaimer as acceptDisclaimerSession,
@@ -12,8 +15,10 @@ import {
   getPendingVerification,
   clearPendingVerification,
 } from "@/lib/pendingVerification";
+import { createPasswordResetToken, decodePasswordResetToken } from "@/lib/passwordReset";
 import { checkRateLimit, getClientIp, rateLimitMessage, checkLoginLock, recordLoginFailure, resetLoginFailures } from "@/lib/rateLimit";
 import { notifyNewUserRegistration } from "@/lib/telegram";
+import { sendPasswordResetEmail } from "@/lib/email";
 import { deletePortfolio } from "@/lib/portfolio";
 import { deleteUserPortfolioBackups } from "@/lib/backup";
 
@@ -24,6 +29,20 @@ export interface AuthFormState {
 export interface ChangePasswordState {
   error?: string;
   success?: boolean;
+}
+
+export interface RequestPasswordResetState {
+  error?: string;
+  success?: boolean;
+}
+
+export interface ResetPasswordState {
+  error?: string;
+  // Only ever set in the rare case the password WAS reset but the follow-up
+  // auto-login hit an unexpected error - redirect() handles the normal
+  // success path directly, so the form never needs to render a "success"
+  // state for that case.
+  resetButLoginFailed?: boolean;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -180,6 +199,94 @@ export async function verifyCode(
     return { error: "אירעה שגיאה. נסה שוב." };
   }
   redirect("/login");
+}
+
+export async function requestPasswordReset(
+  _prevState: RequestPasswordResetState | undefined,
+  formData: FormData
+): Promise<RequestPasswordResetState> {
+  const ip = await getClientIp();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+
+  if (!email || email.length > MAX_EMAIL_LEN || !EMAIL_RE.test(email)) {
+    return { error: "נא להזין כתובת אימייל תקינה." };
+  }
+
+  // Rate-limited by IP AND by the submitted email itself - the email bucket
+  // is touched here, before the lookup below, regardless of whether an
+  // account actually exists for it. That's deliberate: if it were only
+  // touched for real accounts, getting rate-limited would itself leak that
+  // the address is registered - the one thing this whole flow is built to
+  // never reveal (see the comment on the always-identical return below).
+  const ipLimit = checkRateLimit("reset-request-ip:" + ip, 8, 60 * 60 * 1000);
+  const emailLimit = checkRateLimit("reset-request-email:" + email, 3, 60 * 60 * 1000);
+  if (!ipLimit.allowed || !emailLimit.allowed) {
+    return { error: rateLimitMessage(Math.max(ipLimit.retryAfterSeconds, emailLimit.retryAfterSeconds)) };
+  }
+
+  try {
+    const user = await findUserByEmail(email);
+    if (user) {
+      const token = createPasswordResetToken(user);
+      const base = process.env.APP_BASE_URL || "http://localhost:3000";
+      const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+      sendPasswordResetEmail(user.email, resetUrl);
+    }
+  } catch {
+    // Swallowed on purpose - see below, the response must never differ
+    // based on what happened here.
+  }
+
+  // Always the same response whether or not an account exists for this
+  // email, and whether or not the send itself actually succeeded - this,
+  // not the rate limiter above, is the real anti-enumeration protection.
+  // Matches signup's own "vague on purpose" EMAIL_TAKEN handling elsewhere
+  // in this file.
+  return { success: true };
+}
+
+export async function resetPassword(
+  _prevState: ResetPasswordState | undefined,
+  formData: FormData
+): Promise<ResetPasswordState> {
+  const token = String(formData.get("token") || "");
+  const newPassword = String(formData.get("newPassword") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
+
+  const payload = decodePasswordResetToken(token);
+  if (!payload) {
+    return { error: "קישור האיפוס אינו תקין או שפג תוקפו. בקש קישור חדש." };
+  }
+
+  if (newPassword.length < 6 || newPassword.length > MAX_PASSWORD_LEN) {
+    return { error: "הסיסמה חייבת להכיל בין 6 ל-" + MAX_PASSWORD_LEN + " תווים." };
+  }
+  if (newPassword !== confirmPassword) {
+    return { error: "הסיסמה החדשה ואימות הסיסמה אינם תואמים." };
+  }
+
+  let result: Awaited<ReturnType<typeof resetPasswordWithToken>>;
+  try {
+    result = await resetPasswordWithToken(payload.userId, payload.iat, newPassword);
+  } catch {
+    return { error: "אירעה שגיאה. נסה שוב." };
+  }
+  if (result === "NOT_FOUND") return { error: "החשבון לא נמצא." };
+  if (result === "TOKEN_ALREADY_USED") return { error: "קישור האיפוס כבר נוצל או שאינו תקף יותר. בקש קישור חדש." };
+
+  // The token already proved control of the account's email - auto-login
+  // rather than sending the user back to /login to type the password they
+  // just chose.
+  try {
+    const user = await findUserById(payload.userId);
+    if (user) await createSession(user);
+  } catch {
+    // The password WAS reset successfully at this point - a session-cookie
+    // hiccup shouldn't be reported as a failed reset. The user can still
+    // log in normally with the new password.
+    return { resetButLoginFailed: true };
+  }
+  redirect("/");
 }
 
 export async function logout(): Promise<void> {

@@ -18,6 +18,11 @@ export interface StoredUser {
   // this (session.iat) is treated as revoked, even though it's still
   // cryptographically valid and unexpired - see getSession() in session.ts.
   sessionsValidAfter?: number;
+  // Same idea, for password-reset tokens (lib/passwordReset.ts): bumped to
+  // "now" the moment a reset token is successfully used, so that token (and
+  // any other outstanding one requested before it) can never be replayed -
+  // a reset token is otherwise valid for its full TTL regardless of use.
+  passwordResetValidAfter?: number;
 }
 
 async function readUsers(): Promise<StoredUser[]> {
@@ -151,6 +156,34 @@ export async function updatePassword(id: string, currentPassword: string, newPas
     if (!user) return "NOT_FOUND";
     if (!verifyPassword(currentPassword, user.passwordHash)) return "WRONG_PASSWORD";
     user.passwordHash = hashPassword(newPassword);
+    await writeUsers(users);
+    return "OK";
+  });
+}
+
+export type ResetPasswordResult = "OK" | "NOT_FOUND" | "TOKEN_ALREADY_USED";
+
+/** Sets a new password from a validated password-reset token (see
+ * lib/passwordReset.ts - the token's signature/purpose/expiry are already
+ * checked by the caller before this runs). Doesn't need the current
+ * password, unlike updatePassword - the token itself is the proof of
+ * identity. The read-check-write happens under the same file lock as every
+ * other user mutation, so two uses of the token (or of two different
+ * tokens issued for the same account) can't race past the "already used"
+ * check - whichever commits first wins and the other is correctly rejected. */
+export async function resetPasswordWithToken(userId: string, tokenIssuedAt: number, newPassword: string): Promise<ResetPasswordResult> {
+  return withFileLock(USERS_FILE, async () => {
+    const users = await readUsers();
+    const user = users.find((u) => u.id === userId);
+    if (!user) return "NOT_FOUND";
+    if (user.passwordResetValidAfter && tokenIssuedAt < user.passwordResetValidAfter) return "TOKEN_ALREADY_USED";
+    const now = Date.now();
+    user.passwordHash = hashPassword(newPassword);
+    // Invalidates this token and any other outstanding one for this account,
+    // and - matching changePassword's own behavior - any session an
+    // attacker who had the old password might be holding.
+    user.passwordResetValidAfter = now;
+    user.sessionsValidAfter = now;
     await writeUsers(users);
     return "OK";
   });

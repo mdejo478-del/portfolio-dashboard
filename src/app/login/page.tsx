@@ -32,7 +32,10 @@ export default function LoginPage() {
           <input id="email" name="email" type="email" required autoComplete="email" style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="password" style={labelStyle}>סיסמה</label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
+            <label htmlFor="password" style={{ ...labelStyle, marginBottom: 0 }}>סיסמה</label>
+            <Link href="/forgot-password" className="auth-link" style={{ fontSize: "var(--font-size-xs)" }}>שכחת סיסמה?</Link>
+          </div>
           <input id="password" name="password" type="password" required autoComplete="current-password" style={inputStyle} />
         </div>
 
