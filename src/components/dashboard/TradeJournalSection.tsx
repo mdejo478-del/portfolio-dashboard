@@ -7,7 +7,7 @@ import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
 import type { TradeFormState } from "@/components/dashboard/types";
 import { ACTION_OPTS, STRATEGY_OPTS, SYMOPTS, EMPTY_FORM } from "@/components/dashboard/constants";
-import { fmtUSD, fmtPct, fmtNum, formatMoney, parseNum, csvEscape, mapStrategyToOption } from "@/components/dashboard/format";
+import { fmtPct, fmtNum, formatMoney, parseNum, csvEscape, mapStrategyToOption } from "@/components/dashboard/format";
 import { ActionBadge } from "@/components/dashboard/ui/Badge";
 import { Button } from "@/components/dashboard/ui/Button";
 import { Card } from "@/components/dashboard/ui/Card";
@@ -346,7 +346,7 @@ export function TradeJournalSection({
             {form.action === "מכירה" && (
               <Field label="רווח/הפסד ממומש $ (ידני)">
                 <input type="text" inputMode="decimal" value={form.pnlManual} onChange={(e) => updateForm("pnlManual", e.target.value)}
-                  placeholder={previewAutoPnl !== null ? fmtUSD(previewAutoPnl) : "לדוגמה: 250"} />
+                  placeholder={previewAutoPnl !== null ? formatMoney(previewAutoPnl, privacyMode) : "לדוגמה: 250"} />
               </Field>
             )}
             <Field label="אסטרטגיה / סיבה">
@@ -362,12 +362,12 @@ export function TradeJournalSection({
           <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", gap: "var(--space-6)", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>שווי כולל משוער</div>
-              <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{previewValue !== null ? fmtUSD(previewValue) : "-"}</div>
+              <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{previewValue !== null ? formatMoney(previewValue, privacyMode) : "-"}</div>
             </div>
             {form.action === "מכירה" && (
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>רווח/הפסד ממומש {form.pnlManual !== "" ? "(ידני)" : "(מוצע אוטומטית)"}</div>
-                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectivePnl == null ? "var(--text)" : effectivePnl >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectivePnl !== null ? fmtUSD(effectivePnl) : "-"}</div>
+                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: effectivePnl == null ? "var(--text)" : effectivePnl >= 0 ? "var(--gain)" : "var(--loss)" }}>{effectivePnl !== null ? formatMoney(effectivePnl, privacyMode) : "-"}</div>
               </div>
             )}
             {form.action === "מכירה" && (
@@ -379,7 +379,7 @@ export function TradeJournalSection({
             {previewAvgCost !== null && form.action === "מכירה" && (
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>עלות ממוצעת נוכחית (למעקב בלבד)</div>
-                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{fmtUSD(previewAvgCost, { digits: 2 })}</div>
+                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{formatMoney(previewAvgCost, privacyMode, { digits: 2 })}</div>
               </div>
             )}
           </div>
@@ -503,6 +503,7 @@ export function TradeJournalSection({
         <TradeImportModal
           result={importResult}
           fileName={importFileName}
+          privacyMode={privacyMode}
           onConfirm={confirmImport}
           onClose={closeImportModal}
         />

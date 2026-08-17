@@ -2,7 +2,7 @@
 
 import { X, AlertTriangle, CheckCircle2, FileWarning } from "lucide-react";
 import type { ParseResult, ParsedTradeRow } from "@/lib/tradeImport";
-import { fmtUSD } from "@/components/dashboard/format";
+import { formatMoney } from "@/components/dashboard/format";
 import type { Tone } from "@/components/dashboard/types";
 import { Badge } from "@/components/dashboard/ui/Badge";
 import { Button } from "@/components/dashboard/ui/Button";
@@ -14,11 +14,12 @@ const ACTION_TONE: Record<string, Tone> = {
 interface TradeImportModalProps {
   result: ParseResult;
   fileName: string;
+  privacyMode: boolean;
   onConfirm: (rows: ParsedTradeRow[]) => void;
   onClose: () => void;
 }
 
-export default function TradeImportModal({ result, fileName, onConfirm, onClose }: TradeImportModalProps) {
+export default function TradeImportModal({ result, fileName, privacyMode, onConfirm, onClose }: TradeImportModalProps) {
   const validRows = result.rows.filter((r) => !r.error);
   const errorRows = result.rows.filter((r) => r.error);
 
@@ -92,9 +93,9 @@ export default function TradeImportModal({ result, fileName, onConfirm, onClose 
                           ) : "-"}
                         </td>
                         <td className="num">{row.qty !== null ? row.qty : "-"}</td>
-                        <td className="num">{row.price !== null ? fmtUSD(row.price, { digits: 2 }) : "-"}</td>
-                        <td className="num" style={{ color: "var(--text-faint)" }}>{fmtUSD(row.fee)}</td>
-                        <td className="num" style={{ color: "var(--text-faint)" }}>{row.pnlOverride !== null ? fmtUSD(row.pnlOverride) : "-"}</td>
+                        <td className="num">{row.price !== null ? formatMoney(row.price, privacyMode, { digits: 2 }) : "-"}</td>
+                        <td className="num" style={{ color: "var(--text-faint)" }}>{formatMoney(row.fee, privacyMode)}</td>
+                        <td className="num" style={{ color: "var(--text-faint)" }}>{row.pnlOverride !== null ? formatMoney(row.pnlOverride, privacyMode) : "-"}</td>
                         <td style={{ maxWidth: 260 }}>
                           {row.error ? (
                             <span style={{ color: "var(--loss)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
