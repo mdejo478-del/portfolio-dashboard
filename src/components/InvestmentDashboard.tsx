@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, HeartPulse } from "lucide-react";
 import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAlertsAction } from "@/app/actions/portfolio";
 import { getPricesAction } from "@/app/actions/prices";
 import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
@@ -21,6 +21,7 @@ import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
 import { MorningBriefDrawer } from "@/components/dashboard/MorningBriefDrawer";
 import { TradeJournalSection } from "@/components/dashboard/TradeJournalSection";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
+import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { EquityCurveCard } from "@/components/dashboard/EquityCurveCard";
 import { PortfolioSummaryCard } from "@/components/dashboard/PortfolioSummaryCard";
 
@@ -935,7 +936,18 @@ export default function InvestmentDashboard({
             </div>
           </div>
 
-          <PortfolioHealthCard health={portfolioHealth} />
+          {positions.length === 0 ? (
+            <div style={{ marginBottom: 22 }}>
+              <EmptyState
+                compact
+                icon={<HeartPulse size={18} />}
+                title="אין עדיין ציון בריאות"
+                subtitle="ציון בריאות התיק יחושב אוטומטית ברגע שתוסיף פוזיציות"
+              />
+            </div>
+          ) : (
+            <PortfolioHealthCard health={portfolioHealth} />
+          )}
 
           <EquityCurveCard
             data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} privacyMode={privacyMode}
