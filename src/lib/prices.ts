@@ -231,18 +231,31 @@ function parseYahooChartResponse(data: YahooChartResponse): DailyCloses | null {
   return t.length > 0 ? { t, c } : null;
 }
 
+// Yahoo's unauthenticated chart API rate-limits by IP - since every server
+// user shares this app's outbound IP, and a single portfolio can trigger a
+// burst of one request per held symbol, a transient 429/network hiccup here
+// is common and shouldn't be treated as a permanent miss. Retries a couple
+// of times with backoff before giving up; a genuine 4xx (bad/unknown symbol)
+// returns immediately since retrying won't change that.
+async function fetchYahooChartWithRetry(url: string, attempts = 3): Promise<DailyCloses | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (res.ok) return parseYahooChartResponse(await res.json());
+      if (res.status !== 429 && res.status < 500) return null;
+    } catch {
+      // transient (network/timeout) - fall through and retry
+    }
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+  }
+  return null;
+}
+
 async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
   const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d`,
-      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
-    );
-    if (!res.ok) return null;
-    return parseYahooChartResponse(await res.json());
-  } catch {
-    return null;
-  }
+  return fetchYahooChartWithRetry(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d`
+  );
 }
 
 // Same source as fetchYahooCandle, but with an explicit date range (period1/period2)
@@ -250,16 +263,9 @@ async function fetchYahooCandle(symbol: string): Promise<DailyCloses | null> {
 // portfolio's earliest trade, even if that's older than the 2y window above.
 export async function fetchYahooDailyClosesInRange(symbol: string, fromSec: number, toSec: number): Promise<DailyCloses | null> {
   const yahooSymbol = YAHOO_SYMBOL_OVERRIDES[symbol] || symbol;
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${fromSec}&period2=${toSec}&interval=1d`,
-      { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
-    );
-    if (!res.ok) return null;
-    return parseYahooChartResponse(await res.json());
-  } catch {
-    return null;
-  }
+  return fetchYahooChartWithRetry(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${fromSec}&period2=${toSec}&interval=1d`
+  );
 }
 
 export async function getStockDetail(symbol: string): Promise<StockDetail> {

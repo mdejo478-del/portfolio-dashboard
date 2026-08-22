@@ -45,10 +45,18 @@ export async function rebuildEquityHistory(trades: Trade[], positions: Position[
   const fromSec = Math.floor(new Date(earliestDate + "T00:00:00Z").getTime() / 1000) - 86400;
   const toSec = Math.floor(Date.now() / 1000) + 86400;
 
+  // Fetched in small concurrent batches, not all at once - Yahoo's free chart
+  // API rate-limits by IP, and every symbol in the portfolio means one more
+  // simultaneous request against that shared limit. A large portfolio firing
+  // them all at once is the most common way to trip it.
   const priceSeries = new Map<string, DailyCloses | null>();
-  await Promise.all(symbols.map(async (sym) => {
-    priceSeries.set(sym, await fetchYahooDailyClosesInRange(sym, fromSec, toSec));
-  }));
+  const FETCH_BATCH_SIZE = 5;
+  for (let i = 0; i < symbols.length; i += FETCH_BATCH_SIZE) {
+    const batch = symbols.slice(i, i + FETCH_BATCH_SIZE);
+    await Promise.all(batch.map(async (sym) => {
+      priceSeries.set(sym, await fetchYahooDailyClosesInRange(sym, fromSec, toSec));
+    }));
+  }
   for (const sym of symbols) {
     if (!priceSeries.get(sym)) warnings.push("לא נמצאו נתוני מחיר היסטוריים עבור " + sym + " - הוא לא ייכלל בשחזור.");
   }
