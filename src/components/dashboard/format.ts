@@ -30,11 +30,12 @@ export function parseNum(v: unknown): number {
   let s = String(v).trim();
   if (s === "") return NaN;
   s = s.replace(/\s/g, "");
-  // Handle period used as a thousands separator (e.g. "10.000" meaning ten thousand,
-  // common in Hebrew/European number formatting) - only when the whole string is
-  // digit groups of exactly 3 separated by periods, so a real decimal like "150.5"
-  // or "12.75" is never misinterpreted.
-  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+  // European-style thousands separator ("1.234.567") - requires at least TWO
+  // grouped ".XXX" chunks to trigger. A single chunk (e.g. "85.865") is
+  // indistinguishable from an ordinary 3-decimal value and must be left
+  // alone - misreading it as European once corrupted a real value (85.865 ->
+  // 85865, a 1000x error). See the same fix in lib/tradeImport.ts.
+  if (/^\d{1,3}(\.\d{3}){2,}$/.test(s)) {
     s = s.replace(/\./g, "");
   }
   // Strip comma thousands separators (e.g. "10,000" -> "10000")
