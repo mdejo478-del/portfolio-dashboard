@@ -364,7 +364,7 @@ export function HoldingsSection({
       <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "auto", marginBottom: "var(--space-5)" }}>
         <table>
           <colgroup>
-            <col style={{ width: 100 }} /><col style={{ width: 68 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
+            <col style={{ width: 100 }} /><col style={{ width: 104 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
             <col style={{ width: 58 }} /><col style={{ width: 145 }} /><col style={{ width: 181 }} /><col style={{ width: 52 }} />
             <col style={{ width: 50 }} /><col style={{ width: 50 }} /><col style={{ width: 55 }} /><col style={{ width: 66 }} />
             <col style={{ width: 92 }} />
@@ -405,7 +405,7 @@ export function HoldingsSection({
                 <td className="num" style={{ color: "var(--text-dim)" }}>
                   {editingPosId === p.id ? (
                     <input type="text" inputMode="decimal" autoFocus value={posEditFields.qty} onChange={(e) => updatePosEditField("qty", e.target.value)}
-                      style={{ width: 56 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+                      style={{ width: 88 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
                   ) : (
                     p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
                   )}
