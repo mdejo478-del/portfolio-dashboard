@@ -73,6 +73,11 @@ export async function signup(
     const user = await createUser(name, email, password);
     await createPendingVerification(user);
     notifyNewUserRegistration(user);
+    // Not calling sendVerificationEmail here (still defined in lib/email.ts,
+    // deliberately unused for now): RESEND_FROM_EMAIL isn't configured yet
+    // (no domain), so the send would silently no-op and a new signup would
+    // have no way at all to see their code - VerifyForm below still shows
+    // it on-screen instead, until email is actually wired back in.
   } catch (err) {
     if (err instanceof Error && err.message === "EMAIL_TAKEN") {
       // Deliberately not "this email is already registered" - that lets
@@ -136,6 +141,18 @@ export async function login(
     } catch {
       return { error: "אירעה שגיאה. נסה שוב." };
     }
+    // This branch is reachable with a CORRECT password (an attacker who has
+    // it, or a real user just retrying), so unlike the wrong-password path
+    // above it never touches checkLoginLock. Kept independent of whether
+    // sendVerificationEmail is actually wired up below (it isn't right
+    // now - see the comment in signup() - VerifyForm shows the code
+    // on-screen instead): without a limit here, this would still be an
+    // easy way to force-refresh the pending-verification cookie
+    // repeatedly, and once email sending resumes, it'd be a way to
+    // email-bomb the account's inbox or burn through the Resend quota.
+    // Rate-limited by user id (not IP - the caller already needs the
+    // correct password to reach here at all).
+    checkRateLimit("verify-resend:" + user.id, 3, 15 * 60 * 1000);
     redirect("/verify?reason=login");
   }
 

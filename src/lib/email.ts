@@ -60,3 +60,22 @@ export function sendPasswordResetEmail(to: string, resetUrl: string): void {
   `);
   sendEmail(to, "איפוס סיסמה - IPMS", html).catch(() => { /* already logged inside sendEmail */ });
 }
+
+// Fire-and-forget, same reasoning as sendPasswordResetEmail - the caller
+// (signup / login's not-yet-verified branch) must never block or fail on a
+// slow/unreachable Resend API. Unlike the reset flow this doesn't need to
+// stay silent about account existence (the caller already knows the account
+// exists - it just created it, or the password matched), so there's no
+// enumeration concern here.
+export function sendVerificationEmail(to: string, code: string): void {
+  const html = emailShell(`
+    <h1 style="font-size: 20px; margin: 0 0 12px;">אימות חשבון</h1>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px;">
+      הקוד הבא מאמת את הבעלות שלך על כתובת האימייל הזו. הקוד תקף ל-30 דקות.
+    </p>
+    <div style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 0.3em; text-align: center; background: #f5f0e6; color: #1a1a1a; padding: 16px; border-radius: 8px;">
+      ${code}
+    </div>
+  `);
+  sendEmail(to, "קוד אימות - IPMS", html).catch(() => { /* already logged inside sendEmail */ });
+}
