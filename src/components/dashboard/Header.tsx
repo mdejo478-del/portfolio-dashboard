@@ -4,23 +4,27 @@ import { Undo2, Eye, EyeOff, LogOut, Info, Sun, Moon } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Alert, UndoSnapshot } from "@/components/dashboard/types";
 import { formatMoney } from "@/components/dashboard/format";
+import type { RangeWidthPreference } from "@/lib/portfolio";
 import { AlertsBell } from "@/components/dashboard/AlertsBell";
 import { useTheme } from "@/components/dashboard/useTheme";
 import { ChangePasswordModal } from "@/components/dashboard/ChangePasswordModal";
+import { PortfolioStyleModal } from "@/components/dashboard/PortfolioStyleModal";
 import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
 import { SettingsMenu } from "@/components/dashboard/SettingsMenu";
 
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
   visibleAlerts, unseenAlertCount, newAlertIds, alertsOpen, toggleAlerts, closeAlerts, dismissAlert,
-  undoSnapshot, undoLastAction,
+  undoSnapshot, undoLastAction, onRangeWidthPreferenceChange,
 }: {
   userName: string; total: number; cashFree: number; privacyMode: boolean; setPrivacyMode: (fn: (v: boolean) => boolean) => void;
   visibleAlerts: Alert[]; unseenAlertCount: number; newAlertIds: Set<string>;
   alertsOpen: boolean; toggleAlerts: () => void; closeAlerts: () => void; dismissAlert: (id: string) => void;
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
+  onRangeWidthPreferenceChange: (pref: RangeWidthPreference) => void;
 }) {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [portfolioStyleOpen, setPortfolioStyleOpen] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
@@ -149,6 +153,7 @@ export function Header({
           </button>
           <SettingsMenu
             onChangePassword={() => setChangePasswordOpen(true)}
+            onEditPortfolioStyle={() => setPortfolioStyleOpen(true)}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
           />
           <form action={logout}>
@@ -204,12 +209,19 @@ export function Header({
           <SettingsMenu
             compact
             onChangePassword={() => setChangePasswordOpen(true)}
+            onEditPortfolioStyle={() => setPortfolioStyleOpen(true)}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
           />
         </div>
       </div>
 
       {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {portfolioStyleOpen && (
+        <PortfolioStyleModal
+          onClose={() => setPortfolioStyleOpen(false)}
+          onSaved={onRangeWidthPreferenceChange}
+        />
+      )}
       {deleteAccountOpen && <DeleteAccountModal onClose={() => setDeleteAccountOpen(false)} />}
     </div>
   );

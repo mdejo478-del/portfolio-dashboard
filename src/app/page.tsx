@@ -22,6 +22,7 @@ export default async function Home() {
       initialAlertAcks={portfolio.alertAcks}
       initialHealthScoreAck={portfolio.healthScoreAck}
       initialCashIdleSince={portfolio.cashIdleSince ?? null}
+      initialRangeWidthPreference={portfolio.rangeWidthPreference ?? "medium"}
     />
   );
 }

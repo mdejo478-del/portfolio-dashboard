@@ -1,7 +1,7 @@
 "use server";
 
 import { verifySession, requireSession } from "@/lib/dal";
-import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, isValidAckPayload, updateAlertAcks, type EquityPoint } from "@/lib/portfolio";
+import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, isValidAckPayload, updateAlertAcks, saveRangeWidthPreference, type EquityPoint, type RangeWidthPreference } from "@/lib/portfolio";
 import { rebuildEquityHistory } from "@/lib/equityHistory";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
 import { maybeRunBackup, runBackupNow } from "@/lib/backup";
@@ -33,6 +33,16 @@ export async function ackAlertsAction(payload: unknown): Promise<void> {
     throw new Error("נתוני אישור התראה אינם תקינים.");
   }
   await updateAlertAcks(session.userId, payload.acks, payload.healthScoreAck);
+}
+
+const VALID_RANGE_WIDTH_PREFS = new Set(["narrow", "medium", "wide"]);
+
+export async function saveRangeWidthPreferenceAction(pref: unknown): Promise<void> {
+  const session = await requireSession();
+  if (typeof pref !== "string" || !VALID_RANGE_WIDTH_PREFS.has(pref)) {
+    throw new Error("פרופיל טווחים לא תקין.");
+  }
+  await saveRangeWidthPreference(session.userId, pref as RangeWidthPreference);
 }
 
 export async function backupNowAction(): Promise<{ createdAt: number }> {

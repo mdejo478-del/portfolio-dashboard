@@ -1,6 +1,10 @@
 import { useMemo, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
 import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, Lock } from "lucide-react";
-import type { Position } from "@/lib/portfolio";
+import type { Position, RangeWidthPreference } from "@/lib/portfolio";
+// From portfolioTypes.ts, not portfolio.ts - this is a client component, and
+// portfolio.ts does Node-only file I/O that must never reach the browser
+// bundle (see the warning comment at the top of portfolioTypes.ts).
+import { equalWeightTarget, suggestedPositionRange } from "@/lib/portfolioTypes";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { MorningBriefResult } from "@/app/actions/morningBrief";
 import type { BigMover } from "@/components/dashboard/morningBriefUtils";
@@ -25,6 +29,7 @@ interface HoldingsSectionProps {
   pushUndoSnapshot: (label: string) => void;
   total: number;
   privacyMode: boolean;
+  rangeWidthPreference: RangeWidthPreference;
   extendedPrices: Record<string, ExtendedQuote | null>;
   openDetail: (symbol: string) => void;
   pricesConfigured: boolean | null;
@@ -44,7 +49,7 @@ interface HoldingsSectionProps {
 }
 
 export function HoldingsSection({
-  evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, extendedPrices, openDetail,
+  evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, rangeWidthPreference, extendedPrices, openDetail,
   pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
   morningBrief, bigMovers, morningBriefLoading, morningBriefError, onOpenMorningBrief,
 }: HoldingsSectionProps) {
@@ -59,10 +64,36 @@ export function HoldingsSection({
 
   function openAddPositionForm() {
     setShowAddPosition(true);
+    // Pre-fill min/max/dilute with the actual suggested numbers as real,
+    // visible, editable field values - not just a placeholder hint. A
+    // placeholder disappears the moment the field is focused/typed into and
+    // is never submitted if left blank; a user who doesn't understand what
+    // to enter (the exact case this feature exists for) could easily leave
+    // it looking "empty" and end up submitting an unintended 0%/blank range.
+    // Pre-filling means what's visibly in the field is exactly what gets
+    // saved if untouched, and it's still fully editable like any other field.
+    setPosForm((f) => ({
+      ...f,
+      min: fmtNum(suggestedNewPositionRange.min * 100, 1),
+      max: fmtNum(suggestedNewPositionRange.max * 100, 1),
+      dilute: fmtNum(suggestedNewPositionRange.dilute * 100, 1),
+    }));
     requestAnimationFrame(() => addPositionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
+
+  // Suggested min/max/dilute for the *next* position added, so a new holding
+  // starts near an equal-weight target among the existing (non-CASH)
+  // positions instead of a flat assumed-~10%-portfolio default - width
+  // around that target comes from the user's saved range-width preference
+  // (onboarding questionnaire / settings), not from any judgment about the
+  // specific symbol being added.
+  const suggestedNewPositionRange = useMemo(() => {
+    const nonCashCount = positions.filter((p) => p.symbol !== "CASH").length;
+    const target = equalWeightTarget(nonCashCount);
+    return suggestedPositionRange(target, rangeWidthPreference);
+  }, [positions, rangeWidthPreference]);
 
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
@@ -129,16 +160,17 @@ export function HoldingsSection({
     if (Number.isNaN(price) || price <= 0) { setPosFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
     if (positions.some((p) => p.symbol === symbol)) { setPosFormError("נכס בסימול " + symbol + " כבר קיים בתיק. ערוך את הכמות שלו ישירות בטבלה במקום."); return; }
     // Allocation targets are optional at add-time - a blank field falls back
-    // to a moderate single-position default (5% / 15% / 20%) rather than the
-    // old 0%/100%/150% "no real constraint" placeholder, so a quick-added
-    // position still gets a sane starting range instead of an effectively
-    // unmanaged one.
+    // to the equal-weight-among-existing-positions suggestion (shaped by the
+    // user's saved range-width preference - see suggestedNewPositionRange
+    // above) rather than a flat assumed-~10%-portfolio default, so a
+    // quick-added position still gets a sane starting range instead of an
+    // effectively unmanaged one.
     const minNum = parseNum(posForm.min);
     const maxNum = parseNum(posForm.max);
     const diluteNum = parseNum(posForm.dilute);
-    const min = !Number.isNaN(minNum) ? minNum / 100 : 0.05;
-    const max = !Number.isNaN(maxNum) ? maxNum / 100 : 0.15;
-    const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : 0.20;
+    const min = !Number.isNaN(minNum) ? minNum / 100 : suggestedNewPositionRange.min;
+    const max = !Number.isNaN(maxNum) ? maxNum / 100 : suggestedNewPositionRange.max;
+    const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : suggestedNewPositionRange.dilute;
     const priceTargetNum = parseNum(posForm.priceTarget);
     const priceTarget = !Number.isNaN(priceTargetNum) ? priceTargetNum : null;
     pushUndoSnapshot("הוספת נכס לתיק");
@@ -531,19 +563,19 @@ export function HoldingsSection({
               <Field label="יעד מינימום %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.min} onChange={(e) => updatePosForm("min", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="5" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder={fmtNum(suggestedNewPositionRange.min * 100, 1)} />%
                 </span>
               </Field>
               <Field label="יעד מקסימום %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.max} onChange={(e) => updatePosForm("max", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="15" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder={fmtNum(suggestedNewPositionRange.max * 100, 1)} />%
                 </span>
               </Field>
               <Field label="רף דילול %">
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input type="text" inputMode="decimal" value={posForm.dilute} onChange={(e) => updatePosForm("dilute", e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="20" />%
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder={fmtNum(suggestedNewPositionRange.dilute * 100, 1)} />%
                 </span>
               </Field>
               <div style={{ display: "flex", alignItems: "flex-end" }}>
@@ -556,7 +588,7 @@ export function HoldingsSection({
               </div>
             )}
             <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-faint)" }}>
-              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל ברירת מחדל (מינ&apos; 5%, מקס&apos; 15%, דילול 20%) שניתן לעדכן בהמשך. מחיר היעד עוזר לך לקבל התראה כשהמניה חוצה מחיר מסוים - לא קשור לאחוזי ההקצאה.
+              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל את הערך המוצג כברירת מחדל (מוצע לפי חלוקה שווה בין הפוזיציות הקיימות, ברוחב לפי סגנון ההשקעה שנבחר בהגדרות), שניתן לעדכן בהמשך. מחיר היעד עוזר לך לקבל התראה כשהמניה חוצה מחיר מסוים - לא קשור לאחוזי ההקצאה.
             </div>
           </div>
         ) : (

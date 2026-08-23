@@ -6,7 +6,7 @@ import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAl
 import { getPricesAction } from "@/app/actions/prices";
 import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
 import type { ExtendedQuote } from "@/lib/prices";
-import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck } from "@/lib/portfolio";
+import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck, RangeWidthPreference } from "@/lib/portfolio";
 import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
 
@@ -46,6 +46,7 @@ interface InvestmentDashboardProps {
   initialAlertAcks: Record<string, AlertAck>;
   initialHealthScoreAck?: HealthScoreAck;
   initialCashIdleSince: string | null;
+  initialRangeWidthPreference: RangeWidthPreference;
 }
 
 export default function InvestmentDashboard({
@@ -59,7 +60,9 @@ export default function InvestmentDashboard({
   initialAlertAcks,
   initialHealthScoreAck,
   initialCashIdleSince,
+  initialRangeWidthPreference,
 }: InvestmentDashboardProps) {
+  const [rangeWidthPreference, setRangeWidthPreference] = useState<RangeWidthPreference>(initialRangeWidthPreference);
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
   useEffect(() => {
     // Reads the saved preference once on mount - deliberately post-mount,
@@ -905,6 +908,7 @@ export default function InvestmentDashboard({
           visibleAlerts={alerts} unseenAlertCount={unseenAlertCount} newAlertIds={newAlertIds}
           alertsOpen={alertsOpen} toggleAlerts={toggleAlerts} closeAlerts={() => setAlertsOpen(false)} dismissAlert={dismissAlert}
           undoSnapshot={undoSnapshot} undoLastAction={undoLastAction}
+          onRangeWidthPreferenceChange={setRangeWidthPreference}
         />
 
         <div className="idash-content" style={{ padding: "20px 20px 0" }}>
@@ -958,6 +962,7 @@ export default function InvestmentDashboard({
           <HoldingsSection
             evaluated={evaluated} positions={positions} setPositions={setPositions} nextPosIdRef={nextPosId}
             pushUndoSnapshot={pushUndoSnapshot} total={total} privacyMode={privacyMode} extendedPrices={extendedPrices}
+            rangeWidthPreference={rangeWidthPreference}
             openDetail={openDetail} pricesConfigured={pricesConfigured} lastPriceUpdate={lastPriceUpdate}
             pricesLoading={pricesLoading} priceError={priceError} refreshPrices={refreshPrices} saveStatus={saveStatus}
             backupRunning={backupRunning} backupDoneAt={backupDoneAt} onBackupNow={handleBackupNow}

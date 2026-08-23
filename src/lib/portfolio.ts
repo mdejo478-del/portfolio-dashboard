@@ -6,9 +6,10 @@ import { withFileLock } from "@/lib/fileLock";
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
-import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData } from "@/lib/portfolioTypes";
+import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference } from "@/lib/portfolioTypes";
 export { cashEffect };
-export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData } from "@/lib/portfolioTypes";
+export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData, RangeWidthPreference, RiskTolerance, ConcentrationPreference } from "@/lib/portfolioTypes";
+export { suggestedPositionRange, equalWeightTarget, deriveRangeWidthPreference } from "@/lib/portfolioTypes";
 
 const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
 const MAX_EQUITY_POINTS = 3_650; // ~10 years of daily snapshots
@@ -243,6 +244,17 @@ export async function updateAlertAcks(
     }
     const healthScoreAck: HealthScoreAck | undefined = healthBreakdown ? { ...healthBreakdown, seenAt } : existing.healthScoreAck;
     await writeStoredPortfolio(userId, { ...existing, alertAcks: merged, healthScoreAck });
+  });
+}
+
+/** Sets the user's saved range-width preference (from the onboarding
+ * questionnaire, or re-answered later in settings) - independent of the
+ * regular savePortfolio flow since it isn't part of client-submitted
+ * PortfolioData, same as alertAcks/cashIdleSince. */
+export async function saveRangeWidthPreference(userId: string, pref: RangeWidthPreference): Promise<void> {
+  await withFileLock(portfolioPath(userId), async () => {
+    const existing = await getPortfolio(userId);
+    await writeStoredPortfolio(userId, { ...existing, rangeWidthPreference: pref });
   });
 }
 

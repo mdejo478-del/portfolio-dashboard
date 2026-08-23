@@ -56,6 +56,56 @@ export interface PortfolioData {
   nextTradeId: number;
 }
 
+// How far apart a new position's min/max/dilute default to, relative to its
+// equal-weight target - set once via the onboarding questionnaire (or later
+// in settings), not per-position. "medium" reproduces the app's original
+// flat 5%/15%/20% default exactly when the target is ~10% (0.5x/1.5x/2.0x),
+// so a user who never answers the questionnaire sees unchanged behavior.
+export type RangeWidthPreference = "narrow" | "medium" | "wide";
+
+const RANGE_WIDTH_MULTIPLIERS: Record<RangeWidthPreference, { min: number; max: number; dilute: number }> = {
+  narrow: { min: 0.7, max: 1.3, dilute: 1.6 },
+  medium: { min: 0.5, max: 1.5, dilute: 2.0 },
+  wide: { min: 0.3, max: 1.8, dilute: 2.5 },
+};
+
+/** Suggested min/max/dilute (as weight fractions) for a new position aiming
+ * for `targetWeight`, shaped by the user's range-width preference. Multiplied
+ * off the target rather than offset by fixed percentage points, so the
+ * suggestion stays proportionally sensible whether the target is 5% or 40%. */
+export function suggestedPositionRange(targetWeight: number, pref: RangeWidthPreference): { min: number; max: number; dilute: number } {
+  const m = RANGE_WIDTH_MULTIPLIERS[pref];
+  const min = Math.max(0.005, Math.min(1, targetWeight * m.min));
+  const max = Math.max(min, Math.min(1, targetWeight * m.max));
+  const dilute = Math.max(max, Math.min(1, targetWeight * m.dilute));
+  return { min, max, dilute };
+}
+
+/** Target weight for a new (non-CASH) position so that, together with the
+ * existing ones, every position would sit at an equal share. */
+export function equalWeightTarget(existingNonCashPositionCount: number): number {
+  return 1 / (existingNonCashPositionCount + 1);
+}
+
+export type RiskTolerance = "low" | "medium" | "high";
+export type ConcentrationPreference = "diversified" | "focused";
+
+// Risk sets a base width tier (low->narrow, medium->medium, high->wide);
+// concentration preference nudges it one tier wider (focused) or narrower
+// (diversified), clamped at the ends. Deliberately not a straight lookup
+// table - this keeps both answers meaningfully affecting the result (a
+// "focused" investor who says "low risk" still ends up one tier wider than
+// a "diversified" one who says the same) without needing a 3x2 table nobody
+// can eyeball for consistency.
+const WIDTH_TIERS: RangeWidthPreference[] = ["narrow", "medium", "wide"];
+const RISK_BASE_TIER: Record<RiskTolerance, number> = { low: 0, medium: 1, high: 2 };
+
+export function deriveRangeWidthPreference(risk: RiskTolerance, concentration: ConcentrationPreference): RangeWidthPreference {
+  let tier = RISK_BASE_TIER[risk] + (concentration === "focused" ? 1 : -1);
+  tier = Math.max(0, Math.min(WIDTH_TIERS.length - 1, tier));
+  return WIDTH_TIERS[tier];
+}
+
 export interface EquityPoint {
   date: string; // YYYY-MM-DD
   value: number;
@@ -122,6 +172,10 @@ export interface StoredPortfolioData extends PortfolioData {
   // still correctly tracks how long cash has been sitting idle.
   cashIdleSince?: string | null;
   morningBrief?: MorningBriefData;
+  // Set once via the onboarding questionnaire (or later in settings) -
+  // absent for users who skipped it or predate the feature, in which case
+  // callers should treat it as "medium" (see suggestedPositionRange above).
+  rangeWidthPreference?: RangeWidthPreference;
 }
 
 /** Net cash impact of a single trade (deposits/withdrawals move cash directly;
