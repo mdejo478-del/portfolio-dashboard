@@ -3,6 +3,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus,
   Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity, ArrowLeftRight,
 } from "lucide-react";
+import { CheckboxCell } from "@/components/dashboard/ui/CheckboxCell";
 import { cashEffect } from "@/lib/portfolioTypes";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
 import type { TradeFormState } from "@/components/dashboard/types";
@@ -46,6 +47,8 @@ export function TradeJournalSection({
   const [form, setForm] = useState<TradeFormState>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [tradeFormError, setTradeFormError] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<boolean>(false);
 
   const [importResult, setImportResult] = useState<ParseResult | null>(null);
   const [importFileName, setImportFileName] = useState<string>("");
@@ -256,6 +259,47 @@ export function TradeJournalSection({
     setDeleteConfirmId(null);
   }
 
+  function toggleSelectTrade(id: number) {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  // "Select all" toggles everything currently visible under the active
+  // filters, not the whole trade log - matches what the checkbox next to it
+  // visually represents. Trades selected before a filter change stay
+  // selected even while hidden, same as most table UIs (e.g. Gmail).
+  const allVisibleSelected = sortedTrades.length > 0 && sortedTrades.every((t) => selectedIds.has(t.id));
+  const someVisibleSelected = sortedTrades.some((t) => selectedIds.has(t.id));
+  function toggleSelectAllVisible() {
+    setSelectedIds((s) => {
+      if (allVisibleSelected) {
+        const next = new Set(s);
+        for (const t of sortedTrades) next.delete(t.id);
+        return next;
+      }
+      return new Set([...s, ...sortedTrades.map((t) => t.id)]);
+    });
+  }
+
+  function deleteSelectedTrades() {
+    const toDelete = trades.filter((t) => selectedIds.has(t.id));
+    if (toDelete.length === 0) { setBulkDeleteConfirm(false); return; }
+    const deletingAll = toDelete.length === trades.length;
+    pushUndoSnapshot(deletingAll ? "מחיקת כל העסקאות" : "מחיקת " + toDelete.length + " עסקאות");
+    const cashDelta = toDelete.reduce((sum, t) => sum - cashEffect(t), 0);
+    applyCashDelta(cashDelta);
+    setTrades((ts) => ts.filter((t) => !selectedIds.has(t.id)));
+    // Ledger (running avg-cost per symbol) is built incrementally as trades
+    // are added and isn't recomputed on a single-trade delete either - see
+    // deleteTrade above. Only safe to reset outright when nothing's left to
+    // be stale against.
+    if (deletingAll) setLedger({});
+    setSelectedIds(new Set());
+    setBulkDeleteConfirm(false);
+  }
+
   function exportCSV() {
     const headers = ["תאריך", "נכס", "סוג פעולה", "כמות", "מחיר", "שווי כולל", "עמלה", "רווח/הפסד", "תשואה%", "אסטרטגיה", "הערות"];
     const rows = sortedTrades.map((t) => [
@@ -415,7 +459,30 @@ export function TradeJournalSection({
         <Field label="עד תאריך"><input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></Field>
         <Button variant="ghost" onClick={() => { setFSymbol("הכל"); setFAction("הכל"); setFFrom(""); setFTo(""); }}>נקה סינון</Button>
       </div>
-      <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>מציג {sortedTrades.length} מתוך {trades.length} עסקאות</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>מציג {sortedTrades.length} מתוך {trades.length} עסקאות</div>
+        {selectedIds.size > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-dim)" }}>{selectedIds.size} נבחרו</span>
+            {bulkDeleteConfirm ? (
+              <>
+                <span style={{ fontSize: 12, color: "var(--loss)" }}>למחוק לצמיתות?</span>
+                <Button variant="danger" onClick={deleteSelectedTrades} style={{ padding: "5px 10px", fontSize: 12, gap: "var(--space-1)" }}>
+                  <Check size={13} /> אישור
+                </Button>
+                <Button variant="ghost" onClick={() => setBulkDeleteConfirm(false)} style={{ padding: "5px 10px", fontSize: 12 }}>ביטול</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="danger" onClick={() => setBulkDeleteConfirm(true)} style={{ padding: "5px 10px", fontSize: 12, gap: "var(--space-1)" }}>
+                  <Trash2 size={13} /> מחק נבחרים
+                </Button>
+                <Button variant="ghost" onClick={() => setSelectedIds(new Set())} style={{ padding: "5px 10px", fontSize: 12 }}>נקה בחירה</Button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {sortedTrades.length === 0 ? (
         trades.length === 0 ? (
@@ -444,6 +511,9 @@ export function TradeJournalSection({
         <table>
           <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 1 }}>
             <tr>
+              <th className="center" style={{ width: 34 }}>
+                <CheckboxCell checked={allVisibleSelected} indeterminate={someVisibleSelected && !allVisibleSelected} onChange={toggleSelectAllVisible} ariaLabel="בחר הכל" />
+              </th>
               <th className="num">תאריך</th><th>נכס</th><th className="center">פעולה</th><th className="num">כמות</th>
               <th className="num">מחיר</th><th className="num">שווי כולל</th><th className="num">עמלה</th>
               <th className="num">רווח/הפסד</th><th className="num">תשואה%</th><th>אסטרטגיה</th><th>הערות</th><th className="center">פעולות</th>
@@ -451,7 +521,14 @@ export function TradeJournalSection({
           </thead>
           <tbody>
             {sortedTrades.map((t) => (
-              <tr key={t.id} style={deleteConfirmId === t.id ? { background: "var(--loss-subtle)" } : undefined}>
+              <tr key={t.id} style={
+                deleteConfirmId === t.id ? { background: "var(--loss-subtle)" }
+                  : selectedIds.has(t.id) ? { background: "var(--accent-subtle)" }
+                  : undefined
+              }>
+                <td className="center">
+                  <CheckboxCell checked={selectedIds.has(t.id)} onChange={() => toggleSelectTrade(t.id)} ariaLabel={"בחר עסקה " + t.symbol + " " + t.date} />
+                </td>
                 <td className="num" style={{ color: "var(--text-dim)" }}>{t.date}</td>
                 <td style={{ fontWeight: 700 }}>{t.symbol}</td>
                 <td className="center"><ActionBadge action={t.action} /></td>
