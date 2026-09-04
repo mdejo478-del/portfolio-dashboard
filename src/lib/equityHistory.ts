@@ -32,6 +32,16 @@ export interface RebuildResult {
  * - A symbol whose historical prices can't be fetched is excluded from the
  *   value for the dates it's missing (reported back via `warnings`), which
  *   understates the true historical value for that period.
+ * - A stock split (or reverse split) that happened *after* a symbol was
+ *   traded makes Yahoo's historical close for that old date reflect today's
+ *   share structure, not the trade log's actual (unadjusted) quantity from
+ *   back then - multiplying the two produces a wildly wrong value for that
+ *   stretch (seen in practice: a real ~$5/share trade valued using a
+ *   ~$500/share adjusted close, a ~100x spike). Detected by comparing each
+ *   historical close against that symbol's own nearest real trade price and
+ *   excluding it (like a missing price, with its own warning) past a 15x
+ *   mismatch - not a fix for the split itself, just prevents plotting the
+ *   spike.
  */
 export async function rebuildEquityHistory(trades: Trade[], positions: Position[]): Promise<RebuildResult> {
   if (trades.length === 0) return { history: [], warnings: [] };
@@ -98,6 +108,34 @@ export async function rebuildEquityHistory(trades: Trade[], positions: Position[
   }
   const dates = Array.from(dateSet).filter((d) => d >= earliestDate && d <= todayDate).sort();
 
+  // Yahoo's historical closes are split-adjusted retroactively - if a symbol
+  // underwent a split (or reverse split) *after* it was actually traded, the
+  // close on an old date reflects today's share structure, not what the
+  // trade log's (unadjusted) quantity from that date actually represents.
+  // Multiplying the two together can inflate/deflate the reconstructed value
+  // by the split ratio (seen in practice: a 410-share, ~$5 trade valued
+  // decades later at ~$500/share, overstating that stretch by ~$200k). Each
+  // symbol's own trade prices are a real, ground-truth anchor to catch this
+  // against - if a historical close is wildly off from the nearest actual
+  // trade price for that symbol, treat it as unreliable rather than plot a
+  // spike, same as a missing price.
+  const tradePricesBySymbol = new Map<string, { date: string; price: number }[]>();
+  for (const t of sorted) {
+    if (t.symbol === "CASH" || (t.action !== "קנייה" && t.action !== "מכירה") || t.price <= 0) continue;
+    const arr = tradePricesBySymbol.get(t.symbol) ?? [];
+    arr.push({ date: t.date, price: t.price });
+    tradePricesBySymbol.set(t.symbol, arr);
+  }
+  const SPLIT_MISMATCH_RATIO = 15; // a real single-day move essentially never reaches 15x
+  function nearestTradePrice(symbol: string, date: string): number | null {
+    const arr = tradePricesBySymbol.get(symbol);
+    if (!arr || arr.length === 0) return null;
+    let atOrBefore: number | null = null;
+    for (const p of arr) { if (p.date <= date) atOrBefore = p.price; else break; }
+    return atOrBefore ?? arr[0].price;
+  }
+  const splitWarned = new Set<string>();
+
   let tradeCursor = 0;
   const history: EquityPoint[] = [];
   for (const date of dates) {
@@ -111,7 +149,17 @@ export async function rebuildEquityHistory(trades: Trade[], positions: Position[
       if (qty <= 0) continue;
       const series = priceSeries.get(sym);
       const price = series ? closestCloseBefore(series, dateTs) : null;
-      if (price !== null) value += qty * price;
+      if (price === null) continue;
+      const refPrice = nearestTradePrice(sym, date);
+      const ratio = refPrice && refPrice > 0 ? price / refPrice : 1;
+      if (ratio > SPLIT_MISMATCH_RATIO || ratio < 1 / SPLIT_MISMATCH_RATIO) {
+        if (!splitWarned.has(sym)) {
+          splitWarned.add(sym);
+          warnings.push(sym + ": מחיר היסטורי לא תואם למחירי העסקאות בפועל (כנראה פיצול מניה) - הוחרג מתקופה זו בשחזור.");
+        }
+        continue;
+      }
+      value += qty * price;
     }
     history.push({ date, value: Math.round(value * 100) / 100 });
   }
