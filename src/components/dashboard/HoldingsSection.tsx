@@ -4,14 +4,15 @@ import type { Position, RangeWidthPreference } from "@/lib/portfolio";
 // From portfolioTypes.ts, not portfolio.ts - this is a client component, and
 // portfolio.ts does Node-only file I/O that must never reach the browser
 // bundle (see the warning comment at the top of portfolioTypes.ts).
-import { equalWeightTarget, suggestedPositionRange } from "@/lib/portfolioTypes";
+import { equalWeightTarget, suggestedPositionRange, totalPositionReturn } from "@/lib/portfolioTypes";
+import { PositionReturnValue } from "@/components/dashboard/PositionReturnValue";
 import type { ExtendedQuote } from "@/lib/prices";
 import type { MorningBriefResult } from "@/app/actions/morningBrief";
 import type { BigMover } from "@/components/dashboard/morningBriefUtils";
 import type { EvaluatedPosition, PosEditFields, PositionFormState } from "@/components/dashboard/types";
 import { EMPTY_POSITION_FORM } from "@/components/dashboard/constants";
 import { TONE_STYLES } from "@/components/dashboard/constants";
-import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum } from "@/components/dashboard/format";
+import { colorFor, tradingViewUrl, fmtNum, fmtPct, formatMoney, parseNum, PRIVACY_MASK } from "@/components/dashboard/format";
 import { Badge } from "@/components/dashboard/ui/Badge";
 import { Button } from "@/components/dashboard/ui/Button";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
@@ -55,7 +56,7 @@ export function HoldingsSection({
 }: HoldingsSectionProps) {
   const isMobile = useIsMobile();
   const [editingPosId, setEditingPosId] = useState<number | null>(null);
-  const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "", priceTarget: "" });
+  const [posEditFields, setPosEditFields] = useState<PosEditFields>({ qty: "", min: "", max: "", dilute: "", priceTarget: "", avgCost: "" });
   const [deletePosConfirmId, setDeletePosConfirmId] = useState<number | null>(null);
   const [showAddPosition, setShowAddPosition] = useState<boolean>(false);
   const [posForm, setPosForm] = useState<PositionFormState>(EMPTY_POSITION_FORM);
@@ -89,6 +90,11 @@ export function HoldingsSection({
   // around that target comes from the user's saved range-width preference
   // (onboarding questionnaire / settings), not from any judgment about the
   // specific symbol being added.
+  // Roll-up over only the positions that have an average cost entered, so
+  // the footer can say how much of the portfolio the figure covers instead of
+  // implying it's the whole portfolio's return.
+  const totalReturn = useMemo(() => totalPositionReturn(positions), [positions]);
+
   const suggestedNewPositionRange = useMemo(() => {
     const nonCashCount = positions.filter((p) => p.symbol !== "CASH").length;
     const target = equalWeightTarget(nonCashCount);
@@ -115,9 +121,10 @@ export function HoldingsSection({
       max: String(Math.round(p.max * 1000) / 10),
       dilute: String(Math.round(p.dilute * 1000) / 10),
       priceTarget: p.priceTarget != null ? String(p.priceTarget) : "",
+      avgCost: p.avgCost != null ? String(p.avgCost) : "",
     });
   }
-  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "", priceTarget: "" }); }
+  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "", priceTarget: "", avgCost: "" }); }
   function updatePosEditField(field: keyof PosEditFields, val: string) { setPosEditFields((f) => ({ ...f, [field]: val })); }
   function savePosQty(p: Position) {
     const qtyNum = parseNum(posEditFields.qty);
@@ -133,11 +140,17 @@ export function HoldingsSection({
     // Blank field = no price target (clears it); a valid number sets it;
     // anything else unparseable keeps whatever was already saved.
     const priceTarget = posEditFields.priceTarget.trim() === "" ? null : (!Number.isNaN(priceTargetNum) ? priceTargetNum : (p.priceTarget ?? null));
+    // Same blank/valid/unparseable rules as the price target above, except a
+    // non-positive average cost is also treated as unusable (a return can't
+    // be computed from it) and keeps the previous value rather than saving
+    // something that would silently show no return.
+    const avgCostNum = parseNum(posEditFields.avgCost);
+    const avgCost = posEditFields.avgCost.trim() === "" ? null : (!Number.isNaN(avgCostNum) && avgCostNum > 0 ? avgCostNum : (p.avgCost ?? null));
     setPositions((ps) => ps.map((row) => {
       if (row.id !== p.id) return row;
       const updated = { ...row, min, max, dilute, priceTarget };
       if (row.symbol === "CASH") return { ...updated, value: qtyNum };
-      return { ...updated, qty: qtyNum, value: qtyNum * (row.price ?? 0) };
+      return { ...updated, avgCost, qty: qtyNum, value: qtyNum * (row.price ?? 0) };
     }));
     cancelPosEdit();
   }
@@ -173,11 +186,20 @@ export function HoldingsSection({
     const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : suggestedNewPositionRange.dilute;
     const priceTargetNum = parseNum(posForm.priceTarget);
     const priceTarget = !Number.isNaN(priceTargetNum) ? priceTargetNum : null;
+    // Optional. Unlike price/qty above, a bad value here is a validation
+    // error rather than silently dropped - the user typed it on purpose, and
+    // a quietly-ignored average cost would just look like the feature broke.
+    const avgCostNum = parseNum(posForm.avgCost);
+    if (posForm.avgCost.trim() !== "" && (Number.isNaN(avgCostNum) || avgCostNum <= 0)) {
+      setPosFormError("מחיר ממוצע חייב להיות מספר גדול מ-0 (או להשאיר ריק).");
+      return;
+    }
+    const avgCost = posForm.avgCost.trim() === "" ? null : avgCostNum;
     pushUndoSnapshot("הוספת נכס לתיק");
     const value = qty * price;
     setPositions((ps) => [...ps, {
       id: nextPosIdRef.current++, symbol, qty, price, value, weight: 0,
-      dev: 0, min, max, dilute, hodl: false, priceTarget,
+      dev: 0, min, max, dilute, hodl: false, priceTarget, avgCost,
     }]);
     setPosForm(EMPTY_POSITION_FORM);
     setPosFormError("");
@@ -248,6 +270,21 @@ export function HoldingsSection({
               : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
             <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
           </CardStat>
+          {p.symbol !== "CASH" && (
+            <>
+              <CardStat label="מחיר ממוצע">
+                {isEditing ? (
+                  <input type="text" inputMode="decimal" value={posEditFields.avgCost} onChange={(e) => updatePosEditField("avgCost", e.target.value)}
+                    placeholder="לא הוזן" onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+                ) : p.avgCost != null && p.avgCost > 0
+                  ? formatMoney(p.avgCost, privacyMode, { digits: 2 })
+                  : <span style={{ color: "var(--text-faint)" }}>—</span>}
+              </CardStat>
+              <CardStat label="תשואה">
+                <PositionReturnValue position={p} privacyMode={privacyMode} />
+              </CardStat>
+            </>
+          )}
           <CardStat label="סטייה">
             <span style={{ color: p.dev < 0 ? "var(--loss)" : p.dev > 0 ? "var(--gain)" : "var(--text-faint)" }}>{p.dev === 0 ? "0.00%" : fmtPct(p.dev)}</span>
           </CardStat>
@@ -294,7 +331,7 @@ export function HoldingsSection({
               <Button variant="icon" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={15} /></Button>
             </>
           ) : (
-            <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={15} /></Button>
+            <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות, מחיר ממוצע ויעדים" title="ערוך כמות, מחיר ממוצע ויעדי הקצאה"><Pencil size={15} /></Button>
           )}
           {p.symbol === "CASH" ? (
             <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
@@ -396,14 +433,17 @@ export function HoldingsSection({
       <div className="idash-scroll-table holdings-table" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "auto", marginBottom: "var(--space-5)" }}>
         <table>
           <colgroup>
-            <col style={{ width: 100 }} /><col style={{ width: 104 }} /><col style={{ width: 88 }} /><col style={{ width: 78 }} />
-            <col style={{ width: 58 }} /><col style={{ width: 145 }} /><col style={{ width: 181 }} /><col style={{ width: 52 }} />
-            <col style={{ width: 50 }} /><col style={{ width: 50 }} /><col style={{ width: 55 }} /><col style={{ width: 66 }} />
-            <col style={{ width: 92 }} />
+            <col style={{ width: 100 }} /><col style={{ width: 104 }} /><col style={{ width: 104 }} /><col style={{ width: 88 }} />
+            <col style={{ width: 78 }} /><col style={{ width: 92 }} /><col style={{ width: 58 }} /><col style={{ width: 145 }} />
+            <col style={{ width: 181 }} /><col style={{ width: 52 }} /><col style={{ width: 50 }} /><col style={{ width: 50 }} />
+            <col style={{ width: 55 }} /><col style={{ width: 66 }} /><col style={{ width: 92 }} />
           </colgroup>
           <thead style={{ background: "var(--panel)" }}>
             <tr>
-              <th>נכס</th><th className="num">כמות</th><th className="num">מחיר</th><th className="num">שווי</th>
+              <th>נכס</th><th className="num">כמות</th>
+              <th className="num" title="מחיר קנייה ממוצע ליחידה - מוזן ידנית דרך העיפרון">מחיר ממוצע</th>
+              <th className="num">מחיר</th><th className="num">שווי</th>
+              <th className="num" title="תשואה לא ממומשת לפי המחיר הממוצע שהוזן">תשואה</th>
               <th className="num">משקל</th><th className="center">סטטוס</th><th className="center">פעולה מומלצת</th>
               <th className="num tight">סטייה</th><th className="num tight" title="יעד מינימום">מינ&apos;</th>
               <th className="num tight" title="יעד מקסימום">מקס&apos;</th><th className="num tight" title="רף דילול">דילול</th>
@@ -442,12 +482,21 @@ export function HoldingsSection({
                     p.qty !== null && p.qty !== undefined ? fmtNum(p.qty, p.qty % 1 !== 0 ? 2 : 0) : (p.symbol === "CASH" ? "—" : "-")
                   )}
                 </td>
+                <td className="num" style={{ color: "var(--text-dim)" }}>
+                  {p.symbol === "CASH" ? "—" : editingPosId === p.id ? (
+                    <input type="text" inputMode="decimal" value={posEditFields.avgCost} onChange={(e) => updatePosEditField("avgCost", e.target.value)}
+                      placeholder="לא הוזן" style={{ width: 80 }} onKeyDown={(e) => { if (e.key === "Enter") savePosQty(p); if (e.key === "Escape") cancelPosEdit(); }} />
+                  ) : p.avgCost != null && p.avgCost > 0
+                    ? formatMoney(p.avgCost, privacyMode, { digits: 2 })
+                    : <span style={{ color: "var(--text-faint)" }} title="הזן מחיר ממוצע (בעיפרון) כדי לראות תשואה">—</span>}
+                </td>
                 <td className="num" style={{ color: "var(--text-dim)" }} title={extendedPrices[p.symbol] ? (extendedPrices[p.symbol]?.session === "pre" ? "טרום-פתיחה" : "אחרי סגירה") + ": " + formatMoney(extendedPrices[p.symbol]!.price, privacyMode, { digits: 2 }) : undefined}>
                   {p.price !== null && p.price !== undefined
                     ? formatMoney(p.price, privacyMode, { digits: 2 })
                     : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
                 </td>
                 <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 700 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
+                <td className="num"><PositionReturnValue position={p} privacyMode={privacyMode} /></td>
                 <td className="num">{fmtPct(p.weight)}</td>
                 <td className="center"><Badge tone={p.tone} size="md">{p.status}</Badge></td>
                 <td className="center">
@@ -489,7 +538,7 @@ export function HoldingsSection({
                         <Button variant="icon" onClick={cancelPosEdit} aria-label="ביטול" title="ביטול"><X size={13} /></Button>
                       </>
                     ) : (
-                      <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות ויעדים" title="ערוך כמות ויעדי הקצאה"><Pencil size={13} /></Button>
+                      <Button variant="icon" onClick={() => startEditPosQty(p)} aria-label="ערוך כמות, מחיר ממוצע ויעדים" title="ערוך כמות, מחיר ממוצע ויעדי הקצאה"><Pencil size={13} /></Button>
                     )}
                     {p.symbol === "CASH" ? (
                       <span style={{ color: "var(--text-faint)", display: "inline-flex", alignItems: "center", padding: "0 4px" }} title="שורת המזומן מסונכרנת עם יומן המסחר ולא ניתנת להסרה"><Lock size={13} /></span>
@@ -506,7 +555,7 @@ export function HoldingsSection({
               </tr>
             ))}
             {evaluated.length === 0 && (
-              <tr><td colSpan={13} style={{ padding: 0, border: "none" }}>
+              <tr><td colSpan={15} style={{ padding: 0, border: "none" }}>
                 <EmptyState
                   icon={<Inbox size={24} />}
                   title="עדיין אין פוזיציות בתיק"
@@ -519,8 +568,24 @@ export function HoldingsSection({
           </tbody>
           <tfoot>
             <tr style={{ background: "var(--panel-2)" }}>
-              <td colSpan={3} style={{ fontWeight: 700, fontSize: 16, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>סך הכל התיק</td>
+              <td colSpan={4} style={{ fontWeight: 700, fontSize: 16, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>סך הכל התיק</td>
               <td className="num" style={{ fontWeight: 700, fontSize: 17, color: "var(--gain)", borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 12px" }}>{formatMoney(total, privacyMode)}</td>
+              <td
+                className="num"
+                title={totalReturn ? "תשואה מצטברת על " + totalReturn.covered + " מתוך " + totalReturn.eligible + " פוזיציות שהוזן להן מחיר ממוצע (סך רווח/הפסד ÷ סך עלות)" : undefined}
+                style={{ borderBottom: "none", borderTop: "1px solid var(--border)", padding: "10px 8px", verticalAlign: "middle" }}
+              >
+                {totalReturn && (
+                  <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "inherit", lineHeight: 1.25, color: totalReturn.pct > 0 ? "var(--gain)" : totalReturn.pct < 0 ? "var(--loss)" : "var(--text-faint)" }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{totalReturn.pct > 0 ? "+" : ""}{fmtPct(totalReturn.pct)}</span>
+                    <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>
+                      {totalReturn.covered < totalReturn.eligible
+                        ? totalReturn.covered + "/" + totalReturn.eligible + " פוזיציות"
+                        : privacyMode ? PRIVACY_MASK : (totalReturn.pnl > 0 ? "+" : "") + formatMoney(totalReturn.pnl, false)}
+                    </span>
+                  </span>
+                )}
+              </td>
               <td className="num" style={{ fontWeight: 700, fontSize: 13.5, borderBottom: "none", borderTop: "1px solid var(--border)", padding: "14px 4px" }}>100.0%</td>
               <td colSpan={8} style={{ borderBottom: "none", borderTop: "1px solid var(--border)" }} />
             </tr>
@@ -531,7 +596,7 @@ export function HoldingsSection({
       )}
 
       <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: "var(--space-5)" }}>
-        לחיצה על העיפרון {isMobile ? "" : "בכל שורה "}מאפשרת לערוך כמות ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
+        לחיצה על העיפרון {isMobile ? "" : "בכל שורה "}מאפשרת לערוך כמות, מחיר ממוצע (לחישוב תשואה) ויעדי הקצאה (מינימום/מקסימום/רף דילול) לכל נכס.
       </div>
 
       <div style={{ marginBottom: "var(--space-5)" }}>
@@ -555,6 +620,10 @@ export function HoldingsSection({
               <Field label="מחיר ליחידה $">
                 <input type="text" inputMode="decimal" value={posForm.price} onChange={(e) => updatePosForm("price", e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="0.00" />
+              </Field>
+              <Field label="מחיר ממוצע $ (אופציונלי)">
+                <input type="text" inputMode="decimal" value={posForm.avgCost} onChange={(e) => updatePosForm("avgCost", e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitNewPosition(); }} placeholder="לדוגמה: 150.25" />
               </Field>
               <Field label="מחיר יעד $ (אופציונלי)">
                 <input type="text" inputMode="decimal" value={posForm.priceTarget} onChange={(e) => updatePosForm("priceTarget", e.target.value)}
@@ -588,7 +657,7 @@ export function HoldingsSection({
               </div>
             )}
             <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-faint)" }}>
-              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל את הערך המוצג כברירת מחדל (מוצע לפי חלוקה שווה בין הפוזיציות הקיימות, ברוחב לפי סגנון ההשקעה שנבחר בהגדרות), שניתן לעדכן בהמשך. מחיר היעד עוזר לך לקבל התראה כשהמניה חוצה מחיר מסוים - לא קשור לאחוזי ההקצאה.
+              שווי יחושב אוטומטית (כמות × מחיר) והמשקלים בתיק יתעדכנו בהתאם. שדות יעדי ההקצאה הם אופציונליים - שדה שנשאר ריק יקבל את הערך המוצג כברירת מחדל (מוצע לפי חלוקה שווה בין הפוזיציות הקיימות, ברוחב לפי סגנון ההשקעה שנבחר בהגדרות), שניתן לעדכן בהמשך. מחיר היעד עוזר לך לקבל התראה כשהמניה חוצה מחיר מסוים - לא קשור לאחוזי ההקצאה. מחיר ממוצע (אופציונלי) הוא מחיר הקנייה הממוצע שלך ליחידה - לפיו מחושבת התשואה על הפוזיציה בטבלה.
             </div>
           </div>
         ) : (

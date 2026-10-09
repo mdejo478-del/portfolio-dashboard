@@ -38,6 +38,7 @@ export interface PositionFormState {
   max: string;
   dilute: string;
   priceTarget: string;
+  avgCost: string;
 }
 export interface PosEditFields {
   qty: string;
@@ -45,6 +46,7 @@ export interface PosEditFields {
   max: string;
   dilute: string;
   priceTarget: string;
+  avgCost: string;
 }
 export interface UndoSnapshot {
   label: string;

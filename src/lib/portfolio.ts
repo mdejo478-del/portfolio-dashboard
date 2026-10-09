@@ -57,7 +57,8 @@ function isValidPosition(p: unknown): p is Position {
     isFiniteNumber(o.max) &&
     isFiniteNumber(o.dilute) &&
     (o.hodl === undefined || typeof o.hodl === "boolean") &&
-    (o.priceTarget === undefined || isFiniteNumberOrNull(o.priceTarget))
+    (o.priceTarget === undefined || isFiniteNumberOrNull(o.priceTarget)) &&
+    (o.avgCost === undefined || isFiniteNumberOrNull(o.avgCost))
   );
 }
 

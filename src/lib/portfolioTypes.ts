@@ -20,9 +20,55 @@ export interface RawPosition {
   // different times, since weight also depends on the rest of the
   // portfolio's value, not just this position's own price.
   priceTarget?: number | null;
+  // Optional manually-entered average purchase price per unit ($). Drives the
+  // per-position return shown in the holdings table (see positionReturn
+  // below). Deliberately NOT derived from the trade-journal ledger: the
+  // ledger is built incrementally from the trade log and can drift from
+  // reality, so a return computed from it could silently mislead. Absent /
+  // null / non-positive = "not set", and the position simply shows no
+  // return - every other behavior is unchanged.
+  avgCost?: number | null;
 }
 export interface Position extends RawPosition {
   id: number;
+}
+
+export interface PositionReturn {
+  /** (price - avgCost) / avgCost, as a fraction (0.12 = +12%). */
+  pct: number;
+  /** (price - avgCost) * qty in dollars; null when the quantity is unknown. */
+  pnl: number | null;
+}
+
+/** Unrealized return on a position from its manually-entered average cost.
+ * Returns null whenever it can't be computed honestly - no/invalid average
+ * cost, no live price, or the CASH row - so callers show "not set" instead
+ * of a made-up number. */
+export function positionReturn(p: { symbol: string; price: number | null; qty: number | null; avgCost?: number | null }): PositionReturn | null {
+  if (p.symbol === "CASH") return null;
+  const avg = p.avgCost;
+  if (typeof avg !== "number" || !Number.isFinite(avg) || avg <= 0) return null;
+  if (typeof p.price !== "number" || !Number.isFinite(p.price) || p.price <= 0) return null;
+  const pnl = typeof p.qty === "number" && Number.isFinite(p.qty) ? (p.price - avg) * p.qty : null;
+  return { pct: (p.price - avg) / avg, pnl };
+}
+
+/** Portfolio-level roll-up over only the positions that have an average cost
+ * set - an unweighted average of percentages would be wrong, so this is total
+ * P&L over total cost basis. `covered`/`eligible` let the UI say how much of
+ * the portfolio the figure actually represents. */
+export function totalPositionReturn(positions: Array<{ symbol: string; price: number | null; qty: number | null; avgCost?: number | null }>): { pct: number; pnl: number; covered: number; eligible: number } | null {
+  let pnl = 0, cost = 0, covered = 0, eligible = 0;
+  for (const p of positions) {
+    if (p.symbol === "CASH") continue;
+    eligible++;
+    const r = positionReturn(p);
+    if (!r || r.pnl === null || typeof p.qty !== "number" || p.qty <= 0) continue;
+    pnl += r.pnl;
+    cost += (p.avgCost as number) * p.qty;
+    covered++;
+  }
+  return covered > 0 && cost > 0 ? { pct: pnl / cost, pnl, covered, eligible } : null;
 }
 
 export interface RawTrade {
