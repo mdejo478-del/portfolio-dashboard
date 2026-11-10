@@ -1,19 +1,23 @@
 "use server";
 
 import { verifySession, requireSession } from "@/lib/dal";
-import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, isValidAckPayload, updateAlertAcks, saveRangeWidthPreference, type EquityPoint, type RangeWidthPreference } from "@/lib/portfolio";
+import { getPortfolio, savePortfolio, saveEquityHistory, isValidPortfolioData, isValidAckPayload, updateAlertAcks, saveRangeWidthPreference, type EquityPoint, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolio";
 import { rebuildEquityHistory } from "@/lib/equityHistory";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rateLimit";
 import { maybeRunBackup, runBackupNow } from "@/lib/backup";
 
-export async function savePortfolioAction(data: unknown): Promise<void> {
+export async function savePortfolioAction(data: unknown, baseRevision: unknown): Promise<SavePortfolioResult> {
   // requireSession (not verifySession) because this is called from autosave's
   // own try/catch, not a form submission - see the comment on requireSession.
   const session = await requireSession();
   if (!isValidPortfolioData(data)) {
     throw new Error("נתוני התיק שהתקבלו אינם תקינים.");
   }
-  await savePortfolio(session.userId, data);
+  if (typeof baseRevision !== "number" || !Number.isInteger(baseRevision) || baseRevision < 0) {
+    throw new Error("נתוני גרסת התיק אינם תקינים. רענן את הדף.");
+  }
+  const result = await savePortfolio(session.userId, data, baseRevision);
+  if (!result.ok) return result; // nothing was written - no backup check needed
   try {
     // Best-effort: a backup hiccup should never turn a successful save into a
     // client-visible failure. Cheap no-op unless a backup is actually due.
@@ -21,6 +25,7 @@ export async function savePortfolioAction(data: unknown): Promise<void> {
   } catch (err) {
     console.error("[backup] post-save check failed:", err);
   }
+  return result;
 }
 
 // Fire-and-forget from the client (bell opened or an alert dismissed) - not

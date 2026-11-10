@@ -6,9 +6,9 @@ import { withFileLock } from "@/lib/fileLock";
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
-import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference } from "@/lib/portfolioTypes";
+import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolioTypes";
 export { cashEffect };
-export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData, RangeWidthPreference, RiskTolerance, ConcentrationPreference } from "@/lib/portfolioTypes";
+export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData, RangeWidthPreference, RiskTolerance, ConcentrationPreference, SavePortfolioResult } from "@/lib/portfolioTypes";
 export { suggestedPositionRange, equalWeightTarget, deriveRangeWidthPreference } from "@/lib/portfolioTypes";
 
 const PORTFOLIOS_DIR = path.join(process.cwd(), "data", "portfolios");
@@ -166,15 +166,29 @@ function computeCashIdleSince(positions: PortfolioData["positions"], total: numb
   return overThreshold ? (previous ?? today) : null;
 }
 
-export async function savePortfolio(userId: string, data: PortfolioData): Promise<void> {
+/** The revision a stored portfolio is currently at (0 for files written
+ * before revisions existed). */
+export function currentRevision(p: Pick<StoredPortfolioData, "revision">): number {
+  return typeof p.revision === "number" && Number.isInteger(p.revision) && p.revision >= 0 ? p.revision : 0;
+}
+
+export async function savePortfolio(userId: string, data: PortfolioData, baseRevision: number): Promise<SavePortfolioResult> {
   // Locked per-user so two near-simultaneous saves (autosave firing from two
   // open tabs, say) can't both read the same "existing" snapshot and then
   // have the second write silently clobber fields the first one set.
-  await withFileLock(portfolioPath(userId), async () => {
+  return withFileLock(portfolioPath(userId), async () => {
+    const existing = await getPortfolio(userId);
+    // The lock alone serializes writes but can't stop a *stale* writer: a tab
+    // (or second device) still holding yesterday's state would otherwise
+    // overwrite today's edits on its next autosave. Refuse any save that
+    // wasn't based on the revision currently on disk.
+    const onDisk = currentRevision(existing);
+    if (baseRevision !== onDisk) {
+      return { ok: false, reason: "conflict", currentRevision: onDisk } as const;
+    }
     // Roll in today's equity snapshot server-side (server clock, not the
     // client's) - update today's point in place if it already exists so
     // repeated saves within the same day refine it, otherwise append a new one.
-    const existing = await getPortfolio(userId);
     const total = data.positions.reduce((sum, p) => sum + p.value, 0);
     const today = new Date().toISOString().slice(0, 10);
     const history = rollInEquityPoint(existing.equityHistory, today, total);
@@ -187,7 +201,9 @@ export async function savePortfolio(userId: string, data: PortfolioData): Promis
     // submits (alertAcks, healthScoreAck, cashIdleSince) survive a save
     // instead of being silently dropped - `data` only overrides
     // positions/trades/ledger/nextPositionId/nextTradeId.
-    await writeStoredPortfolio(userId, { ...existing, ...data, equityHistory: history, cashIdleSince });
+    const revision = onDisk + 1;
+    await writeStoredPortfolio(userId, { ...existing, ...data, equityHistory: history, cashIdleSince, revision });
+    return { ok: true, revision } as const;
   });
 }
 

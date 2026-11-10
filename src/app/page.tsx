@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import InvestmentDashboard from "@/components/InvestmentDashboard";
 import { verifySession } from "@/lib/dal";
-import { getPortfolio } from "@/lib/portfolio";
+import { getPortfolio, currentRevision } from "@/lib/portfolio";
 
 export default async function Home() {
   const session = await verifySession();
@@ -23,6 +23,7 @@ export default async function Home() {
       initialHealthScoreAck={portfolio.healthScoreAck}
       initialCashIdleSince={portfolio.cashIdleSince ?? null}
       initialRangeWidthPreference={portfolio.rangeWidthPreference ?? "medium"}
+      initialRevision={currentRevision(portfolio)}
     />
   );
 }

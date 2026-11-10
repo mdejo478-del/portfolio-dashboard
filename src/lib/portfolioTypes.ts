@@ -222,7 +222,24 @@ export interface StoredPortfolioData extends PortfolioData {
   // absent for users who skipped it or predate the feature, in which case
   // callers should treat it as "medium" (see suggestedPositionRange above).
   rangeWidthPreference?: RangeWidthPreference;
+  // Optimistic-concurrency counter for the client-submitted part of the
+  // portfolio (positions/trades/ledger/ids). Bumped by every successful
+  // savePortfolio; a save must name the revision it was based on, and is
+  // refused if the file has moved on since - so a stale tab or a second
+  // device can never silently overwrite newer edits made elsewhere.
+  // Server-maintained fields (alert acks, daily snapshot, equity history,
+  // range preference) deliberately do NOT bump it: they never touch the
+  // data a client submits, so they must not make an open tab look stale.
+  // Absent in files written before this existed = revision 0.
+  revision?: number;
 }
+
+/** Outcome of a client save attempt - returned rather than thrown so the
+ * client can reliably tell a concurrency conflict apart from a real error
+ * (thrown server-action error messages aren't a dependable channel). */
+export type SavePortfolioResult =
+  | { ok: true; revision: number }
+  | { ok: false; reason: "conflict"; currentRevision: number };
 
 /** Net cash impact of a single trade (deposits/withdrawals move cash directly;
  * buys/sells move it by the trade value plus fee). Shared between the client

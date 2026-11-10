@@ -35,6 +35,30 @@ function toUserMessage(err: unknown, fallback: string): string {
   return /[֐-׿]/.test(raw) ? raw : fallback;
 }
 
+// Fingerprint of only what the *user* edits - leaves out each position's live
+// price, the value derived from it (qty x price), and the derived weight/dev.
+// Autosave compares against the last successfully saved fingerprint and skips
+// the round-trip when nothing user-made has changed. Without this, every price
+// refresh would trigger a save from every open tab, and with revision checks
+// (see savePortfolio) two idle tabs would keep tripping each other's conflict
+// guard. Positions with no quantity (CASH, manually-valued rows) keep their
+// value in the fingerprint - there it IS the user's own number.
+function userDataFingerprint(data: PortfolioData): string {
+  return JSON.stringify({
+    // Strips the price-derived fields rather than listing the kept ones, so a
+    // user field added to Position later is covered automatically (a missed
+    // field here would mean that edit silently never saves).
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    positions: data.positions.map(({ price, value, weight, dev, ...rest }) => (rest.qty == null ? { ...rest, value } : rest)),
+    trades: data.trades,
+    ledger: data.ledger,
+    nextPositionId: data.nextPositionId,
+    nextTradeId: data.nextTradeId,
+  });
+}
+
+const SAVE_CONFLICT_MESSAGE = "התיק עודכן בינתיים מחלון או ממכשיר אחר, ולכן השינוי האחרון בחלון הזה לא נשמר (כדי לא לדרוס את הגרסה החדשה). טען מחדש כדי לראות את הגרסה העדכנית.";
+
 interface InvestmentDashboardProps {
   userName: string;
   initialPositions: Position[];
@@ -47,6 +71,7 @@ interface InvestmentDashboardProps {
   initialHealthScoreAck?: HealthScoreAck;
   initialCashIdleSince: string | null;
   initialRangeWidthPreference: RangeWidthPreference;
+  initialRevision: number;
 }
 
 export default function InvestmentDashboard({
@@ -61,6 +86,7 @@ export default function InvestmentDashboard({
   initialHealthScoreAck,
   initialCashIdleSince,
   initialRangeWidthPreference,
+  initialRevision,
 }: InvestmentDashboardProps) {
   const [rangeWidthPreference, setRangeWidthPreference] = useState<RangeWidthPreference>(initialRangeWidthPreference);
   const [privacyMode, setPrivacyMode] = useState<boolean>(false);
@@ -136,8 +162,21 @@ export default function InvestmentDashboard({
   const saveInFlight = useRef<boolean>(false);
   const savePending = useRef<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error">("idle");
+  // Revision of the on-disk portfolio this tab's state is based on (see
+  // savePortfolio). Advanced only by this tab's own successful saves.
+  const revisionRef = useRef<number>(initialRevision);
+  // What was last confirmed saved - initially exactly what the page loaded.
+  const lastSavedFingerprint = useRef<string>(userDataFingerprint({
+    positions: initialPositions, trades: initialTrades, ledger: initialLedger,
+    nextPositionId: initialNextPositionId, nextTradeId: initialNextTradeId,
+  }));
+  // Once a save is refused as stale, this tab must not keep trying: every
+  // retry would be refused the same way. It stays blocked until reloaded.
+  const saveConflictRef = useRef<boolean>(false);
+  const [saveConflict, setSaveConflict] = useState<boolean>(false);
 
   const runSave = useCallback(async () => {
+    if (saveConflictRef.current) return;
     if (saveInFlight.current) { savePending.current = true; return; }
     saveInFlight.current = true;
     try {
@@ -150,9 +189,25 @@ export default function InvestmentDashboard({
           nextPositionId: nextPosId.current,
           nextTradeId: nextId.current,
         };
+        const fingerprint = userDataFingerprint(data);
+        // Only live prices moved (or nothing at all) - nothing of the user's
+        // to persist, so don't spend a save (or a revision) on it.
+        if (fingerprint === lastSavedFingerprint.current) {
+          if (!savePending.current) break;
+          continue;
+        }
         setSaveStatus("saving");
         try {
-          await savePortfolioAction(data);
+          const result = await savePortfolioAction(data, revisionRef.current);
+          if (!result.ok) {
+            saveConflictRef.current = true;
+            setSaveConflict(true);
+            setSaveStatus("error");
+            setGlobalError(SAVE_CONFLICT_MESSAGE);
+            return;
+          }
+          revisionRef.current = result.revision;
+          lastSavedFingerprint.current = fingerprint;
           setSaveStatus("idle");
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -194,6 +249,9 @@ export default function InvestmentDashboard({
   // change silently never reaches disk, with no chance to notice or retry.
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
+      // After a conflict, reloading is exactly what the user should do - the
+      // blocked change can't be saved from this tab anyway, so don't nag.
+      if (saveConflictRef.current) return;
       if (saveInFlight.current || savePending.current || saveStatus === "error") {
         e.preventDefault();
         e.returnValue = "";
@@ -896,10 +954,16 @@ export default function InvestmentDashboard({
             <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
               <AlertCircle size={15} style={{ flexShrink: 0 }} /> {globalError}
             </span>
-            <button
+            {saveConflict && (
+              <button
+                type="button" onClick={() => window.location.reload()}
+                style={{ background: "var(--loss)", border: "1px solid var(--loss)", color: "var(--bg)", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0, fontWeight: 600 }}
+              >טען מחדש</button>
+            )}
+            {!saveConflict && <button
               type="button" onClick={() => setGlobalError("")}
               style={{ background: "transparent", border: "1px solid var(--loss-subtle-border)", color: "var(--loss)", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
-            >סגור</button>
+            >סגור</button>}
           </div>
         )}
 
