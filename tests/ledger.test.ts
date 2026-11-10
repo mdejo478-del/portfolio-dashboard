@@ -1,11 +1,13 @@
-// Trade-journal ledger (audit findings H1-H3). Cases 1-7 mirror the seven ways
-// the old incremental ledger went wrong; each is stated as what the user did and
-// what the ledger must say afterwards.
+// Trade-journal ledger. The H1/H2/H3 tests cover the audit findings about the old
+// incremental ledger (edit, delete, backdated trade, old-file import, sell without
+// buy, sell above holding, duplicate import), each stated as what the user did and
+// what the ledger must say afterwards. The "report part 3" tests at the end are the
+// plain arithmetic cases from the audit report (cases 1, 2 and 6).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildLedger, ledgerBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, type ImportRowInput } from "../src/lib/ledger";
 import { splitDuplicates, tradeFingerprint } from "../src/lib/tradeDuplicates";
-import type { Trade } from "../src/lib/portfolioTypes";
+import { cashEffect, type Trade } from "../src/lib/portfolioTypes";
 
 const BUY = "קנייה";
 const SELL = "מכירה";
@@ -17,20 +19,20 @@ const near = (a: number | undefined, b: number) => assert.ok(a !== undefined && 
 
 // ---- H1 -------------------------------------------------------------------
 
-test("case 1: editing a buy replaces it (10 edited to 12 = 12, not 22)", () => {
+test("H1 edit: editing a buy replaces it (10 edited to 12 = 12, not 22)", () => {
   const before = [T(1, "2026-01-05", "NVDA", BUY, 10, 100)];
   const edited = before.map((t) => (t.id === 1 ? { ...t, qty: 12, value: 1200 } : t));
   assert.deepEqual(buildLedger(edited).ledger, { NVDA: { qty: 12, avgCost: 100 } });
 });
 
-test("case 2: deleting a trade is reflected in the ledger", () => {
+test("H1 delete: deleting a trade is reflected in the ledger", () => {
   const trades = [T(1, "2026-01-05", "NVDA", BUY, 10, 100), T(2, "2026-01-06", "NVDA", BUY, 10, 200)];
   assert.deepEqual(buildLedger(trades).ledger, { NVDA: { qty: 20, avgCost: 150 } });
   assert.deepEqual(buildLedger(trades.filter((t) => t.id !== 2)).ledger, { NVDA: { qty: 10, avgCost: 100 } });
   assert.deepEqual(buildLedger([]).ledger, {}, "deleting everything leaves an empty ledger");
 });
 
-test("case 3: a trade dated in the past is applied at its date, not at the end", () => {
+test("H1 backdated: a trade dated in the past is applied at its date, not at the end", () => {
   // Entered in this order (ids), but dated out of order.
   const trades = [
     T(1, "2026-03-01", "NVDA", BUY, 10, 100),
@@ -47,7 +49,7 @@ test("case 3: a trade dated in the past is applied at its date, not at the end",
   assert.deepEqual(buildLedger([...trades].reverse()).ledger, r.ledger);
 });
 
-test("case 4: importing an old file slots its trades in by date", () => {
+test("H1 old file: importing an old file slots its trades in by date", () => {
   const existing = [T(1, "2026-03-01", "NVDA", BUY, 10, 100)]; // pnl null, must stay untouched
   const plan = planImport(existing, [row("2026-02-15", "NVDA", SELL, 5, 80), row("2026-02-01", "NVDA", BUY, 10, 50)], 2);
   assert.deepEqual(plan.newTrades.map((t) => [t.id, t.date, t.action]), [[2, "2026-02-01", BUY], [3, "2026-02-15", SELL]], "chronological, consecutive ids");
@@ -60,7 +62,7 @@ test("case 4: importing an old file slots its trades in by date", () => {
 
 // ---- H2 -------------------------------------------------------------------
 
-test("case 5: a sell with no buy history gets no profit (null, not 0) and no ledger entry", () => {
+test("H2 sell without buy: a sell with no buy history gets no profit (null, not 0) and no ledger entry", () => {
   const trades = [T(1, "2026-01-05", "AAPL", SELL, 5, 100)];
   const r = buildLedger(trades);
   assert.deepEqual(r.ledger, {}, "no entry, no negative quantity");
@@ -78,7 +80,7 @@ test("case 5: a sell with no buy history gets no profit (null, not 0) and no led
   assert.equal(withOverride.unresolvedSells.length, 0);
 });
 
-test("case 6: selling more than held never drives the quantity negative", () => {
+test("H2 oversell: selling more than held never drives the quantity negative", () => {
   const trades = [T(1, "2026-01-05", "NVDA", BUY, 10, 100), T(2, "2026-01-06", "NVDA", SELL, 15, 120)];
   const r = buildLedger(trades);
   assert.deepEqual(r.ledger, {}, "position emptied, not -5");
@@ -92,7 +94,7 @@ test("case 6: selling more than held never drives the quantity negative", () => 
 
 // ---- H3 -------------------------------------------------------------------
 
-test("case 7: importing the same file twice adds nothing the second time", () => {
+test("H3 duplicates: importing the same file twice adds nothing the second time", () => {
   const file = [row("2026-02-01", "NVDA", BUY, 10, 50), row("2026-02-15", "NVDA", SELL, 5, 80)];
   const first = splitDuplicates([], file);
   assert.equal(first.fresh.length, 2);
@@ -102,7 +104,7 @@ test("case 7: importing the same file twice adds nothing the second time", () =>
   assert.equal(second.duplicates.length, 2, "both rows reported as already present");
 });
 
-test("case 7b: identical separate fills are kept (matching is by count, not by set)", () => {
+test("H3 duplicates: identical separate fills are kept (matching is by count, not by set)", () => {
   const fill = row("2026-02-01", "NVDA", BUY, 10, 50);
   assert.equal(splitDuplicates([], [fill, fill]).fresh.length, 2, "empty journal: both fills import");
   assert.deepEqual(
@@ -143,4 +145,33 @@ test("CASH rows, deposits and other actions never enter the ledger", () => {
   const r = buildLedger([T(1, "2026-01-01", "CASH", "הפקדה", 1, 1000), T(2, "2026-01-02", "CASH", BUY, 1, 5), T(3, "2026-01-03", "NVDA", "אחר", 5, 10)]);
   assert.deepEqual(r.ledger, {});
   assert.equal(r.issues.length, 0);
+});
+
+// ---- Audit report, part 3: cases 1, 2 and 6 -------------------------------------
+// The report file was not available when these were written, so the quantities and
+// prices are chosen to give exactly the results stated for each case (average 150,
+// profit 750, cash -1002.50). Plain arithmetic: these hold for the old incremental
+// logic too, and guard it against regressing.
+
+test("report part 3, case 1: two buys give an average cost of 150", () => {
+  const trades = [T(1, "2026-01-05", "NVDA", BUY, 10, 100), T(2, "2026-01-06", "NVDA", BUY, 10, 200)];
+  assert.deepEqual(buildLedger(trades).ledger, { NVDA: { qty: 20, avgCost: 150 } });
+});
+
+test("report part 3, case 2: selling 5 @ 300 against an average of 150 realizes 750", () => {
+  const buys = [T(1, "2026-01-05", "NVDA", BUY, 10, 100), T(2, "2026-01-06", "NVDA", BUY, 10, 200)];
+  const r = buildLedger([...buys, T(3, "2026-01-07", "NVDA", SELL, 5, 300)]);
+  assert.equal(suggestSellPnl(r.sellContext.get(3), 300, 5).pnl, 750);
+  assert.deepEqual(r.ledger, { NVDA: { qty: 15, avgCost: 150 } }, "average cost is unchanged by a sell");
+  // The same sale through an import measures against the same average.
+  const plan = planImport(buys, [row("2026-01-07", "NVDA", SELL, 5, 300)], 3);
+  assert.equal(plan.newTrades[0].pnl, 750);
+  assert.equal(plan.newTrades[0].retPct, 1, "750 profit on a 750 cost basis");
+});
+
+test("report part 3, case 6: a buy with a -2.5 fee moves cash by -1002.50", () => {
+  const buy: Trade = { ...T(1, "2026-01-05", "NVDA", BUY, 10, 100), fee: -2.5 };
+  assert.equal(cashEffect(buy), -1002.5);
+  const plan = planImport([], [{ ...row("2026-01-05", "NVDA", BUY, 10, 100), fee: -2.5 }], 1);
+  assert.equal(plan.cashDelta, -1002.5, "an imported buy applies the same cash effect");
 });
