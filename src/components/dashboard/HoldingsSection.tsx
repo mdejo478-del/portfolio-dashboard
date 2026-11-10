@@ -63,6 +63,25 @@ export function HoldingsSection({
   const [posFormError, setPosFormError] = useState<string>("");
   const addPositionRef = useRef<HTMLDivElement>(null);
 
+  // Suggested min/max/dilute for the *next* position added, so a new holding
+  // starts near an equal-weight target among the existing (non-CASH)
+  // positions instead of a flat assumed-~10%-portfolio default - width
+  // around that target comes from the user's saved range-width preference
+  // (onboarding questionnaire / settings), not from any judgment about the
+  // specific symbol being added. Declared above openAddPositionForm, which
+  // reads it: the React Compiler can't preserve a memo that a function
+  // captures before the memo's own declaration.
+  const suggestedNewPositionRange = useMemo(() => {
+    const nonCashCount = positions.filter((p) => p.symbol !== "CASH").length;
+    const target = equalWeightTarget(nonCashCount);
+    return suggestedPositionRange(target, rangeWidthPreference);
+  }, [positions, rangeWidthPreference]);
+
+  // Roll-up over only the positions that have an average cost entered, so
+  // the footer can say how much of the portfolio the figure covers instead of
+  // implying it's the whole portfolio's return.
+  const totalReturn = useMemo(() => totalPositionReturn(positions), [positions]);
+
   function openAddPositionForm() {
     setShowAddPosition(true);
     // Pre-fill min/max/dilute with the actual suggested numbers as real,
@@ -83,23 +102,6 @@ export function HoldingsSection({
   }
 
   const needsAction = evaluated.filter((p) => p.status !== "✅ תקין" && !p.hodl);
-
-  // Suggested min/max/dilute for the *next* position added, so a new holding
-  // starts near an equal-weight target among the existing (non-CASH)
-  // positions instead of a flat assumed-~10%-portfolio default - width
-  // around that target comes from the user's saved range-width preference
-  // (onboarding questionnaire / settings), not from any judgment about the
-  // specific symbol being added.
-  // Roll-up over only the positions that have an average cost entered, so
-  // the footer can say how much of the portfolio the figure covers instead of
-  // implying it's the whole portfolio's return.
-  const totalReturn = useMemo(() => totalPositionReturn(positions), [positions]);
-
-  const suggestedNewPositionRange = useMemo(() => {
-    const nonCashCount = positions.filter((p) => p.symbol !== "CASH").length;
-    const target = equalWeightTarget(nonCashCount);
-    return suggestedPositionRange(target, rangeWidthPreference);
-  }, [positions, rangeWidthPreference]);
 
   // Holdings sort largest position first; CASH always anchors the bottom regardless of size.
   // colorFor keeps using each row's original index so dot colors stay identical to the pie/ticker.
