@@ -7,14 +7,16 @@ import { fmtPct, formatMoney } from "@/components/dashboard/format";
 import type { EquityPoint } from "@/lib/portfolio";
 
 export function EquityCurveCard({
-  data, total, ath, returnPct, privacyMode, onRebuild, rebuilding, rebuildWarnings, canRebuild,
+  data, total, ath, returnPct, drawdownPct, privacyMode, onRebuild, rebuilding, rebuildWarnings, canRebuild,
 }: {
-  data: EquityPoint[]; total: number; ath: number; returnPct: number | null; privacyMode: boolean;
+  data: EquityPoint[]; total: number; ath: number; returnPct: number | null;
+  /** Flow-neutral drawdown from the best performance (see lib/returns.ts). */
+  drawdownPct: number; privacyMode: boolean;
   onRebuild: () => void; rebuilding: boolean; rebuildWarnings: string[]; canRebuild: boolean;
 }) {
   const tone: Tone = returnPct === null ? "blue" : returnPct >= 0 ? "green" : "red";
   const s = TONE_STYLES[tone];
-  const drawdown = ath > 0 ? (total - ath) / ath : 0;
+  const drawdown = drawdownPct;
 
   // Recharts' Area only draws a curve/fill once there are 2+ points, and a
   // single point can also get swallowed by its default entrance animation -
@@ -36,8 +38,8 @@ export function EquityCurveCard({
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "var(--mono)", fontSize: 19, fontWeight: 700, color: "var(--text)" }}>{formatMoney(total, privacyMode)}</span>
           {returnPct !== null && (
-            <span style={{ fontFamily: "var(--mono)", fontSize: 14.5, fontWeight: 700, color: s.text }}>
-              {returnPct >= 0 ? "+" : ""}{fmtPct(returnPct)} מצטבר
+            <span title="תשואה משוקללת זמן (TWR): מודדת רק את ביצועי ההשקעות - הפקדות ומשיכות לא נספרות כרווח או הפסד" style={{ fontFamily: "var(--mono)", fontSize: 14.5, fontWeight: 700, color: s.text, cursor: "help" }}>
+              {returnPct >= 0 ? "+" : ""}{fmtPct(returnPct)} תשואה מצטברת
             </span>
           )}
           <span style={{ fontSize: 13, color: "var(--text-faint)" }}>שיא (ATH): {formatMoney(ath, privacyMode)}</span>

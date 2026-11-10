@@ -16,6 +16,7 @@ import { fmtPct, formatMoney } from "@/components/dashboard/format";
 import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
 import { computeBigMovers } from "@/components/dashboard/morningBriefUtils";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
+import { externalFlowsByDate, timeWeightedReturn, performanceDrawdown } from "@/lib/returns";
 import { Header } from "@/components/dashboard/Header";
 import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
 import { MorningBriefDrawer } from "@/components/dashboard/MorningBriefDrawer";
@@ -404,10 +405,12 @@ export default function InvestmentDashboard({
     () => equityChartData.reduce((max, p) => Math.max(max, p.value), 0),
     [equityChartData]
   );
-  const equityReturn = useMemo(() => {
-    const first = equityChartData[0]?.value;
-    return first && first > 0 ? (total - first) / first : null;
-  }, [equityChartData, total]);
+  // Deposits/withdrawals from the trade journal, removed from performance so
+  // moving money in or out never reads as a gain, a loss or a drawdown.
+  const externalFlows = useMemo(() => externalFlowsByDate(trades), [trades]);
+  // Time-weighted return since tracking began (see src/lib/returns.ts) - was
+  // a plain value change, which counted every deposit as profit.
+  const equityReturn = useMemo(() => timeWeightedReturn(equityChartData, externalFlows), [equityChartData, externalFlows]);
 
   async function handleRebuildEquityHistory() {
     setRebuildingEquity(true);
@@ -429,9 +432,10 @@ export default function InvestmentDashboard({
     }
   }
 
-  // Drawdown from the portfolio's all-time high (negative while below it, 0
-  // at a fresh high) - feeds alert #3.
-  const athDrawdownPct = useMemo(() => (equityAth > 0 ? (total - equityAth) / equityAth : 0), [total, equityAth]);
+  // Drawdown from the portfolio's best *performance* (negative while below
+  // it, 0 at a fresh high) - feeds alert #3 and the equity card. Measured on
+  // the flow-neutral index, not raw value, so a withdrawal can't trigger it.
+  const athDrawdownPct = useMemo(() => performanceDrawdown(equityChartData, externalFlows), [equityChartData, externalFlows]);
 
   // What the user has already been shown, per-alert-occurrence - persisted
   // server-side (data/portfolios/<userId>.json) rather than localStorage, so
@@ -771,7 +775,9 @@ export default function InvestmentDashboard({
     }
     const prev = equityChartData[equityChartData.length - 2];
     if (prev && prev.value > 0) {
-      const dayChange = (total - prev.value) / prev.value;
+      // Same flow-neutral measure as the headline return: a deposit made since
+      // the previous point must not read as a gain in this line either.
+      const dayChange = timeWeightedReturn([prev, equityChartData[equityChartData.length - 1]], externalFlows) ?? 0;
       lines.push("לעומת נקודת המדידה הקודמת: " + (dayChange >= 0 ? "+" : "") + fmtPct(dayChange) + ".");
     }
 
@@ -820,7 +826,7 @@ export default function InvestmentDashboard({
     );
 
     return lines;
-  }, [evaluated, portfolioHealth, stats, trades, equityChartData, equityReturn, total, privacyMode]);
+  }, [evaluated, portfolioHealth, stats, trades, equityChartData, equityReturn, externalFlows, total, privacyMode]);
 
   const cashFree = useMemo(() => {
     const cashPos = positions.find((p) => p.symbol === "CASH");
@@ -1018,7 +1024,7 @@ export default function InvestmentDashboard({
           )}
 
           <EquityCurveCard
-            data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} privacyMode={privacyMode}
+            data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} drawdownPct={athDrawdownPct} privacyMode={privacyMode}
             onRebuild={handleRebuildEquityHistory} rebuilding={rebuildingEquity} rebuildWarnings={equityRebuildWarnings}
             canRebuild={trades.length > 0}
           />
