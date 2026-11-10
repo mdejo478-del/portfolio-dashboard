@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { writeFileDurable } from "@/lib/durableFile";
 import { getPortfolio, listPortfolioUserIds, updateDailySnapshot, type MorningBriefData, type HealthScoreAck } from "@/lib/portfolio";
 import { getQuotes, getEarningsCalendar, getCompanyNews, type RawEarningsEntry, type RawNewsHeadline } from "@/lib/prices";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
@@ -43,7 +44,7 @@ async function readMeta(): Promise<SnapshotMeta | null> {
 
 async function writeMeta(meta: SnapshotMeta): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(META_FILE, JSON.stringify(meta), "utf-8");
+  await writeFileDurable(META_FILE, JSON.stringify(meta));
 }
 
 function dateStr(d: Date): string {

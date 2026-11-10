@@ -1,7 +1,8 @@
-import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import { withFileLock } from "@/lib/fileLock";
+import { writeFileDurable } from "@/lib/durableFile";
+import { recoverFromBackup } from "@/lib/backup";
 // This file does Node-only file I/O and must never be imported from client
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
@@ -119,10 +120,41 @@ function portfolioPath(userId: string): string {
   return path.join(PORTFOLIOS_DIR, `${userId}.json`);
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+// What a snapshot copy must look like before it's trusted as a restore source:
+// stricter than the live-file check on purpose (an old snapshot with no
+// positions/trades arrays is not a portfolio worth restoring).
+function looksLikeSavedPortfolio(v: unknown): boolean {
+  return isPlainObject(v) && Array.isArray(v.positions) && Array.isArray(v.trades);
+}
+
+const PORTFOLIO_UNREADABLE_MESSAGE = "קובץ התיק פגום ולא נמצא גיבוי תקין לשחזור. הנתונים לא נמחקו - פנה לבעל המערכת.";
+
+/** Reads and parses one user's portfolio file. A file that exists but can't be
+ * parsed (zero-filled or truncated by an unclean shutdown) is restored from
+ * the newest valid snapshot instead of taking the whole app down; with no
+ * valid snapshot it fails loudly and leaves the file alone. A *missing* file
+ * (ENOENT) is not an error here - the caller treats it as a new user. */
+async function readPortfolioFile(userId: string): Promise<Partial<StoredPortfolioData>> {
+  const file = portfolioPath(userId);
+  const raw = await fs.readFile(file, "utf-8");
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (isPlainObject(parsed)) return parsed as Partial<StoredPortfolioData>;
+  } catch {
+    // fall through to recovery
+  }
+  const recovered = await recoverFromBackup({ livePath: file, relPath: "portfolios/" + userId + ".json", isValid: looksLikeSavedPortfolio });
+  if (isPlainObject(recovered)) return recovered as Partial<StoredPortfolioData>;
+  throw new Error(PORTFOLIO_UNREADABLE_MESSAGE);
+}
+
 export async function getPortfolio(userId: string): Promise<StoredPortfolioData> {
   try {
-    const raw = await fs.readFile(portfolioPath(userId), "utf-8");
-    const parsed = JSON.parse(raw) as Partial<StoredPortfolioData>;
+    const parsed = await readPortfolioFile(userId);
     // Older saved files predate equityHistory/alertAcks - default them rather than crash.
     return {
       ...emptyPortfolio(),
@@ -136,16 +168,12 @@ export async function getPortfolio(userId: string): Promise<StoredPortfolioData>
   }
 }
 
-// Write to a unique temp file and rename over the target: rename is atomic on
-// the same filesystem, so a reader (or a crash mid-write) never sees a
-// truncated/partial JSON file - the old contents remain intact until the new
-// file is fully written.
+// Temp file + fsync + rename (see writeFileDurable): rename alone keeps the name
+// atomic but does not stop a power loss from leaving the new file at full size
+// with zero-filled contents - the data must be flushed to disk first.
 async function writeStoredPortfolio(userId: string, stored: StoredPortfolioData): Promise<void> {
   await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
-  const finalPath = portfolioPath(userId);
-  const tmpPath = finalPath + "." + randomUUID() + ".tmp";
-  await fs.writeFile(tmpPath, JSON.stringify(stored, null, 2), "utf-8");
-  await fs.rename(tmpPath, finalPath);
+  await writeFileDurable(portfolioPath(userId), JSON.stringify(stored, null, 2));
 }
 
 function rollInEquityPoint(history: EquityPoint[], today: string, value: number): EquityPoint[] {

@@ -2,6 +2,8 @@ import { randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from 
 import { promises as fs } from "fs";
 import path from "path";
 import { withFileLock } from "@/lib/fileLock";
+import { writeFileDurable } from "@/lib/durableFile";
+import { recoverFromBackup } from "@/lib/backup";
 
 const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
@@ -26,18 +28,32 @@ export interface StoredUser {
 }
 
 async function readUsers(): Promise<StoredUser[]> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(USERS_FILE, "utf-8");
-    return JSON.parse(raw) as StoredUser[];
+    raw = await fs.readFile(USERS_FILE, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw err;
   }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as StoredUser[];
+  } catch {
+    // fall through to recovery
+  }
+  // users.json exists but is unreadable (zero-filled / truncated after an
+  // unclean shutdown): without it nobody can log in, so restore the newest
+  // valid snapshot. Accounts created since that snapshot (at most a day) are
+  // lost - far better than a locked-out app, and the damaged file is kept
+  // under data/corrupted.
+  const recovered = await recoverFromBackup({ livePath: USERS_FILE, relPath: "users.json", isValid: Array.isArray });
+  if (Array.isArray(recovered)) return recovered as StoredUser[];
+  throw new Error("users.json is unreadable and no valid backup was found to restore it from.");
 }
 
 async function writeUsers(users: StoredUser[]): Promise<void> {
   await fs.mkdir(path.dirname(USERS_FILE), { recursive: true });
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  await writeFileDurable(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
 function hashPassword(password: string): string {
