@@ -12,6 +12,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Keep a log of the last run next to the script so a window that closes too fast can still be diagnosed.
+try { Start-Transcript -Path (Join-Path $PSScriptRoot "launcher.log") -Force | Out-Null } catch {}
 $Host.UI.RawUI.WindowTitle = "IPMS - local server (keep open)"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -26,6 +28,36 @@ function Fail([string]$msg) {
   Pause-IfInteractive
   exit 1
 }
+# Picks the browser to open the site in. The Windows default is used only if its
+# registered handler really exists - a default left pointing at an uninstalled
+# browser (e.g. a removed Firefox) makes Start-Process <url> silently open
+# nothing. Falls back to Chrome, then Edge. Returns $null to mean "use default".
+function Get-BrowserLauncher {
+  try {
+    $progId = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" -ErrorAction Stop).ProgId
+    $cmd = (Get-ItemProperty "Registry::HKEY_CLASSES_ROOT\$progId\shell\open\command" -ErrorAction Stop).'(default)'
+    if ($cmd -match '^"([^"]+)"') { $exe = $Matches[1] } else { $exe = ($cmd -split ' ')[0] }
+    if ($exe -and (Test-Path $exe)) { return $null }
+  } catch { return $null }   # can't tell - let Windows decide
+  $candidates = @(
+    @{ Name = "Chrome"; Paths = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") },
+    @{ Name = "Edge";   Paths = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") }
+  )
+  foreach ($c in $candidates) {
+    $found = $c.Paths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($found) { return @{ Name = $c.Name; Exe = $found } }
+  }
+  return $null
+}
+function Open-Url([string]$target) {
+  $b = Get-BrowserLauncher
+  if ($b) {
+    Write-Host "Your default browser is not available - opening in $($b.Name) instead." -ForegroundColor Yellow
+    Start-Process -FilePath $b.Exe -ArgumentList $target
+  } else {
+    Start-Process $target
+  }
+}
 function Test-PortOpen([int]$p) {
   $client = New-Object System.Net.Sockets.TcpClient
   try {
@@ -36,10 +68,13 @@ function Test-PortOpen([int]$p) {
   } catch { return $false } finally { $client.Close() }
 }
 
+# Any unexpected error: show it and keep the window open instead of vanishing.
+trap { Fail ("Unexpected error: " + $_.Exception.Message + " (script line " + $_.InvocationInfo.ScriptLineNumber + ")") }
+
 # 1. Already running? Just open it.
 if (Test-PortOpen $Port) {
   Write-Host "IPMS is already running at $url" -ForegroundColor Green
-  if (-not $NoBrowser) { Start-Process $url }
+  if (-not $NoBrowser) { Open-Url $url }
   exit 0
 }
 
@@ -72,7 +107,12 @@ if ($needBuild) {
 
 # 4. Start the server in this window.
 Write-Host "Starting IPMS..." -ForegroundColor Cyan
-$proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run start -- -p $Port -H 127.0.0.1" `
+# The server's own output (production errors are redacted in the browser, so this
+# log is the only place the real cause shows up) goes to launcher\server.log.
+$serverLog = Join-Path $PSScriptRoot "server.log"
+if ((Test-Path $serverLog) -and ((Get-Item $serverLog).Length -gt 5MB)) { Move-Item $serverLog "$serverLog.old" -Force }
+Write-Host "Server log: $serverLog" -ForegroundColor DarkGray
+$proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run start -- -p $Port -H 127.0.0.1 >> `"$serverLog`" 2>&1" `
   -WorkingDirectory $root -NoNewWindow -PassThru
 
 $deadline = (Get-Date).AddSeconds(90)
@@ -85,7 +125,7 @@ while (-not (Test-PortOpen $Port)) {
 Write-Host ""
 Write-Host "IPMS is running at $url" -ForegroundColor Green
 Write-Host "Keep this window open while you use the site. Close it to stop the server." -ForegroundColor Yellow
-if (-not $NoBrowser) { Start-Process $url }
+if (-not $NoBrowser) { Open-Url $url }
 
 $proc.WaitForExit()
 Write-Host ""

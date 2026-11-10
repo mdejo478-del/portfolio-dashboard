@@ -46,3 +46,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# launcher run log
+/launcher/launcher.log
+/launcher/server.log
+/launcher/server.log.old
