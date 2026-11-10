@@ -210,6 +210,9 @@ export interface MorningBriefData {
 // server-maintained fields (daily value history, alert acknowledgements).
 export interface StoredPortfolioData extends PortfolioData {
   equityHistory: EquityPoint[];
+  // The recorded history as it was right before the last "rebuild from trade
+  // journal" replaced it - kept so that rebuild can always be undone.
+  equityHistoryBeforeRebuild?: EquityPoint[];
   alertAcks: Record<string, AlertAck>;
   healthScoreAck?: HealthScoreAck;
   // ISO date the CASH position was first seen continuously over its own max
