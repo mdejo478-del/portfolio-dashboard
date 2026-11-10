@@ -47,8 +47,19 @@ export async function rebuildEquityHistory(trades: Trade[], positions: Position[
   if (trades.length === 0) return { history: [], warnings: [] };
 
   const sorted = [...trades].sort((a, b) => (a.date === b.date ? a.id - b.id : a.date.localeCompare(b.date)));
-  const symbols = Array.from(new Set(sorted.map((t) => t.symbol).filter((s) => s !== "CASH"))).slice(0, MAX_SYMBOLS);
   const warnings: string[] = [];
+  // Every symbol that matters: currently held positions first (they define
+  // today's real value), then anything else that appears in the trade log.
+  // Held-but-never-traded positions (e.g. bought at a previous broker whose
+  // history was never imported) used to be left out entirely - the rebuilt
+  // curve silently understated the portfolio by their whole value.
+  const heldSymbols = positions.filter((p) => p.symbol !== "CASH" && typeof p.qty === "number" && p.qty > 0).map((p) => p.symbol);
+  const tradedSymbols = sorted.map((t) => t.symbol).filter((s) => s !== "CASH");
+  const allSymbols = Array.from(new Set([...heldSymbols, ...tradedSymbols]));
+  const symbols = allSymbols.slice(0, MAX_SYMBOLS);
+  if (allSymbols.length > MAX_SYMBOLS) {
+    warnings.push("השחזור מוגבל ל-" + MAX_SYMBOLS + " סימולים - לא נכללו: " + allSymbols.slice(MAX_SYMBOLS).join(", ") + ".");
+  }
 
   const earliestDate = sorted[0].date;
   const todayDate = new Date().toISOString().slice(0, 10);
