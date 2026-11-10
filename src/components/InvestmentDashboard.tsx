@@ -744,12 +744,16 @@ export default function InvestmentDashboard({
   }
   const stats = useMemo(() => {
     const sells = trades.filter((t) => t.action === "מכירה");
-    const wins = sells.filter((t) => t.pnl !== null && t.pnl > 0);
+    // A sell whose profit is unknown (no buy history in the journal) has pnl
+    // null - it must not count as a loss in the win rate or as a 0 in the
+    // average, so both are taken over the sells with a known profit only.
+    const pricedSells = sells.filter((t) => t.pnl !== null);
+    const wins = pricedSells.filter((t) => (t.pnl as number) > 0);
     const realizedPnl = trades.reduce((a, t) => a + (t.pnl || 0), 0);
     const fees = trades.reduce((a, t) => a + (t.fee || 0), 0);
     const buysSells = trades.filter((t) => t.action !== "הפקדה" && t.action !== "משיכה").length;
-    const winRate = sells.length ? wins.length / sells.length : 0;
-    const avgPnl = sells.length ? sells.reduce((a, t) => a + (t.pnl || 0), 0) / sells.length : 0;
+    const winRate = pricedSells.length ? wins.length / pricedSells.length : 0;
+    const avgPnl = pricedSells.length ? pricedSells.reduce((a, t) => a + (t.pnl as number), 0) / pricedSells.length : 0;
     const rets = sells.filter((t) => t.retPct !== null).map((t) => t.retPct as number);
     const avgRet = rets.length ? rets.reduce((a, r) => a + r, 0) / rets.length : 0;
     const deposits = trades.filter((t) => t.action === "הפקדה").reduce((a, t) => a + t.value, 0);

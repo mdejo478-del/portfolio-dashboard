@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState, type ChangeEvent, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import {
   TrendingUp, TrendingDown, Wallet, Percent, Receipt, ListChecks, Plus,
-  Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity, ArrowLeftRight,
+  Pencil, Trash2, Download, X, Check, Filter, RefreshCw, Upload, Activity, ArrowLeftRight, AlertTriangle,
 } from "lucide-react";
 import { CheckboxCell } from "@/components/dashboard/ui/CheckboxCell";
 import { cashEffect } from "@/lib/portfolioTypes";
+import { buildLedger, sellContextBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, type ImportRowInput } from "@/lib/ledger";
+import { splitDuplicates } from "@/lib/tradeDuplicates";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
 import type { TradeFormState } from "@/components/dashboard/types";
 import { ACTION_OPTS, STRATEGY_OPTS, SYMOPTS, EMPTY_FORM } from "@/components/dashboard/constants";
@@ -49,6 +51,19 @@ export function TradeJournalSection({
   const [tradeFormError, setTradeFormError] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<boolean>(false);
+
+  // What the last import did (counts, skipped duplicates, sells left without a
+  // profit) - dismissible; null when there is nothing to report.
+  const [journalNotice, setJournalNotice] = useState<string[] | null>(null);
+  // The saved ledger is compared with one rebuilt from the trades. Differences
+  // are only SHOWN; nothing is changed until the user approves (see drift below).
+  const rebuiltLedger = useMemo(() => buildLedger(trades).ledger, [trades]);
+  const ledgerDrift = useMemo(() => diffLedgers(ledger, rebuiltLedger), [ledger, rebuiltLedger]);
+  const [driftHidden, setDriftHidden] = useState<boolean>(false);
+  function applyRebuiltLedger() {
+    pushUndoSnapshot("עדכון מחיר ממוצע לפי העסקאות");
+    setLedger(rebuiltLedger);
+  }
 
   const [importResult, setImportResult] = useState<ParseResult | null>(null);
   const [importFileName, setImportFileName] = useState<string>("");
@@ -122,47 +137,46 @@ export function TradeJournalSection({
     setImportFileName("");
   }
 
+  // Valid file rows as plain trade inputs. Valid rows always have these fields
+  // (a missing one is a row error), so the casts only narrow the nullable types.
+  function toImportRow(r: ParsedTradeRow): ImportRowInput & { rowNumber: number } {
+    return {
+      rowNumber: r.rowNumber, date: r.date as string, symbol: r.symbol as string, action: r.action as string,
+      qty: r.qty as number, price: r.price as number, fee: r.fee, pnlOverride: r.pnlOverride, strategy: r.strategy, notes: r.notes,
+    };
+  }
+
+  // Which valid rows of the pending file are already in the journal (same date,
+  // symbol, action, quantity and price) - shown in the preview and skipped on
+  // confirm, so re-importing a file can't double trades, cash and the ledger.
+  const importDuplicateRows = useMemo<Set<number>>(() => {
+    if (!importResult || importResult.needsMapping) return new Set<number>();
+    const valid = importResult.rows.filter((r) => !r.error).map(toImportRow);
+    return new Set(splitDuplicates(trades, valid).duplicates.map((r) => r.rowNumber));
+  }, [importResult, trades]);
+
   function confirmImport(validRows: ParsedTradeRow[]) {
-    if (validRows.length === 0) { closeImportModal(); return; }
-    pushUndoSnapshot("ייבוא קובץ עסקאות");
-    const chronological = [...validRows].sort((a, b) => (a.date as string).localeCompare(b.date as string));
-    let workingLedger: Ledger = { ...ledger };
-    let cashDelta = 0;
-    const newTrades: Trade[] = [];
-
-    for (const row of chronological) {
-      const symbol = row.symbol as string;
-      const action = row.action as string;
-      const qty = row.qty as number;
-      const price = row.price as number;
-      const value = qty * price;
-      let pnl: number | null = null;
-      let retPct: number | null = null;
-
-      if (action === "קנייה" && symbol !== "CASH") {
-        const cur = workingLedger[symbol] || { qty: 0, avgCost: price };
-        const newQty = cur.qty + qty;
-        const newAvg = newQty > 0 ? (cur.qty * cur.avgCost + qty * price) / newQty : price;
-        workingLedger = { ...workingLedger, [symbol]: { qty: newQty, avgCost: newAvg } };
-      } else if (action === "מכירה" && symbol !== "CASH") {
-        const cur = workingLedger[symbol] || { qty: 0, avgCost: price };
-        const autoPnl = Math.round((price - cur.avgCost) * qty * 100) / 100;
-        pnl = row.pnlOverride !== null ? row.pnlOverride : autoPnl;
-        retPct = (value - pnl) !== 0 ? pnl / (value - pnl) : 0;
-        workingLedger = { ...workingLedger, [symbol]: { qty: cur.qty - qty, avgCost: cur.avgCost } };
-      }
-
-      const trade: Trade = {
-        id: nextIdRef.current++, date: row.date as string, symbol, action, qty, price, value,
-        fee: row.fee, pnl, retPct, strategy: row.strategy, notes: row.notes,
-      };
-      cashDelta += cashEffect(trade);
-      newTrades.push(trade);
+    const { fresh, duplicates } = splitDuplicates(trades, validRows.map(toImportRow));
+    if (fresh.length === 0) {
+      setJournalNotice(duplicates.length > 0 ? ["כל " + duplicates.length + " השורות בקובץ כבר קיימות ביומן - לא נוסף דבר."] : null);
+      closeImportModal();
+      return;
     }
-
-    setLedger(workingLedger);
-    setTrades((ts) => [...ts, ...newTrades]);
-    applyCashDelta(cashDelta);
+    pushUndoSnapshot("ייבוא קובץ עסקאות");
+    // Profits are measured against the journal as of each trade's own date, and
+    // the ledger is rebuilt from every trade in date order - an old file slots in
+    // where it belongs instead of being applied after everything else.
+    const plan = planImport(trades, fresh, nextIdRef.current);
+    nextIdRef.current += plan.newTrades.length;
+    setTrades([...trades, ...plan.newTrades]);
+    setLedger(plan.ledger);
+    applyCashDelta(plan.cashDelta);
+    const lines = ["יובאו " + plan.newTrades.length + " עסקאות."];
+    if (duplicates.length > 0) lines.push(duplicates.length + " שורות כבר היו ביומן ודולגו.");
+    if (plan.unresolvedSells.length > 0) {
+      lines.push(plan.unresolvedSells.length + " מכירות נשארו בלי רווח/הפסד, כי אין ביומן מספיק היסטוריית קנייה עבורן (או שהכמות הנמכרת גדולה מהכמות שנקנתה). ניתן להזין את הרווח ידנית בעריכת העסקה.");
+    }
+    setJournalNotice(lines);
     closeImportModal();
   }
 
@@ -186,9 +200,19 @@ export function TradeJournalSection({
   const qtyNum = parseNum(form.qty);
   const priceNum = parseNum(form.price);
   const previewValue = (!Number.isNaN(qtyNum) && !Number.isNaN(priceNum)) ? qtyNum * priceNum : null;
-  const previewAvgCost = form.symbol !== "CASH" && ledger[form.symbol] ? ledger[form.symbol].avgCost : null;
-  const previewAutoPnl = (form.action === "מכירה" && previewValue !== null && previewAvgCost !== null)
-    ? Math.round((priceNum - previewAvgCost) * qtyNum * 100) / 100 : null;
+  // What the journal held of this symbol right before the trade's own date (the
+  // trade being edited excluded) - not the latest ledger, so a backdated sell is
+  // measured against the position it actually sold from.
+  const formSymbol = form.symbol.trim().toUpperCase();
+  const sellCtx = useMemo(
+    () => (form.action === "מכירה" && formSymbol && formSymbol !== "CASH" && form.date)
+      ? sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, formSymbol, editingId) : null,
+    [trades, form.action, form.date, formSymbol, editingId]
+  );
+  const previewAvgCost = sellCtx ? sellCtx.avgCost : null;
+  // null (not 0) when the journal can't explain the sale - see suggestSellPnl.
+  const sellSuggestion = (sellCtx && previewValue !== null && qtyNum > 0 && priceNum > 0) ? suggestSellPnl(sellCtx, priceNum, qtyNum) : null;
+  const previewAutoPnl = sellSuggestion ? sellSuggestion.pnl : null;
   const pnlManualNum = form.pnlManual !== "" ? parseNum(form.pnlManual) : null;
   const effectivePnl = (form.action === "מכירה")
     ? (pnlManualNum !== null && !Number.isNaN(pnlManualNum) ? pnlManualNum : previewAutoPnl)
@@ -221,33 +245,33 @@ export function TradeJournalSection({
     const value = qty * price;
     let pnl: number | null = null;
     let retPct: number | null = null;
-    const newLedger: Ledger = { ...ledger };
 
-    if (form.action === "קנייה" && symbol !== "CASH") {
-      const cur = newLedger[symbol] || { qty: 0, avgCost: price };
-      const newQty = cur.qty + qty;
-      const newAvg = newQty > 0 ? (cur.qty * cur.avgCost + qty * price) / newQty : price;
-      newLedger[symbol] = { qty: newQty, avgCost: newAvg };
-    } else if (form.action === "מכירה" && symbol !== "CASH") {
-      const cur = newLedger[symbol] || { qty: 0, avgCost: price };
-      const autoPnl = Math.round((price - cur.avgCost) * qty * 100) / 100;
+    // Only THIS trade's profit is computed here; the saved pnl/retPct of every
+    // other trade are left exactly as they are.
+    if (form.action === "מכירה" && symbol !== "CASH") {
       const manualNum = form.pnlManual !== "" ? parseNum(form.pnlManual) : null;
-      pnl = (manualNum !== null && !Number.isNaN(manualNum)) ? manualNum : autoPnl;
-      retPct = (value - pnl) !== 0 ? pnl / (value - pnl) : 0;
-      newLedger[symbol] = { qty: cur.qty - qty, avgCost: cur.avgCost };
+      const manual = manualNum !== null && !Number.isNaN(manualNum) ? manualNum : null;
+      pnl = manual !== null
+        ? manual
+        : suggestSellPnl(sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, symbol, editingId), price, qty).pnl;
+      retPct = retPctFor(pnl, value);
     }
 
+    let nextTrades: Trade[];
     if (editingId !== null) {
       const oldTrade = trades.find((t) => t.id === editingId);
       const newTradeObj: Trade = { ...(oldTrade as Trade), date: form.date, symbol, action: form.action, qty, price, value, fee, pnl, retPct, strategy: form.strategy, notes: form.notes || null };
       applyCashDelta(cashEffect(newTradeObj) - cashEffect(oldTrade));
-      setTrades((ts) => ts.map((t) => (t.id === editingId ? newTradeObj : t)));
+      nextTrades = trades.map((t) => (t.id === editingId ? newTradeObj : t));
     } else {
       const newTrade: Trade = { id: nextIdRef.current++, date: form.date, symbol, action: form.action, qty, price, value, fee, pnl, retPct, strategy: form.strategy, notes: form.notes || null };
       applyCashDelta(cashEffect(newTrade));
-      setTrades((t) => [...t, newTrade]);
+      nextTrades = [...trades, newTrade];
     }
-    setLedger(newLedger);
+    // The ledger is always rebuilt from the whole trade list (in date order), so
+    // an edit replaces the old version instead of stacking on it.
+    setTrades(nextTrades);
+    setLedger(buildLedger(nextTrades).ledger);
     cancelForm();
   }
 
@@ -255,7 +279,9 @@ export function TradeJournalSection({
     const trade = trades.find((t) => t.id === id);
     pushUndoSnapshot("מחיקת עסקה");
     applyCashDelta(-cashEffect(trade));
-    setTrades((ts) => ts.filter((t) => t.id !== id));
+    const nextTrades = trades.filter((t) => t.id !== id);
+    setTrades(nextTrades);
+    setLedger(buildLedger(nextTrades).ledger);
     setDeleteConfirmId(null);
   }
 
@@ -290,12 +316,9 @@ export function TradeJournalSection({
     pushUndoSnapshot(deletingAll ? "מחיקת כל העסקאות" : "מחיקת " + toDelete.length + " עסקאות");
     const cashDelta = toDelete.reduce((sum, t) => sum - cashEffect(t), 0);
     applyCashDelta(cashDelta);
-    setTrades((ts) => ts.filter((t) => !selectedIds.has(t.id)));
-    // Ledger (running avg-cost per symbol) is built incrementally as trades
-    // are added and isn't recomputed on a single-trade delete either - see
-    // deleteTrade above. Only safe to reset outright when nothing's left to
-    // be stale against.
-    if (deletingAll) setLedger({});
+    const nextTrades = trades.filter((t) => !selectedIds.has(t.id));
+    setTrades(nextTrades);
+    setLedger(buildLedger(nextTrades).ledger);
     setSelectedIds(new Set());
     setBulkDeleteConfirm(false);
   }
@@ -322,6 +345,47 @@ export function TradeJournalSection({
     <>
       {/* Trade journal banner */}
       <PageBanner icon={<ListChecks size={20} />} title="יומן מסחר חכם ומקצועי (Smart Trade Log)" subtitle="כל העסקאות, הסיכומים והפעולות במקום אחד" />
+
+      {journalNotice && (
+        <div role="status" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: "var(--space-4)", background: "var(--info-subtle)", border: "1px solid var(--info-subtle-border)", borderRadius: "var(--radius-md)", fontSize: 13, lineHeight: 1.6, color: "var(--text)" }}>
+          <div style={{ flex: 1 }}>{journalNotice.map((line, i) => <div key={i}>{line}</div>)}</div>
+          <Button variant="icon" onClick={() => setJournalNotice(null)} aria-label="סגור הודעה" title="סגור"><X size={14} /></Button>
+        </div>
+      )}
+
+      {ledgerDrift.length > 0 && !driftHidden && (
+        <div role="alert" style={{ padding: "14px 16px", marginBottom: "var(--space-5)", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, color: "var(--warning)", marginBottom: 6 }}>
+            <AlertTriangle size={16} /> המחיר הממוצע השמור ביומן שונה ממה שמחושב מהעסקאות
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.6, marginBottom: 10 }}>
+            הנתון השמור נבנה בגרסאות קודמות והצטבר עם הזמן (למשל אחרי עריכה או מחיקה של עסקה), ולכן אינו תואם את רשימת העסקאות.
+            לא שיניתי כלום. אם תאשר, הכמות והמחיר הממוצע יחושבו מחדש מכל העסקאות לפי תאריך. הרווח/הפסד ששמור בעסקאות עצמן לא ישתנה, וגם המחיר הממוצע הידני בטבלת האחזקות לא ייגע.
+          </div>
+          <div style={{ overflowX: "auto", marginBottom: 12 }}>
+            <table>
+              <thead>
+                <tr><th>סימול</th><th className="num">כמות שמורה</th><th className="num">מחיר ממוצע שמור</th><th className="num">כמות מחושבת</th><th className="num">מחיר ממוצע מחושב</th></tr>
+              </thead>
+              <tbody>
+                {ledgerDrift.map((d) => (
+                  <tr key={d.symbol}>
+                    <td style={{ fontWeight: 700 }}>{d.symbol}</td>
+                    <td className="num">{d.stored ? fmtNum(d.stored.qty, d.stored.qty % 1 !== 0 ? 2 : 0) : "אין"}</td>
+                    <td className="num">{d.stored ? formatMoney(d.stored.avgCost, privacyMode, { digits: 2 }) : "אין"}</td>
+                    <td className="num">{d.rebuilt ? fmtNum(d.rebuilt.qty, d.rebuilt.qty % 1 !== 0 ? 2 : 0) : "אין"}</td>
+                    <td className="num">{d.rebuilt ? formatMoney(d.rebuilt.avgCost, privacyMode, { digits: 2 }) : "אין"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button variant="primary" onClick={applyRebuiltLedger}><Check size={15} /> עדכן לפי העסקאות</Button>
+            <Button variant="ghost" onClick={() => setDriftHidden(true)}>השאר כמו שזה</Button>
+          </div>
+        </div>
+      )}
 
       <div style={{
         display: "grid",
@@ -422,11 +486,22 @@ export function TradeJournalSection({
             )}
             {previewAvgCost !== null && form.action === "מכירה" && (
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>עלות ממוצעת נוכחית (למעקב בלבד)</div>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>עלות ממוצעת ביומן עד תאריך העסקה (למעקב בלבד)</div>
                 <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16 }}>{formatMoney(previewAvgCost, privacyMode, { digits: 2 })}</div>
               </div>
             )}
           </div>
+
+          {form.action === "מכירה" && form.pnlManual === "" && sellSuggestion?.warning === "no-history" && (
+            <div role="alert" style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 12.5, lineHeight: 1.6 }}>
+              אין ביומן יחידות של {formSymbol} עד התאריך שנבחר, ולכן אי אפשר לחשב רווח/הפסד אוטומטית. הזן רווח/הפסד ידנית בשדה למעלה, או שמור בלי - אז יוצג &quot;-&quot; ולא 0. כדאי לבדוק שלא חסרה ביומן עסקת קנייה.
+            </div>
+          )}
+          {form.action === "מכירה" && form.pnlManual === "" && sellSuggestion?.warning === "exceeds-holding" && (
+            <div role="alert" style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 12.5, lineHeight: 1.6 }}>
+              אתה מוכר {fmtNum(qtyNum, qtyNum % 1 !== 0 ? 2 : 0)} יחידות של {formSymbol}, אבל ביומן יש רק {fmtNum(sellSuggestion.heldQty, sellSuggestion.heldQty % 1 !== 0 ? 2 : 0)} עד התאריך שנבחר. הכמות ביומן לא תרד מתחת ל-0, ולכן אי אפשר לחשב רווח/הפסד אוטומטית - הזן אותו ידנית. כנראה חסרה ביומן עסקת קנייה.
+            </div>
+          )}
 
           {tradeFormError && (
             <div style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
@@ -581,6 +656,7 @@ export function TradeJournalSection({
           result={importResult}
           fileName={importFileName}
           privacyMode={privacyMode}
+          duplicateRowNumbers={importDuplicateRows}
           onConfirm={confirmImport}
           onClose={closeImportModal}
         />

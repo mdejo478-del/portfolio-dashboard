@@ -15,13 +15,20 @@ interface TradeImportModalProps {
   result: ParseResult;
   fileName: string;
   privacyMode: boolean;
+  /** Row numbers of valid rows already present in the journal - shown as
+   * "will be skipped"; onConfirm still receives every valid row and the caller
+   * drops those, so the preview and the import can't disagree. */
+  duplicateRowNumbers?: Set<number>;
   onConfirm: (rows: ParsedTradeRow[]) => void;
   onClose: () => void;
 }
 
-export default function TradeImportModal({ result, fileName, privacyMode, onConfirm, onClose }: TradeImportModalProps) {
+export default function TradeImportModal({ result, fileName, privacyMode, duplicateRowNumbers, onConfirm, onClose }: TradeImportModalProps) {
   const validRows = result.rows.filter((r) => !r.error);
   const errorRows = result.rows.filter((r) => r.error);
+  const isDuplicate = (r: ParsedTradeRow) => !r.error && !!duplicateRowNumbers && duplicateRowNumbers.has(r.rowNumber);
+  const duplicateCount = validRows.filter(isDuplicate).length;
+  const newCount = validRows.length - duplicateCount;
 
   return (
     <div
@@ -63,8 +70,13 @@ export default function TradeImportModal({ result, fileName, privacyMode, onConf
             <>
               <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--gain)", fontSize: 13, fontWeight: 700 }}>
-                  <CheckCircle2 size={15} /> {validRows.length} עסקאות תקינות יתווספו ליומן
+                  <CheckCircle2 size={15} /> {newCount} עסקאות חדשות יתווספו ליומן
                 </div>
+                {duplicateCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
+                    <AlertTriangle size={15} /> {duplicateCount} שורות כבר קיימות ביומן – ידולגו
+                  </div>
+                )}
                 {errorRows.length > 0 && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
                     <AlertTriangle size={15} /> {errorRows.length} שורות עם שגיאה יידלגו
@@ -101,6 +113,10 @@ export default function TradeImportModal({ result, fileName, privacyMode, onConf
                             <span style={{ color: "var(--loss)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
                               <AlertTriangle size={12} style={{ flexShrink: 0 }} /> {row.error}
                             </span>
+                          ) : isDuplicate(row) ? (
+                            <span style={{ color: "var(--warning)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+                              <AlertTriangle size={12} style={{ flexShrink: 0 }} /> כבר קיים ביומן – ידולג
+                            </span>
                           ) : (
                             <span style={{ color: "var(--gain)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
                               <CheckCircle2 size={12} /> תקין
@@ -120,10 +136,10 @@ export default function TradeImportModal({ result, fileName, privacyMode, onConf
           <Button variant="ghost" onClick={onClose}>ביטול</Button>
           {!result.fileError && (
             <Button
-              variant="primary" disabled={validRows.length === 0}
+              variant="primary" disabled={newCount === 0}
               onClick={() => onConfirm(validRows)}
             >
-              אישור והוספה ליומן ({validRows.length})
+              אישור והוספה ליומן ({newCount})
             </Button>
           )}
         </div>
