@@ -210,8 +210,9 @@ export interface MorningBriefData {
 // server-maintained fields (daily value history, alert acknowledgements).
 export interface StoredPortfolioData extends PortfolioData {
   equityHistory: EquityPoint[];
-  // The recorded history as it was right before the last "rebuild from trade
-  // journal" replaced it - kept so that rebuild can always be undone.
+  // The recorded history as it was right before the first "rebuild from trade
+  // journal" replaced it - kept so that rebuild can be undone. Later rebuilds
+  // don't overwrite it (they'd be replacing rebuilt data, not the original).
   equityHistoryBeforeRebuild?: EquityPoint[];
   alertAcks: Record<string, AlertAck>;
   healthScoreAck?: HealthScoreAck;

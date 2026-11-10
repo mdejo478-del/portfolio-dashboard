@@ -334,10 +334,16 @@ export async function saveEquityHistory(userId: string, history: EquityPoint[]):
   await withFileLock(portfolioPath(userId), async () => {
     const existing = await getPortfolio(userId);
     const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
-    // The day-by-day snapshots being replaced were real recorded values; keep
-    // the most recent pre-rebuild series aside instead of discarding it, so a
+    // The day-by-day snapshots being replaced were real recorded values that
+    // can't be regenerated; keep them aside instead of discarding them, so a
     // bad rebuild (missing prices, unadjusted splits) is never irreversible.
-    await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed, equityHistoryBeforeRebuild: existing.equityHistory });
+    // An existing non-empty backup is kept as is: it is the original, and the
+    // series being replaced now may itself be the output of an earlier (maybe
+    // partial) rebuild - overwriting would lose the real data on a second click.
+    const original = existing.equityHistoryBeforeRebuild && existing.equityHistoryBeforeRebuild.length > 0
+      ? existing.equityHistoryBeforeRebuild
+      : existing.equityHistory;
+    await writeStoredPortfolio(userId, { ...existing, equityHistory: trimmed, equityHistoryBeforeRebuild: original });
   });
 }
 
