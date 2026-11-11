@@ -219,6 +219,23 @@ export async function recoverFromBackup(opts: {
  * users.json (which also briefly contained this user's record) are left
  * alone: they're whole-table point-in-time snapshots, not per-user data,
  * and age out on their own via the existing rolling retention window. */
+/** Removes this user's quarantined copies (data/corrupted/<userId>.json.<time>.corrupt - the
+ * damaged file kept aside by a self-heal, which can still hold readable data). Part of
+ * account deletion. Only files that belong to this user are touched. */
+export async function deleteUserQuarantinedCopies(userId: string): Promise<void> {
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(userId)) throw new Error("מזהה משתמש לא תקין.");
+  let names: string[];
+  try {
+    names = await fs.readdir(QUARANTINE_DIR);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+  for (const name of names) {
+    if (name.startsWith(userId + ".json.")) await fs.rm(path.join(QUARANTINE_DIR, name), { force: true });
+  }
+}
+
 export async function deleteUserPortfolioBackups(userId: string): Promise<void> {
   const dirs = await listBackupDirs();
   for (const name of dirs) {

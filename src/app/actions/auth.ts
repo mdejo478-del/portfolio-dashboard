@@ -19,8 +19,7 @@ import { createPasswordResetToken, decodePasswordResetToken } from "@/lib/passwo
 import { checkRateLimit, getClientIp, rateLimitMessage, checkLoginLock, recordLoginFailure, resetLoginFailures } from "@/lib/rateLimit";
 import { notifyNewUserRegistration } from "@/lib/telegram";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { deletePortfolio } from "@/lib/portfolio";
-import { deleteUserPortfolioBackups } from "@/lib/backup";
+import { deleteUserData } from "@/lib/userData";
 
 export interface AuthFormState {
   error?: string;
@@ -401,14 +400,14 @@ export async function deleteAccount(
     return { error: 'יש להקליד DELETE או "מחק" כדי לאשר את המחיקה.' };
   }
 
-  // Portfolio + its backup snapshots first, then the user record itself -
+  // Portfolio + every copy of it (backup snapshots, pre-migration copies, quarantined
+  // damaged files) first, then the user record itself -
   // if something fails partway, better to have leftover portfolio data for
   // a user that no longer exists (harmless, orphaned) than a deleted
   // portfolio still attached to a user who can log back in and be confused
   // by an empty account.
   try {
-    await deletePortfolio(session.userId);
-    await deleteUserPortfolioBackups(session.userId);
+    await deleteUserData(session.userId);
     await deleteUser(session.userId);
     await deleteSession();
   } catch {

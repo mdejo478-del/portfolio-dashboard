@@ -391,9 +391,31 @@ export async function listPortfolioUserIds(): Promise<string[]> {
   }
 }
 
+/** Removes this user's pre-migration copies (data/pre-migration/<userId>.v<n>.<time>.json,
+ * see backupBeforeMigration) - each is a full copy of the portfolio file, so account
+ * deletion must remove them too or "delete my data" would leave the data behind. Only
+ * files that belong to this user are touched; a missing folder is nothing to do. */
+export async function deleteUserMigrationBackups(userId: string): Promise<void> {
+  portfolioPath(userId); // refuses anything that is not a real user id
+  let names: string[];
+  try {
+    names = await fs.readdir(PRE_MIGRATION_DIR);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+  for (const name of names) {
+    // Named `<userId>.v<n>.<timestamp>.json` (or its unfinished `.tmp`); the id is a fixed-length
+    // UUID, so "starts with <userId>." can only ever be this user's.
+    if (name.startsWith(userId + ".")) await fs.rm(path.join(PRE_MIGRATION_DIR, name), { force: true });
+  }
+}
+
 /** Permanently removes this user's live portfolio file (positions, trades,
  * ledger, equity history) - used by account deletion. Does not touch
- * historical backup snapshots; see deleteUserPortfolioBackups in backup.ts. */
+ * historical backup snapshots (deleteUserPortfolioBackups in backup.ts) or
+ * pre-migration copies (deleteUserMigrationBackups above); deleteUserData in
+ * userData.ts removes all of it together. */
 export async function deletePortfolio(userId: string): Promise<void> {
   migrationChecked.delete(userId);
   await fs.rm(portfolioPath(userId), { force: true });
