@@ -16,6 +16,7 @@ export default async function Home() {
       initialPositions={portfolio.positions}
       initialTrades={portfolio.trades}
       initialLedger={portfolio.ledger}
+      initialLedgerAnchors={portfolio.ledgerAnchors ?? {}}
       initialNextPositionId={portfolio.nextPositionId}
       initialNextTradeId={portfolio.nextTradeId}
       initialEquityHistory={portfolio.equityHistory}

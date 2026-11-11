@@ -96,12 +96,36 @@ export interface LedgerEntry {
 }
 export type Ledger = Record<string, LedgerEntry>;
 
+/** A starting point for one symbol's ledger: "on `asOf` (YYYY-MM-DD), with the journal
+ * holding trades up to id `lastTradeId`, I held `qty` at an average cost of
+ * `avgCost`". Used for holdings bought before the journal starts (e.g. at a
+ * previous broker), which trades alone can never explain. The ledger starts that
+ * symbol from the anchor and applies only a trade that is BOTH entered after the
+ * anchor was set (id > lastTradeId) AND dated on or after `asOf`:
+ *   - trades already in the journal then are part of the anchor - never counted twice;
+ *   - a new trade from `asOf` onwards counts;
+ *   - a new trade entered later with an older date stays in the journal but does not
+ *     move the ledger.
+ * qty 0 means "flat" (nothing held). `lastTradeId` is absent on anchors saved by the
+ * first version of this feature; those count trades dated AFTER `asOf`. */
+export interface LedgerAnchor {
+  qty: number;
+  avgCost: number;
+  asOf: string;
+  lastTradeId?: number;
+}
+export type LedgerAnchors = Record<string, LedgerAnchor>;
+
 export interface PortfolioData {
   positions: Position[];
   trades: Trade[];
   ledger: Ledger;
   nextPositionId: number;
   nextTradeId: number;
+  // Part of the user's own data (submitted and saved with the rest, so it goes
+  // through the same revision check). Absent in files written before anchors
+  // existed = no anchors, and every symbol is rebuilt from its trades alone.
+  ledgerAnchors?: LedgerAnchors;
 }
 
 // How far apart a new position's min/max/dilute default to, relative to its

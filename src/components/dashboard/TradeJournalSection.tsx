@@ -5,7 +5,8 @@ import {
 } from "lucide-react";
 import { CheckboxCell } from "@/components/dashboard/ui/CheckboxCell";
 import { cashEffect } from "@/lib/portfolioTypes";
-import { buildLedger, sellContextBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, type ImportRowInput } from "@/lib/ledger";
+import { anchorCountsTrade, buildLedger, sellContextBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, planAnchorsFromHoldings, type AnchorPlan, type ImportRowInput, type LedgerDifference } from "@/lib/ledger";
+import type { LedgerAnchors } from "@/lib/portfolioTypes";
 import { splitDuplicates } from "@/lib/tradeDuplicates";
 import { validateTrade, newErrors, errorsOf } from "@/lib/validation";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
@@ -33,6 +34,8 @@ interface TradeJournalSectionProps {
   setTrades: Dispatch<SetStateAction<Trade[]>>;
   ledger: Ledger;
   setLedger: Dispatch<SetStateAction<Ledger>>;
+  ledgerAnchors: LedgerAnchors;
+  setLedgerAnchors: Dispatch<SetStateAction<LedgerAnchors>>;
   positions: Position[];
   pushUndoSnapshot: (label: string) => void;
   nextIdRef: MutableRefObject<number>;
@@ -43,7 +46,7 @@ interface TradeJournalSectionProps {
 }
 
 export function TradeJournalSection({
-  trades, setTrades, ledger, setLedger, positions, pushUndoSnapshot, nextIdRef, applyCashDelta, cashFree, stats, privacyMode,
+  trades, setTrades, ledger, setLedger, ledgerAnchors, setLedgerAnchors, positions, pushUndoSnapshot, nextIdRef, applyCashDelta, cashFree, stats, privacyMode,
 }: TradeJournalSectionProps) {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -58,12 +61,48 @@ export function TradeJournalSection({
   const [journalNotice, setJournalNotice] = useState<string[] | null>(null);
   // The saved ledger is compared with one rebuilt from the trades. Differences
   // are only SHOWN; nothing is changed until the user approves (see drift below).
-  const rebuiltLedger = useMemo(() => buildLedger(trades).ledger, [trades]);
+  const rebuiltLedger = useMemo(() => buildLedger(trades, ledgerAnchors).ledger, [trades, ledgerAnchors]);
   const ledgerDrift = useMemo(() => diffLedgers(ledger, rebuiltLedger), [ledger, rebuiltLedger]);
   const [driftHidden, setDriftHidden] = useState<boolean>(false);
   function applyRebuiltLedger() {
     pushUndoSnapshot("עדכון מחיר ממוצע לפי העסקאות");
     setLedger(rebuiltLedger);
+  }
+
+  // Holdings bought before the journal have no trades, so trades alone can never
+  // give their quantity/average cost. "Update from holdings" proposes a starting
+  // point (anchor) per symbol from the holdings table - shown as before/after and
+  // applied only on approval. It never changes the holdings table, the pnl saved
+  // on trades, the cash or the equity history.
+  const heldWithoutAvgCost = useMemo(
+    () => positions.filter((p) => p.symbol !== "CASH" && typeof p.qty === "number" && p.qty > 0 && !(typeof p.avgCost === "number" && p.avgCost > 0)).map((p) => p.symbol),
+    [positions]
+  );
+  // What the proposal was computed from; if the trades or the holdings' quantity/
+  // average cost change while it is open, it no longer describes reality and is dropped.
+  const holdingsSignature = useMemo(() => JSON.stringify(positions.map((p) => [p.symbol, p.qty, p.avgCost ?? null])), [positions]);
+  const [holdingsPlanRaw, setHoldingsPlan] = useState<{
+    plan: AnchorPlan; before: Ledger; after: Ledger; diff: LedgerDifference[]; asOf: string; signature: string; forTrades: Trade[]; forAnchors: LedgerAnchors;
+  } | null>(null);
+  const planRef = useRef<HTMLDivElement>(null);
+  const holdingsPlan = holdingsPlanRaw && holdingsPlanRaw.signature === holdingsSignature && holdingsPlanRaw.forTrades === trades && holdingsPlanRaw.forAnchors === ledgerAnchors
+    ? holdingsPlanRaw : null;
+  function openHoldingsPlan() {
+    const asOf = new Date().toISOString().slice(0, 10);
+    // Trades already in the journal now are part of the holdings the anchor describes.
+    const lastTradeId = trades.reduce((m, t) => Math.max(m, t.id), -1);
+    const plan = planAnchorsFromHoldings(positions, ledger, rebuiltLedger, ledgerAnchors, asOf, lastTradeId);
+    const after = buildLedger(trades, plan.anchors).ledger;
+    setHoldingsPlan({ plan, before: ledger, after, diff: diffLedgers(ledger, after), asOf, signature: holdingsSignature, forTrades: trades, forAnchors: ledgerAnchors });
+    // The button can sit well below the top of the section where the proposal appears.
+    requestAnimationFrame(() => planRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+  function applyHoldingsPlan() {
+    if (!holdingsPlan) return;
+    pushUndoSnapshot("עדכון מחיר ממוצע לפי האחזקות");
+    setLedgerAnchors(holdingsPlan.plan.anchors);
+    setLedger(holdingsPlan.after);
+    setHoldingsPlan(null);
   }
 
   const [importResult, setImportResult] = useState<ParseResult | null>(null);
@@ -183,7 +222,7 @@ export function TradeJournalSection({
     // Profits are measured against the journal as of each trade's own date, and
     // the ledger is rebuilt from every trade in date order - an old file slots in
     // where it belongs instead of being applied after everything else.
-    const plan = planImport(trades, fresh, nextIdRef.current);
+    const plan = planImport(trades, fresh, nextIdRef.current, ledgerAnchors);
     nextIdRef.current += plan.newTrades.length;
     setTrades([...trades, ...plan.newTrades]);
     setLedger(plan.ledger);
@@ -223,10 +262,17 @@ export function TradeJournalSection({
   const formSymbol = form.symbol.trim().toUpperCase();
   const sellCtx = useMemo(
     () => (form.action === "מכירה" && formSymbol && formSymbol !== "CASH" && form.date)
-      ? sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, formSymbol, editingId) : null,
-    [trades, form.action, form.date, formSymbol, editingId]
+      ? sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, formSymbol, editingId, ledgerAnchors) : null,
+    [trades, ledgerAnchors, form.action, form.date, formSymbol, editingId]
   );
   const previewAvgCost = sellCtx ? sellCtx.avgCost : null;
+  // The symbol has a starting point (anchor) dated on or after this trade: the trade
+  // stays in the journal but does not move the ledger.
+  const anchorForForm = formSymbol ? ledgerAnchors[formSymbol] : undefined;
+  const anchorCoversDate = !!anchorForForm && !!form.date && (form.action === "קנייה" || form.action === "מכירה")
+    && !anchorCountsTrade(anchorForForm, { id: editingId ?? Infinity, date: form.date });
+  // An already-journaled trade being edited (it is part of the anchor) vs. a trade dated before it.
+  const anchorAlreadyCounted = !!anchorForForm && editingId !== null && anchorForForm.lastTradeId !== undefined && editingId <= anchorForForm.lastTradeId;
   // null (not 0) when the journal can't explain the sale - see suggestSellPnl.
   const sellSuggestion = (sellCtx && previewValue !== null && qtyNum > 0 && priceNum > 0) ? suggestSellPnl(sellCtx, priceNum, qtyNum) : null;
   const previewAutoPnl = sellSuggestion ? sellSuggestion.pnl : null;
@@ -278,7 +324,7 @@ export function TradeJournalSection({
       const manual = manualNum !== null && !Number.isNaN(manualNum) ? manualNum : null;
       pnl = manual !== null
         ? manual
-        : suggestSellPnl(sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, symbol, editingId), price, qty).pnl;
+        : suggestSellPnl(sellContextBefore(trades, { date: form.date, id: editingId ?? Infinity }, symbol, editingId, ledgerAnchors), price, qty).pnl;
       retPct = retPctFor(pnl, value);
     }
 
@@ -296,7 +342,7 @@ export function TradeJournalSection({
     // The ledger is always rebuilt from the whole trade list (in date order), so
     // an edit replaces the old version instead of stacking on it.
     setTrades(nextTrades);
-    setLedger(buildLedger(nextTrades).ledger);
+    setLedger(buildLedger(nextTrades, ledgerAnchors).ledger);
     cancelForm();
   }
 
@@ -306,7 +352,7 @@ export function TradeJournalSection({
     applyCashDelta(-cashEffect(trade));
     const nextTrades = trades.filter((t) => t.id !== id);
     setTrades(nextTrades);
-    setLedger(buildLedger(nextTrades).ledger);
+    setLedger(buildLedger(nextTrades, ledgerAnchors).ledger);
     setDeleteConfirmId(null);
   }
 
@@ -343,7 +389,7 @@ export function TradeJournalSection({
     applyCashDelta(cashDelta);
     const nextTrades = trades.filter((t) => !selectedIds.has(t.id));
     setTrades(nextTrades);
-    setLedger(buildLedger(nextTrades).ledger);
+    setLedger(buildLedger(nextTrades, ledgerAnchors).ledger);
     setSelectedIds(new Set());
     setBulkDeleteConfirm(false);
   }
@@ -405,9 +451,56 @@ export function TradeJournalSection({
               </tbody>
             </table>
           </div>
+          {heldWithoutAvgCost.length > 0 && (
+            <div data-missing-avgcost={heldWithoutAvgCost.length} style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.6, marginBottom: 10 }}>
+              חסר מחיר ממוצע באחזקות: <strong>{heldWithoutAvgCost.join(", ")}</strong>. נכסים אלה יישארו לפי העסקאות ביומן (אפשר להזין מחיר ממוצע בעיפרון שבטבלת האחזקות).
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="primary" onClick={applyRebuiltLedger}><Check size={15} /> עדכן לפי העסקאות</Button>
+            <Button variant="ghost" onClick={openHoldingsPlan}>עדכן לפי האחזקות</Button>
             <Button variant="ghost" onClick={() => setDriftHidden(true)}>השאר כמו שזה</Button>
+          </div>
+        </div>
+      )}
+
+      {holdingsPlan && (
+        <div ref={planRef} role="dialog" aria-label="עדכון לפי האחזקות" style={{ padding: "14px 16px", marginBottom: "var(--space-5)", background: "var(--info-subtle)", border: "1px solid var(--info-subtle-border)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>עדכון המחיר הממוצע לפי טבלת האחזקות - לפני ואחרי</div>
+          <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.6, marginBottom: 10 }}>
+            לכל נכס שיש לו באחזקות גם כמות וגם מחיר ממוצע תישמר נקודת פתיחה לתאריך {holdingsPlan.asOf}: הכמות והמחיר הממוצע מהאחזקות. עסקאות שכבר ביומן עכשיו נחשבות כחלק מהאחזקות ולא ייספרו שוב. עסקה חדשה מ-{holdingsPlan.asOf} והלאה תעדכן את הממוצע, ועסקה חדשה שתירשם עם תאריך מוקדם יותר תישמר ביומן בלי להשפיע עליו. נכסים שיש בחישוב ואין באחזקות יוסרו ממנו.
+            טבלת האחזקות, הרווח/הפסד ששמור בעסקאות, המזומן והגרף לא ישתנו.
+          </div>
+          {holdingsPlan.diff.length > 0 ? (
+            <div style={{ overflowX: "auto", marginBottom: 10 }}>
+              <table>
+                <thead>
+                  <tr><th>סימול</th><th className="num">לפני: כמות</th><th className="num">לפני: ממוצע</th><th className="num">אחרי: כמות</th><th className="num">אחרי: ממוצע</th></tr>
+                </thead>
+                <tbody>
+                  {holdingsPlan.diff.map((d) => (
+                    <tr key={d.symbol}>
+                      <td style={{ fontWeight: 700 }}>{d.symbol}</td>
+                      <td className="num">{d.stored ? fmtNum(d.stored.qty, d.stored.qty % 1 !== 0 ? 2 : 0) : "אין"}</td>
+                      <td className="num">{d.stored ? formatMoney(d.stored.avgCost, privacyMode, { digits: 2 }) : "אין"}</td>
+                      <td className="num">{d.rebuilt ? fmtNum(d.rebuilt.qty, d.rebuilt.qty % 1 !== 0 ? 2 : 0) : "יוסר"}</td>
+                      <td className="num">{d.rebuilt ? formatMoney(d.rebuilt.avgCost, privacyMode, { digits: 2 }) : "יוסר"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, marginBottom: 10 }}>אין הבדל בכמות או במחיר הממוצע; יישמרו רק נקודות הפתיחה.</div>
+          )}
+          <div style={{ fontSize: 12.5, lineHeight: 1.7, marginBottom: 12 }}>
+            {holdingsPlan.plan.anchored.length > 0 && <div>נקודת פתיחה תיווצר עבור: <strong>{holdingsPlan.plan.anchored.join(", ")}</strong></div>}
+            {holdingsPlan.plan.flattened.length > 0 && <div>יוסרו (אין באחזקות): <strong>{holdingsPlan.plan.flattened.join(", ")}</strong></div>}
+            {holdingsPlan.plan.missingAvgCost.length > 0 && <div>חסר מחיר ממוצע באחזקות (יישארו לפי העסקאות): <strong>{holdingsPlan.plan.missingAvgCost.join(", ")}</strong></div>}
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button variant="primary" onClick={applyHoldingsPlan}><Check size={15} /> אשר ועדכן</Button>
+            <Button variant="ghost" onClick={() => setHoldingsPlan(null)}>ביטול</Button>
           </div>
         </div>
       )}
@@ -438,6 +531,10 @@ export function TradeJournalSection({
           </Button>
           <Button variant="ghost" onClick={exportCSV}>
             <Download size={15} /> ייצוא CSV
+          </Button>
+          <Button variant="ghost" onClick={openHoldingsPlan}
+            title="מציע נקודת פתיחה (כמות ומחיר ממוצע) לכל נכס לפי טבלת האחזקות - מציג לפני ואחרי ומשנה רק אחרי אישור">
+            עדכן לפי האחזקות
           </Button>
           <Button variant="primary" onClick={() => { if (showForm && editingId === null) { cancelForm(); } else { setForm(EMPTY_FORM); setEditingId(null); setShowForm(true); } }}>
             <Plus size={15} /> {showForm && editingId === null ? "סגור טופס" : "הוסף עסקה"}
@@ -517,7 +614,15 @@ export function TradeJournalSection({
             )}
           </div>
 
-          {form.action === "מכירה" && form.pnlManual === "" && sellSuggestion?.warning === "no-history" && (
+          {anchorCoversDate && anchorForForm && (
+            <div role="status" style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--info-subtle)", border: "1px solid var(--info-subtle-border)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.6 }}>
+              {anchorAlreadyCounted
+                ? <>עסקה זו כבר הייתה ביומן כשנקבעה נקודת הפתיחה של {formSymbol} ({anchorForForm.asOf}), ולכן היא כבר נספרת בה ולא תשנה את המחיר הממוצע שוב.</>
+                : <>ל-{formSymbol} יש נקודת פתיחה (כמות ומחיר ממוצע) לתאריך {anchorForForm.asOf}. עסקה שמתוארכת לפני התאריך הזה נשמרת ביומן, אבל לא משנה את המחיר הממוצע.</>}
+              {form.action === "מכירה" ? " לכן אי אפשר לחשב רווח/הפסד אוטומטית - הזן אותו ידנית." : ""}
+            </div>
+          )}
+          {form.action === "מכירה" && form.pnlManual === "" && !anchorCoversDate && sellSuggestion?.warning === "no-history" && (
             <div role="alert" style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--warning-subtle)", border: "1px solid var(--warning-subtle-border)", borderRadius: 8, color: "var(--warning)", fontSize: 12.5, lineHeight: 1.6 }}>
               אין ביומן יחידות של {formSymbol} עד התאריך שנבחר, ולכן אי אפשר לחשב רווח/הפסד אוטומטית. הזן רווח/הפסד ידנית בשדה למעלה, או שמור בלי - אז יוצג &quot;-&quot; ולא 0. כדאי לבדוק שלא חסרה ביומן עסקת קנייה.
             </div>

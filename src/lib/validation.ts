@@ -21,7 +21,7 @@
 // (see newErrors), so a legacy portfolio that already contains a bad value can
 // still be edited and saved.
 
-import type { Ledger, PortfolioData, Position, Trade } from "./portfolioTypes";
+import type { Ledger, LedgerAnchors, PortfolioData, Position, Trade } from "./portfolioTypes";
 
 // ---- structure ----------------------------------------------------------------------
 
@@ -98,12 +98,26 @@ function isValidLedger(l: unknown): l is Ledger {
   });
 }
 
+function isValidAnchors(a: unknown): a is LedgerAnchors {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+  const entries = Object.entries(a as Record<string, unknown>);
+  if (entries.length > MAX_LEDGER_ENTRIES) return false;
+  return entries.every(([symbol, entry]) => {
+    if (symbol.length === 0 || symbol.length > MAX_SYMBOL_LEN) return false;
+    if (!entry || typeof entry !== "object") return false;
+    const e = entry as Record<string, unknown>;
+    return isFiniteNumber(e.qty) && isFiniteNumber(e.avgCost) && typeof e.asOf === "string" && DATE_RE.test(e.asOf)
+      && (e.lastTradeId === undefined || isFiniteNumber(e.lastTradeId));
+  });
+}
+
 /** Runtime shape/bounds check for client-submitted portfolio data. TypeScript
  * types alone don't survive the network boundary, so this is the real guard
  * against malformed or oversized payloads reaching disk. */
 export function isValidPortfolioData(data: unknown): data is PortfolioData {
   if (!data || typeof data !== "object") return false;
   const o = data as Record<string, unknown>;
+  if (o.ledgerAnchors !== undefined && !isValidAnchors(o.ledgerAnchors)) return false;
   if (!Array.isArray(o.positions) || o.positions.length > MAX_POSITIONS) return false;
   if (!o.positions.every(isValidPosition)) return false;
   if (!Array.isArray(o.trades) || o.trades.length > MAX_TRADES) return false;
@@ -164,7 +178,25 @@ function issue(
   severity: IssueSeverity, code: string, message: string,
   kind: ValidationIssue["kind"], id: number | null, symbol: string | null,
 ): ValidationIssue {
-  return { severity, code, key: kind + ":" + (id ?? "-") + ":" + code, message, kind, id, symbol };
+  // An item without an id (a ledger anchor) is identified by its symbol, so a
+  // problem on one symbol is never mistaken for the same problem on another.
+  return { severity, code, key: kind + ":" + (id ?? symbol ?? "-") + ":" + code, message, kind, id, symbol };
+}
+
+/** Problems with the ledger anchors (see LedgerAnchor): a real asOf date, a
+ * non-negative quantity, and a positive average cost whenever a quantity is held. */
+function validateAnchors(anchors: LedgerAnchors | undefined): ValidationIssue[] {
+  const out: ValidationIssue[] = [];
+  for (const [symbol, a] of Object.entries(anchors ?? {})) {
+    const add = (code: string, msg: string) => out.push(issue("error", code, msg, "portfolio", null, symbol));
+    if (!isRealDate(a.asOf)) add("anchor-date-invalid", "בנקודת הפתיחה של " + symbol + ": התאריך \"" + a.asOf + "\" אינו תאריך אמיתי בלוח השנה.");
+    if (a.qty < 0) add("anchor-qty-negative", "בנקודת הפתיחה של " + symbol + ": הכמות (" + a.qty + ") שלילית.");
+    else if (a.qty > 0 && !(a.avgCost > 0)) add("anchor-avgcost-invalid", "בנקודת הפתיחה של " + symbol + ": כשיש כמות, המחיר הממוצע (" + money(a.avgCost) + ") חייב להיות גדול מ-0.");
+    if (a.lastTradeId !== undefined && (!Number.isInteger(a.lastTradeId) || a.lastTradeId < -1)) {
+      add("anchor-last-trade-id", "בנקודת הפתיחה של " + symbol + ": מזהה העסקה האחרונה (" + a.lastTradeId + ") אינו תקין.");
+    }
+  }
+  return out;
 }
 
 /** Problems with one position, from its own fields. */
@@ -276,6 +308,7 @@ export function validatePortfolio(data: PortfolioData, opts: TradeValidationOpti
   if (data.nextTradeId <= maxTradeId) {
     out.push(issue("error", "next-trade-id", "מונה מזהי העסקאות (" + data.nextTradeId + ") אינו גדול ממזהה קיים (" + maxTradeId + "), ולכן עסקה חדשה עלולה לקבל מזהה כפול.", "portfolio", null, null));
   }
+  out.push(...validateAnchors(data.ledgerAnchors));
   return out;
 }
 

@@ -6,6 +6,7 @@ import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAl
 import { getPricesAction } from "@/app/actions/prices";
 import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
 import type { ExtendedQuote } from "@/lib/prices";
+import type { LedgerAnchors } from "@/lib/portfolioTypes";
 import { applyQuotes, derivePriceInfo, fetchQuotesInBatches, summarizePriceInfo, type PriceInfo, type QuoteMeta } from "@/lib/priceStatus";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck, RangeWidthPreference } from "@/lib/portfolio";
 import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
@@ -56,6 +57,9 @@ function userDataFingerprint(data: PortfolioData): string {
     positions: data.positions.map(({ price, value, weight, dev, ...rest }) => (rest.qty == null ? { ...rest, value } : rest)),
     trades: data.trades,
     ledger: data.ledger,
+    // Part of what the user edits: without it here an approved anchor would
+    // never be saved (the fingerprint would not change).
+    ledgerAnchors: data.ledgerAnchors ?? {},
     nextPositionId: data.nextPositionId,
     nextTradeId: data.nextTradeId,
   });
@@ -68,6 +72,7 @@ interface InvestmentDashboardProps {
   initialPositions: Position[];
   initialTrades: Trade[];
   initialLedger: Ledger;
+  initialLedgerAnchors?: LedgerAnchors;
   initialNextPositionId: number;
   initialNextTradeId: number;
   initialEquityHistory: EquityPoint[];
@@ -83,6 +88,7 @@ export default function InvestmentDashboard({
   initialPositions,
   initialTrades,
   initialLedger,
+  initialLedgerAnchors,
   initialNextPositionId,
   initialNextTradeId,
   initialEquityHistory,
@@ -145,6 +151,8 @@ export default function InvestmentDashboard({
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
   const nextId = useRef<number>(initialNextTradeId);
   const [ledger, setLedger] = useState<Ledger>(initialLedger);
+  // Starting points for symbols bought before the journal (see LedgerAnchor).
+  const [ledgerAnchors, setLedgerAnchors] = useState<LedgerAnchors>(initialLedgerAnchors ?? {});
 
   const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
 
@@ -154,6 +162,8 @@ export default function InvestmentDashboard({
   useEffect(() => { tradesRef.current = trades; }, [trades]);
   const ledgerRef = useRef<Ledger>(ledger);
   useEffect(() => { ledgerRef.current = ledger; }, [ledger]);
+  const ledgerAnchorsRef = useRef<LedgerAnchors>(ledgerAnchors);
+  useEffect(() => { ledgerAnchorsRef.current = ledgerAnchors; }, [ledgerAnchors]);
 
   // Autosave: strictly sequential, never more than one save in flight. Without
   // this, two rapid edits (e.g. adding two trades back-to-back) fire two
@@ -171,7 +181,7 @@ export default function InvestmentDashboard({
   const revisionRef = useRef<number>(initialRevision);
   // What was last confirmed saved - initially exactly what the page loaded.
   const lastSavedFingerprint = useRef<string>(userDataFingerprint({
-    positions: initialPositions, trades: initialTrades, ledger: initialLedger,
+    positions: initialPositions, trades: initialTrades, ledger: initialLedger, ledgerAnchors: initialLedgerAnchors,
     nextPositionId: initialNextPositionId, nextTradeId: initialNextTradeId,
   }));
   // Once a save is refused as stale, this tab must not keep trying: every
@@ -190,6 +200,7 @@ export default function InvestmentDashboard({
           positions: positionsRef.current,
           trades: tradesRef.current,
           ledger: ledgerRef.current,
+          ledgerAnchors: ledgerAnchorsRef.current,
           nextPositionId: nextPosId.current,
           nextTradeId: nextId.current,
         };
@@ -246,7 +257,7 @@ export default function InvestmentDashboard({
   useEffect(() => {
     if (skipNextSave.current) { skipNextSave.current = false; return; }
     runSave();
-  }, [positions, trades, ledger, runSave]);
+  }, [positions, trades, ledger, ledgerAnchors, runSave]);
 
   // Periodic backup save: a safety net independent of the change-triggered
   // save above, in case a transient failure was missed or dismissed.
@@ -371,8 +382,8 @@ export default function InvestmentDashboard({
   // blocking: a portfolio that already contains one still loads and saves.
   // The id counters are left out here (they are refs) - the server checks them.
   const dataIssues = useMemo(() => validatePortfolio({
-    positions, trades, ledger: {}, nextPositionId: Number.MAX_SAFE_INTEGER, nextTradeId: Number.MAX_SAFE_INTEGER,
-  }), [positions, trades]);
+    positions, trades, ledger: {}, ledgerAnchors, nextPositionId: Number.MAX_SAFE_INTEGER, nextTradeId: Number.MAX_SAFE_INTEGER,
+  }), [positions, trades, ledgerAnchors]);
 
   useEffect(() => {
     // Fetch on mount, then poll - the canonical data-fetching Effect.
@@ -902,6 +913,7 @@ export default function InvestmentDashboard({
       positions: JSON.parse(JSON.stringify(positions)),
       trades: JSON.parse(JSON.stringify(trades)),
       ledger: JSON.parse(JSON.stringify(ledger)),
+      ledgerAnchors: JSON.parse(JSON.stringify(ledgerAnchors)),
       nextPositionId: nextPosId.current,
       nextTradeId: nextId.current,
     });
@@ -912,6 +924,7 @@ export default function InvestmentDashboard({
     setPositions(undoSnapshot.positions);
     setTrades(undoSnapshot.trades);
     setLedger(undoSnapshot.ledger);
+    setLedgerAnchors(undoSnapshot.ledgerAnchors ?? {});
     nextPosId.current = undoSnapshot.nextPositionId;
     nextId.current = undoSnapshot.nextTradeId;
     setUndoSnapshot(null);
@@ -1094,7 +1107,7 @@ export default function InvestmentDashboard({
           />
 
           <TradeJournalSection
-            trades={trades} setTrades={setTrades} ledger={ledger} setLedger={setLedger} positions={positions}
+            trades={trades} setTrades={setTrades} ledger={ledger} setLedger={setLedger} ledgerAnchors={ledgerAnchors} setLedgerAnchors={setLedgerAnchors} positions={positions}
             pushUndoSnapshot={pushUndoSnapshot} nextIdRef={nextId} applyCashDelta={applyCashDelta}
             cashFree={cashFree} stats={stats} privacyMode={privacyMode}
           />
