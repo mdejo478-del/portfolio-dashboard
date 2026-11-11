@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
 import { PriceStatusMark } from "@/components/dashboard/PriceStatusMark";
 import type { PriceInfo, PriceSummary } from "@/lib/priceStatus";
+import { validatePosition, newErrors } from "@/lib/validation";
 import { AllocationCard } from "@/components/dashboard/AllocationCard";
 import { MorningBriefCard } from "@/components/dashboard/MorningBriefCard";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
@@ -65,6 +66,8 @@ export function HoldingsSection({
   const [showAddPosition, setShowAddPosition] = useState<boolean>(false);
   const [posForm, setPosForm] = useState<PositionFormState>(EMPTY_POSITION_FORM);
   const [posFormError, setPosFormError] = useState<string>("");
+  // Why an inline edit of an existing position was not applied (see savePosQty).
+  const [posEditError, setPosEditError] = useState<string>("");
   const addPositionRef = useRef<HTMLDivElement>(null);
 
   // Suggested min/max/dilute for the *next* position added, so a new holding
@@ -129,6 +132,7 @@ export function HoldingsSection({
   );
 
   function startEditPosQty(p: Position) {
+    setPosEditError("");
     setEditingPosId(p.id);
     setPosEditFields({
       qty: p.symbol === "CASH" ? String(p.value) : String(p.qty),
@@ -139,7 +143,7 @@ export function HoldingsSection({
       avgCost: p.avgCost != null ? String(p.avgCost) : "",
     });
   }
-  function cancelPosEdit() { setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "", priceTarget: "", avgCost: "" }); }
+  function cancelPosEdit() { setPosEditError(""); setEditingPosId(null); setPosEditFields({ qty: "", min: "", max: "", dilute: "", priceTarget: "", avgCost: "" }); }
   function updatePosEditField(field: keyof PosEditFields, val: string) { setPosEditFields((f) => ({ ...f, [field]: val })); }
   function savePosQty(p: Position) {
     const qtyNum = parseNum(posEditFields.qty);
@@ -148,7 +152,6 @@ export function HoldingsSection({
     const diluteNum = parseNum(posEditFields.dilute);
     const priceTargetNum = parseNum(posEditFields.priceTarget);
     if (Number.isNaN(qtyNum) || qtyNum < 0) { cancelPosEdit(); return; }
-    pushUndoSnapshot("עריכת נכס בתיק");
     const min = !Number.isNaN(minNum) ? minNum / 100 : p.min;
     const max = !Number.isNaN(maxNum) ? maxNum / 100 : p.max;
     const dilute = !Number.isNaN(diluteNum) ? diluteNum / 100 : p.dilute;
@@ -161,6 +164,13 @@ export function HoldingsSection({
     // something that would silently show no return.
     const avgCostNum = parseNum(posEditFields.avgCost);
     const avgCost = posEditFields.avgCost.trim() === "" ? null : (!Number.isNaN(avgCostNum) && avgCostNum > 0 ? avgCostNum : (p.avgCost ?? null));
+    // Refuse a range or target that doesn't make sense (e.g. min above max) and
+    // say why, keeping the edit open. Only problems this edit would ADD count -
+    // a position that already had one before can still have its quantity edited.
+    const candidate: Position = { ...p, min, max, dilute, priceTarget, qty: qtyNum, avgCost, value: p.symbol === "CASH" ? qtyNum : qtyNum * (p.price ?? 0) };
+    const introduced = newErrors(validatePosition(candidate), validatePosition(p));
+    if (introduced.length > 0) { setPosEditError(introduced[0].message); return; }
+    pushUndoSnapshot("עריכת נכס בתיק");
     setPositions((ps) => ps.map((row) => {
       if (row.id !== p.id) return row;
       const updated = { ...row, min, max, dilute, priceTarget };
@@ -210,6 +220,10 @@ export function HoldingsSection({
       return;
     }
     const avgCost = posForm.avgCost.trim() === "" ? null : avgCostNum;
+    const introduced = newErrors(validatePosition({
+      id: -1, symbol, qty, price, value: qty * price, weight: 0, dev: 0, min, max, dilute, hodl: false, priceTarget, avgCost,
+    }), []);
+    if (introduced.length > 0) { setPosFormError(introduced[0].message); return; }
     pushUndoSnapshot("הוספת נכס לתיק");
     const value = qty * price;
     setPositions((ps) => [...ps, {
@@ -430,6 +444,11 @@ export function HoldingsSection({
       {priceError && (
         <div style={{ marginBottom: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
           {priceError}
+        </div>
+      )}
+      {posEditError && (
+        <div role="alert" style={{ marginBottom: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5 }}>
+          {posEditError}
         </div>
       )}
 

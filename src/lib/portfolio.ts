@@ -7,7 +7,8 @@ import { recoverFromBackup } from "@/lib/backup";
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
-import { cashEffect, type Position, type Trade, type Ledger, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolioTypes";
+import { isValidPortfolioData, validatePortfolio, newErrors, formatRejection, recomputedValue } from "@/lib/validation";
+import { cashEffect, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolioTypes";
 export { cashEffect };
 export type { RawPosition, Position, RawTrade, Trade, LedgerEntry, Ledger, PortfolioData, EquityPoint, StoredPortfolioData, AlertAck, HealthScoreAck, EarningsEntry, NewsHeadline, MorningBriefData, RangeWidthPreference, RiskTolerance, ConcentrationPreference, SavePortfolioResult } from "@/lib/portfolioTypes";
 export { suggestedPositionRange, equalWeightTarget, deriveRangeWidthPreference } from "@/lib/portfolioTypes";
@@ -21,92 +22,13 @@ const MAX_EQUITY_POINTS = 3_650; // ~10 years of daily snapshots
 // portfolios directory.
 const USER_ID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-const MAX_POSITIONS = 300;
-const MAX_TRADES = 20_000;
-const MAX_LEDGER_ENTRIES = 1_000;
-const MAX_SYMBOL_LEN = 20;
-const MAX_SHORT_STRING_LEN = 500;
-const MAX_NOTES_LEN = 5_000;
-const VALID_ACTIONS = new Set(["קנייה", "מכירה", "הפקדה", "משיכה", "אחר"]);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// The structural validators (isValidPortfolioData and its helpers) live in
+// lib/validation.ts together with the semantic rules, so the browser and the
+// server enforce one set of rules. Re-exported here for existing importers.
+export { isValidPortfolioData };
 
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
-}
-function isFiniteNumberOrNull(v: unknown): v is number | null {
-  return v === null || isFiniteNumber(v);
-}
-function isNonEmptyShortString(v: unknown, maxLen: number): v is string {
-  return typeof v === "string" && v.length > 0 && v.length <= maxLen;
-}
-function isShortStringOrNull(v: unknown, maxLen: number): v is string | null {
-  return v === null || (typeof v === "string" && v.length <= maxLen);
-}
-
-function isValidPosition(p: unknown): p is Position {
-  if (!p || typeof p !== "object") return false;
-  const o = p as Record<string, unknown>;
-  return (
-    isFiniteNumber(o.id) &&
-    isNonEmptyShortString(o.symbol, MAX_SYMBOL_LEN) &&
-    isFiniteNumberOrNull(o.qty) &&
-    isFiniteNumberOrNull(o.price) &&
-    isFiniteNumber(o.value) &&
-    isFiniteNumber(o.weight) &&
-    isFiniteNumber(o.dev) &&
-    isFiniteNumber(o.min) &&
-    isFiniteNumber(o.max) &&
-    isFiniteNumber(o.dilute) &&
-    (o.hodl === undefined || typeof o.hodl === "boolean") &&
-    (o.priceTarget === undefined || isFiniteNumberOrNull(o.priceTarget)) &&
-    (o.avgCost === undefined || isFiniteNumberOrNull(o.avgCost))
-  );
-}
-
-function isValidTrade(t: unknown): t is Trade {
-  if (!t || typeof t !== "object") return false;
-  const o = t as Record<string, unknown>;
-  return (
-    isFiniteNumber(o.id) &&
-    typeof o.date === "string" && DATE_RE.test(o.date) &&
-    isNonEmptyShortString(o.symbol, MAX_SYMBOL_LEN) &&
-    typeof o.action === "string" && VALID_ACTIONS.has(o.action) &&
-    isFiniteNumber(o.qty) &&
-    isFiniteNumber(o.price) &&
-    isFiniteNumber(o.value) &&
-    isFiniteNumber(o.fee) &&
-    isFiniteNumberOrNull(o.pnl) &&
-    isFiniteNumberOrNull(o.retPct) &&
-    isShortStringOrNull(o.strategy, MAX_SHORT_STRING_LEN) &&
-    isShortStringOrNull(o.notes, MAX_NOTES_LEN)
-  );
-}
-
-function isValidLedger(l: unknown): l is Ledger {
-  if (!l || typeof l !== "object" || Array.isArray(l)) return false;
-  const entries = Object.entries(l as Record<string, unknown>);
-  if (entries.length > MAX_LEDGER_ENTRIES) return false;
-  return entries.every(([symbol, entry]) => {
-    if (symbol.length === 0 || symbol.length > MAX_SYMBOL_LEN) return false;
-    if (!entry || typeof entry !== "object") return false;
-    const e = entry as Record<string, unknown>;
-    return isFiniteNumber(e.qty) && isFiniteNumber(e.avgCost);
-  });
-}
-
-/** Runtime shape/bounds check for client-submitted portfolio data. TypeScript
- * types alone don't survive the network boundary, so this is the real guard
- * against malformed or oversized payloads reaching disk. */
-export function isValidPortfolioData(data: unknown): data is PortfolioData {
-  if (!data || typeof data !== "object") return false;
-  const o = data as Record<string, unknown>;
-  if (!Array.isArray(o.positions) || o.positions.length > MAX_POSITIONS) return false;
-  if (!o.positions.every(isValidPosition)) return false;
-  if (!Array.isArray(o.trades) || o.trades.length > MAX_TRADES) return false;
-  if (!o.trades.every(isValidTrade)) return false;
-  if (!isValidLedger(o.ledger)) return false;
-  if (!isFiniteNumber(o.nextPositionId) || !isFiniteNumber(o.nextTradeId)) return false;
-  return true;
 }
 
 function emptyPortfolio(): StoredPortfolioData {
@@ -215,10 +137,22 @@ export async function savePortfolio(userId: string, data: PortfolioData, baseRev
     if (baseRevision !== onDisk) {
       return { ok: false, reason: "conflict", currentRevision: onDisk } as const;
     }
+    // Refuse data that doesn't make sense (negative quantity, min above max,
+    // 31 February, duplicate ids...) - but only problems that are NEW compared
+    // with what is already stored. A portfolio that already contains one (from
+    // before these checks existed) stays editable and saveable; it is never
+    // locked out. The refusal is returned, not thrown, so the Hebrew
+    // explanation reliably reaches the user.
+    const introduced = newErrors(validatePortfolio(data), validatePortfolio(existing));
+    if (introduced.length > 0) {
+      return { ok: false, reason: "invalid", message: formatRejection(introduced), issues: introduced } as const;
+    }
     // Roll in today's equity snapshot server-side (server clock, not the
     // client's) - update today's point in place if it already exists so
     // repeated saves within the same day refine it, otherwise append a new one.
-    const total = data.positions.reduce((sum, p) => sum + p.value, 0);
+    // The total uses qty x price recomputed here, not the browser's own
+    // arithmetic, so a wrong value sent by a client can't land in the history.
+    const total = data.positions.reduce((sum, p) => sum + recomputedValue(p), 0);
     const today = new Date().toISOString().slice(0, 10);
     const history = rollInEquityPoint(existing.equityHistory, today, total);
     // Also re-checked here (not just in the daily snapshot job) so cash

@@ -4,6 +4,8 @@
 // crypto) so it's safe to pull into the browser bundle - unlike portfolio.ts,
 // which does file I/O and must never be imported from client code.
 
+import type { ValidationIssue } from "./validation";
+
 export interface RawPosition {
   symbol: string;
   qty: number | null;
@@ -247,7 +249,10 @@ export interface StoredPortfolioData extends PortfolioData {
  * (thrown server-action error messages aren't a dependable channel). */
 export type SavePortfolioResult =
   | { ok: true; revision: number }
-  | { ok: false; reason: "conflict"; currentRevision: number };
+  | { ok: false; reason: "conflict"; currentRevision: number }
+  // The data contains NEW invalid values (see lib/validation.ts); nothing was
+  // written. `message` is the Hebrew explanation to show the user as is.
+  | { ok: false; reason: "invalid"; message: string; issues: ValidationIssue[] };
 
 /** Net cash impact of a single trade (deposits/withdrawals move cash directly;
  * buys/sells move it by the trade value plus fee). Shared between the client

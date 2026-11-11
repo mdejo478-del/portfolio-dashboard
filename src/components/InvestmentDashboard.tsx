@@ -26,6 +26,8 @@ import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard"
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { EquityCurveCard } from "@/components/dashboard/EquityCurveCard";
 import { PortfolioSummaryCard } from "@/components/dashboard/PortfolioSummaryCard";
+import { DataIssuesBanner } from "@/components/dashboard/DataIssuesBanner";
+import { validatePortfolio } from "@/lib/validation";
 
 // Errors we throw ourselves (validation messages, rate limits, "session
 // expired", etc.) are already clear Hebrew sentences - safe to show as-is.
@@ -201,16 +203,23 @@ export default function InvestmentDashboard({
         setSaveStatus("saving");
         try {
           const result = await savePortfolioAction(data, revisionRef.current);
-          if (!result.ok) {
+          if (!result.ok && result.reason === "invalid") {
+            // The data itself is wrong (not a stale tab): nothing was written.
+            // Not a conflict - the user can fix the value and the next save
+            // goes through - so no reload banner, just the Hebrew explanation.
+            setSaveStatus("error");
+            setGlobalError(result.message);
+          } else if (!result.ok) {
             saveConflictRef.current = true;
             setSaveConflict(true);
             setSaveStatus("error");
             setGlobalError(SAVE_CONFLICT_MESSAGE);
             return;
+          } else {
+            revisionRef.current = result.revision;
+            lastSavedFingerprint.current = fingerprint;
+            setSaveStatus("idle");
           }
-          revisionRef.current = result.revision;
-          lastSavedFingerprint.current = fingerprint;
-          setSaveStatus("idle");
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           setSaveStatus("error");
@@ -357,6 +366,13 @@ export default function InvestmentDashboard({
     positions.filter((p) => p.symbol !== "CASH").map((p) => [p.symbol, derivePriceInfo(p.price, quoteMeta[p.symbol], { completedAt: cycleCompletedAt })])
   ), [positions, quoteMeta, cycleCompletedAt]);
   const priceSummary = useMemo(() => summarizePriceInfo(Object.values(priceInfo)), [priceInfo]);
+
+  // Data problems in what is on screen (see lib/validation.ts). Shown, never
+  // blocking: a portfolio that already contains one still loads and saves.
+  // The id counters are left out here (they are refs) - the server checks them.
+  const dataIssues = useMemo(() => validatePortfolio({
+    positions, trades, ledger: {}, nextPositionId: Number.MAX_SAFE_INTEGER, nextTradeId: Number.MAX_SAFE_INTEGER,
+  }), [positions, trades]);
 
   useEffect(() => {
     // Fetch on mount, then poll - the canonical data-fetching Effect.
@@ -1062,6 +1078,8 @@ export default function InvestmentDashboard({
             onRebuild={handleRebuildEquityHistory} rebuilding={rebuildingEquity} rebuildWarnings={equityRebuildWarnings}
             canRebuild={trades.length > 0}
           />
+
+          <DataIssuesBanner issues={dataIssues} />
 
           <HoldingsSection
             evaluated={evaluated} positions={positions} setPositions={setPositions} nextPosIdRef={nextPosId}

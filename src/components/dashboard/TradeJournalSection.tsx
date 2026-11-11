@@ -7,6 +7,7 @@ import { CheckboxCell } from "@/components/dashboard/ui/CheckboxCell";
 import { cashEffect } from "@/lib/portfolioTypes";
 import { buildLedger, sellContextBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, type ImportRowInput } from "@/lib/ledger";
 import { splitDuplicates } from "@/lib/tradeDuplicates";
+import { validateTrade, newErrors, errorsOf } from "@/lib/validation";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
 import type { TradeFormState } from "@/components/dashboard/types";
 import { ACTION_OPTS, STRATEGY_OPTS, SYMOPTS, EMPTY_FORM } from "@/components/dashboard/constants";
@@ -96,6 +97,22 @@ export function TradeJournalSection({
     return Array.from(set).sort();
   }, [positions, symbolOptions]);
 
+  // A parsed row that reads fine but makes no sense (a date that isn't on the
+  // calendar, a zero price...) is shown as an error row and skipped, instead of
+  // being imported and later making the whole portfolio unsaveable.
+  function withSemanticChecks(result: ParseResult): ParseResult {
+    if (result.fileError || result.needsMapping) return result;
+    return {
+      ...result,
+      rows: result.rows.map((r) => {
+        if (r.error) return r;
+        const t: Trade = { id: -1, date: r.date as string, symbol: r.symbol as string, action: r.action as string, qty: r.qty as number, price: r.price as number, value: (r.qty as number) * (r.price as number), fee: r.fee, pnl: null, retPct: null, strategy: r.strategy, notes: r.notes };
+        const problem = errorsOf(validateTrade(t))[0];
+        return problem ? { ...r, error: problem.message } : r;
+      }),
+    };
+  }
+
   function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -117,12 +134,12 @@ export function TradeJournalSection({
       try {
         const buffer = reader.result as ArrayBuffer;
         if (isExcel) {
-          setImportResult(await parseTradeWorkbook(buffer));
+          setImportResult(withSemanticChecks(await parseTradeWorkbook(buffer)));
         } else {
           // Read as raw bytes rather than text so the encoding can be
           // detected instead of assumed - CSV exports from Hebrew/Israeli
           // Excel installations are commonly Windows-1255, not UTF-8.
-          setImportResult(parseTradeFile(decodeCsvBuffer(buffer)));
+          setImportResult(withSemanticChecks(parseTradeFile(decodeCsvBuffer(buffer))));
         }
       } finally {
         setImportLoading(false);
@@ -241,6 +258,14 @@ export function TradeJournalSection({
     if (Number.isNaN(qty) || qty <= 0) { setTradeFormError("נא להזין כמות תקינה (מספר גדול מ-0)."); return; }
     if (Number.isNaN(price) || price <= 0) { setTradeFormError("נא להזין מחיר תקין (מספר גדול מ-0)."); return; }
     if (!form.date) { setTradeFormError("נא לבחור תאריך."); return; }
+    if (Number.isNaN(fee)) { setTradeFormError("נא להזין עמלה תקינה (מספר, בדרך כלל שלילי, למשל -2.5)."); return; }
+    // Refuse what doesn't make sense (a date that isn't on the calendar, a
+    // positive fee that would add to cash...) and say why. Only problems this
+    // edit would ADD count: a legacy trade that already had one can still be edited.
+    const candidate: Trade = { id: editingId ?? -1, date: form.date, symbol, action: form.action, qty, price, value: qty * price, fee, pnl: null, retPct: null, strategy: form.strategy, notes: form.notes || null };
+    const previous = editingId !== null ? trades.find((t) => t.id === editingId) : undefined;
+    const introduced = newErrors(validateTrade(candidate, { feeSignIsError: true }), previous ? validateTrade(previous, { feeSignIsError: true }) : []);
+    if (introduced.length > 0) { setTradeFormError(introduced[0].message); return; }
     pushUndoSnapshot(editingId !== null ? "עריכת עסקה" : "הוספת עסקה");
     const value = qty * price;
     let pnl: number | null = null;
@@ -647,7 +672,7 @@ export function TradeJournalSection({
           onCancel={closeImportModal}
           onContinue={(mapping) => {
             const request = importResult.needsMapping!;
-            setImportResult(parseWithManualMapping(request.table, request.headerRowIndex, mapping));
+            setImportResult(withSemanticChecks(parseWithManualMapping(request.table, request.headerRowIndex, mapping)));
           }}
         />
       )}
