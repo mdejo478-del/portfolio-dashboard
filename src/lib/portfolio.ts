@@ -7,6 +7,7 @@ import { recoverFromBackup } from "@/lib/backup";
 // components. cashEffect/types live in portfolioTypes.ts (no Node imports)
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
+import { CURRENT_SCHEMA_VERSION, PortfolioSchemaError, migrateToCurrent } from "@/lib/schema";
 import { isValidPortfolioData, validatePortfolio, newErrors, formatRejection, recomputedValue } from "@/lib/validation";
 import { cashEffect, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolioTypes";
 export { cashEffect };
@@ -32,7 +33,7 @@ function isFiniteNumber(v: unknown): v is number {
 }
 
 function emptyPortfolio(): StoredPortfolioData {
-  return { positions: [], trades: [], ledger: {}, nextPositionId: 0, nextTradeId: 0, equityHistory: [], alertAcks: {}, cashIdleSince: null };
+  return { positions: [], trades: [], ledger: {}, nextPositionId: 0, nextTradeId: 0, equityHistory: [], alertAcks: {}, cashIdleSince: null, schemaVersion: CURRENT_SCHEMA_VERSION };
 }
 
 function portfolioPath(userId: string): string {
@@ -53,6 +54,11 @@ function looksLikeSavedPortfolio(v: unknown): boolean {
   return isPlainObject(v) && Array.isArray(v.positions) && Array.isArray(v.trades);
 }
 
+// Users whose file has been confirmed to be at the current schema version in this process,
+// so the version check before a write costs nothing after the first time. Cleared when a
+// file is restored from a backup (the restored copy may be an older version).
+const migrationChecked = new Set<string>();
+
 const PORTFOLIO_UNREADABLE_MESSAGE = "קובץ התיק פגום ולא נמצא גיבוי תקין לשחזור. הנתונים לא נמחקו - פנה לבעל המערכת.";
 
 /** Reads and parses one user's portfolio file. A file that exists but can't be
@@ -70,13 +76,22 @@ async function readPortfolioFile(userId: string): Promise<Partial<StoredPortfoli
     // fall through to recovery
   }
   const recovered = await recoverFromBackup({ livePath: file, relPath: "portfolios/" + userId + ".json", isValid: looksLikeSavedPortfolio });
-  if (isPlainObject(recovered)) return recovered as Partial<StoredPortfolioData>;
+  if (isPlainObject(recovered)) {
+    migrationChecked.delete(userId);
+    return recovered as Partial<StoredPortfolioData>;
+  }
   throw new Error(PORTFOLIO_UNREADABLE_MESSAGE);
 }
 
+/** Reads one user's portfolio, brought up to the current schema IN MEMORY (see
+ * lib/schema.ts). It never writes: a file from an older version is upgraded on disk by
+ * ensurePortfolioMigrated (with a backup first), and a file from a NEWER version than this
+ * code, or with a nonsensical version, throws PortfolioSchemaError instead of being read
+ * as if it were current. */
 export async function getPortfolio(userId: string): Promise<StoredPortfolioData> {
   try {
-    const parsed = await readPortfolioFile(userId);
+    const raw = await readPortfolioFile(userId);
+    const parsed = migrateToCurrent(raw as Record<string, unknown>).data as Partial<StoredPortfolioData>;
     // Older saved files predate equityHistory/alertAcks - default them rather than crash.
     return {
       ...emptyPortfolio(),
@@ -95,7 +110,79 @@ export async function getPortfolio(userId: string): Promise<StoredPortfolioData>
 // with zero-filled contents - the data must be flushed to disk first.
 async function writeStoredPortfolio(userId: string, stored: StoredPortfolioData): Promise<void> {
   await fs.mkdir(PORTFOLIOS_DIR, { recursive: true });
-  await writeFileDurable(portfolioPath(userId), JSON.stringify(stored, null, 2));
+  // Always stamped with the version this code writes, whatever the object carried (a
+  // client can't downgrade it). Nothing newer or invalid ever gets here - getPortfolio
+  // refuses such a file before any writer reaches this point.
+  await writeFileDurable(portfolioPath(userId), JSON.stringify({ ...stored, schemaVersion: CURRENT_SCHEMA_VERSION }, null, 2));
+}
+
+// ---- schema migration on disk ------------------------------------------------------------
+
+const PRE_MIGRATION_DIR = path.join(process.cwd(), "data", "pre-migration");
+
+/** Saves the file's exact current text before a migration changes it, and checks the
+ * copy reads back identical. A separate folder, outside the rotating daily snapshots, so
+ * it is never pruned. Returns the path. Throws if the copy can't be made or verified -
+ * and then the migration must not go ahead. */
+async function backupBeforeMigration(userId: string, rawText: string, fromVersion: number): Promise<string> {
+  await fs.mkdir(PRE_MIGRATION_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dest = path.join(PRE_MIGRATION_DIR, userId + ".v" + fromVersion + "." + stamp + ".json");
+  await writeFileDurable(dest, rawText);
+  if ((await fs.readFile(dest, "utf-8")) !== rawText) {
+    throw new Error("הגיבוי שנוצר לפני שדרוג מבנה הנתונים אינו זהה למקור, ולכן השדרוג בוטל.");
+  }
+  return dest;
+}
+
+/** Brings the user's portfolio FILE up to the current schema version: if it is older, a
+ * backup of the file is made first, the migrations run, and the result is saved. A file
+ * already at the current version is not touched; a file from a newer version (or with an
+ * invalid one) throws PortfolioSchemaError and is not touched either; a missing file is
+ * nothing to do. If the backup can't be made this throws and the file stays as it was.
+ * It takes the portfolio's lock itself, so it must be called OUTSIDE it (see
+ * withPortfolioLock); concurrent callers migrate once. */
+export async function ensurePortfolioMigrated(userId: string): Promise<void> {
+  if (migrationChecked.has(userId)) return;
+  const file = portfolioPath(userId);
+  await withFileLock(file, async () => {
+    let raw: Partial<StoredPortfolioData>;
+    try {
+      raw = await readPortfolioFile(userId);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return; // no file yet: nothing to migrate
+      throw err;
+    }
+    const result = migrateToCurrent(raw as Record<string, unknown>); // throws for too-new / invalid
+    if (result.migrated) {
+      const backup = await backupBeforeMigration(userId, await fs.readFile(file, "utf-8"), result.from);
+      await writeFileDurable(file, JSON.stringify(result.data, null, 2));
+      console.log("[migration] " + userId + ": schema v" + result.from + " -> v" + result.to + ", original saved to " + backup);
+    }
+    migrationChecked.add(userId);
+  });
+}
+
+/** Reads a portfolio for display: upgrades the file first when it is old. If the upgrade
+ * itself fails (e.g. the backup can't be written) the data is still shown, upgraded in
+ * memory only - writes will refuse until the cause is fixed, but nothing is lost. A newer
+ * or invalid schema version is never swallowed. */
+export async function loadPortfolio(userId: string): Promise<StoredPortfolioData> {
+  try {
+    await ensurePortfolioMigrated(userId);
+  } catch (err) {
+    if (err instanceof PortfolioSchemaError) throw err;
+    console.error("[migration] could not upgrade the file for " + userId + " - showing it without saving:", err);
+  }
+  return getPortfolio(userId);
+}
+
+/** The lock every portfolio writer runs under: the file is first brought up to the
+ * current schema (outside the lock - the lock is not re-entrant), then the writer
+ * runs serialized with every other writer of that file. */
+async function withPortfolioLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  await ensurePortfolioMigrated(userId);
+  return withFileLock(portfolioPath(userId), fn);
 }
 
 function rollInEquityPoint(history: EquityPoint[], today: string, value: number, staleSymbols?: string[]): EquityPoint[] {
@@ -127,6 +214,13 @@ export async function savePortfolio(userId: string, data: PortfolioData, baseRev
   // Locked per-user so two near-simultaneous saves (autosave firing from two
   // open tabs, say) can't both read the same "existing" snapshot and then
   // have the second write silently clobber fields the first one set.
+  // A file from a newer version of the system is never overwritten: say so, in Hebrew.
+  try {
+    await ensurePortfolioMigrated(userId);
+  } catch (err) {
+    if (err instanceof PortfolioSchemaError) return { ok: false, reason: "invalid", message: err.message, issues: [] } as const;
+    throw err;
+  }
   return withFileLock(portfolioPath(userId), async () => {
     const existing = await getPortfolio(userId);
     // The lock alone serializes writes but can't stop a *stale* writer: a tab
@@ -207,7 +301,7 @@ export async function updateAlertAcks(
   acks: Record<string, { value: number }>,
   healthBreakdown?: { score: number; rangeRatio: number; cashHealth: number; breachScore: number },
 ): Promise<void> {
-  await withFileLock(portfolioPath(userId), async () => {
+  await withPortfolioLock(userId, async () => {
     const existing = await getPortfolio(userId);
     const seenAt = new Date().toISOString();
     const newAcks: Record<string, AlertAck> = Object.fromEntries(
@@ -232,7 +326,7 @@ export async function updateAlertAcks(
  * regular savePortfolio flow since it isn't part of client-submitted
  * PortfolioData, same as alertAcks/cashIdleSince. */
 export async function saveRangeWidthPreference(userId: string, pref: RangeWidthPreference): Promise<void> {
-  await withFileLock(portfolioPath(userId), async () => {
+  await withPortfolioLock(userId, async () => {
     const existing = await getPortfolio(userId);
     await writeStoredPortfolio(userId, { ...existing, rangeWidthPreference: pref });
   });
@@ -248,7 +342,7 @@ export async function updateDailySnapshot(
   userId: string,
   params: { equityValue: number; staleSymbols?: string[]; cashOverThreshold: boolean; morningBrief?: MorningBriefData; healthScoreAck?: HealthScoreAck }
 ): Promise<void> {
-  await withFileLock(portfolioPath(userId), async () => {
+  await withPortfolioLock(userId, async () => {
     const existing = await getPortfolio(userId);
     const today = new Date().toISOString().slice(0, 10);
     const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue, params.staleSymbols);
@@ -266,7 +360,7 @@ export async function updateDailySnapshot(
 /** Overwrites just the equity history, keeping positions/trades/ledger as
  * currently stored - used by the "rebuild from trade journal" action. */
 export async function saveEquityHistory(userId: string, history: EquityPoint[]): Promise<void> {
-  await withFileLock(portfolioPath(userId), async () => {
+  await withPortfolioLock(userId, async () => {
     const existing = await getPortfolio(userId);
     const trimmed = history.length > MAX_EQUITY_POINTS ? history.slice(history.length - MAX_EQUITY_POINTS) : history;
     // The day-by-day snapshots being replaced were real recorded values that
@@ -301,5 +395,6 @@ export async function listPortfolioUserIds(): Promise<string[]> {
  * ledger, equity history) - used by account deletion. Does not touch
  * historical backup snapshots; see deleteUserPortfolioBackups in backup.ts. */
 export async function deletePortfolio(userId: string): Promise<void> {
+  migrationChecked.delete(userId);
   await fs.rm(portfolioPath(userId), { force: true });
 }

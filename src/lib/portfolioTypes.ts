@@ -266,6 +266,10 @@ export interface StoredPortfolioData extends PortfolioData {
   // data a client submits, so they must not make an open tab look stale.
   // Absent in files written before this existed = revision 0.
   revision?: number;
+  // Structure version of the file (see lib/schema.ts). Absent = version 0, i.e. a file
+  // written before versioning existed. Stamped by the server on every write; the client
+  // never sets it.
+  schemaVersion?: number;
 }
 
 /** Outcome of a client save attempt - returned rather than thrown so the
