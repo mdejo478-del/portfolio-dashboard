@@ -5,6 +5,7 @@
 // which does file I/O and must never be imported from client code.
 
 import type { ValidationIssue } from "./validation";
+import type { MarketSettings } from "./marketStatus";
 
 export interface RawPosition {
   symbol: string;
@@ -256,6 +257,10 @@ export interface StoredPortfolioData extends PortfolioData {
   // absent for users who skipped it or predate the feature, in which case
   // callers should treat it as "medium" (see suggestedPositionRange above).
   rangeWidthPreference?: RangeWidthPreference;
+  // The owner's own thresholds for the "market status" card (VIX zones, Fear & Greed
+  // extreme-fear level). Set via the settings menu, server-managed like the range
+  // preference above; absent = the defaults (see lib/marketStatus.ts).
+  marketSettings?: MarketSettings;
   // Optimistic-concurrency counter for the client-submitted part of the
   // portfolio (positions/trades/ledger/ids). Bumped by every successful
   // savePortfolio; a save must name the revision it was based on, and is

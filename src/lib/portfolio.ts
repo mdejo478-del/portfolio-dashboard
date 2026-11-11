@@ -8,6 +8,7 @@ import { recoverFromBackup } from "@/lib/backup";
 // specifically so client code can import them without pulling in fs/path -
 // re-exported here so existing `from "@/lib/portfolio"` imports keep working.
 import { CURRENT_SCHEMA_VERSION, PortfolioSchemaError, migrateToCurrent } from "@/lib/schema";
+import { normalizeMarketSettings, type MarketSettings } from "@/lib/marketStatus";
 import { isValidPortfolioData, validatePortfolio, newErrors, formatRejection, recomputedValue } from "@/lib/validation";
 import { cashEffect, type PortfolioData, type EquityPoint, type StoredPortfolioData, type AlertAck, type HealthScoreAck, type MorningBriefData, type RangeWidthPreference, type SavePortfolioResult } from "@/lib/portfolioTypes";
 export { cashEffect };
@@ -329,6 +330,22 @@ export async function saveRangeWidthPreference(userId: string, pref: RangeWidthP
   await withPortfolioLock(userId, async () => {
     const existing = await getPortfolio(userId);
     await writeStoredPortfolio(userId, { ...existing, rangeWidthPreference: pref });
+  });
+}
+
+/** The user's thresholds for the market-status card, always valid: anything missing or
+ * invalid in the file falls back to the defaults. */
+export async function getMarketSettings(userId: string): Promise<MarketSettings> {
+  return normalizeMarketSettings((await getPortfolio(userId)).marketSettings);
+}
+
+/** Saves the user's market-status thresholds (already validated by the caller). A server-managed
+ * field like rangeWidthPreference: it is not part of the client-submitted portfolio data and does
+ * not bump the revision, so it can never make an open tab look stale. */
+export async function saveMarketSettings(userId: string, settings: MarketSettings): Promise<void> {
+  await withPortfolioLock(userId, async () => {
+    const existing = await getPortfolio(userId);
+    await writeStoredPortfolio(userId, { ...existing, marketSettings: settings });
   });
 }
 

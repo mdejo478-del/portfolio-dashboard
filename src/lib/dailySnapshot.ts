@@ -3,6 +3,7 @@ import path from "path";
 import { writeFileDurable } from "@/lib/durableFile";
 import { getPortfolio, listPortfolioUserIds, updateDailySnapshot, type MorningBriefData, type HealthScoreAck } from "@/lib/portfolio";
 import { fetchQuotesInBatches, valuePositions } from "@/lib/priceStatus";
+import { recordDailyMarketHistory } from "@/lib/marketData";
 import { getQuotes, getEarningsCalendar, getCompanyNews, type RawEarningsEntry, type RawNewsHeadline } from "@/lib/prices";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
@@ -175,6 +176,14 @@ async function runSnapshotNow(): Promise<void> {
   // Shared across all users in this run: if two users both hold AAPL, its
   // news is fetched once, not once per user.
   const newsCache = new Map<string, RawNewsHeadline[]>();
+
+  // The market indicators (VIX, Fear & Greed) are shared, not per portfolio: recorded once per run.
+  // A failure here must never stop the per-user snapshots.
+  try {
+    await recordDailyMarketHistory(today);
+  } catch (err) {
+    console.error("[dailySnapshot] market history failed:", err);
+  }
 
   const userIds = await listPortfolioUserIds();
   for (const userId of userIds) {

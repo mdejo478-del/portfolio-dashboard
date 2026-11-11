@@ -28,6 +28,9 @@ import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { EquityCurveCard } from "@/components/dashboard/EquityCurveCard";
 import { PortfolioSummaryCard } from "@/components/dashboard/PortfolioSummaryCard";
 import { DataIssuesBanner } from "@/components/dashboard/DataIssuesBanner";
+import { MarketStatusCard } from "@/components/dashboard/MarketStatusCard";
+import { MarketSettingsModal } from "@/components/dashboard/MarketSettingsModal";
+import { DEFAULT_MARKET_SETTINGS, type MarketSettings } from "@/lib/marketStatus";
 import { validatePortfolio } from "@/lib/validation";
 
 // Errors we throw ourselves (validation messages, rate limits, "session
@@ -73,6 +76,7 @@ interface InvestmentDashboardProps {
   initialTrades: Trade[];
   initialLedger: Ledger;
   initialLedgerAnchors?: LedgerAnchors;
+  initialMarketSettings?: MarketSettings;
   initialNextPositionId: number;
   initialNextTradeId: number;
   initialEquityHistory: EquityPoint[];
@@ -89,6 +93,7 @@ export default function InvestmentDashboard({
   initialTrades,
   initialLedger,
   initialLedgerAnchors,
+  initialMarketSettings,
   initialNextPositionId,
   initialNextTradeId,
   initialEquityHistory,
@@ -151,6 +156,10 @@ export default function InvestmentDashboard({
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
   const nextId = useRef<number>(initialNextTradeId);
   const [ledger, setLedger] = useState<Ledger>(initialLedger);
+  // The owner's own thresholds for the market-status card; saved server-side, not part of the portfolio
+  // data the autosave sends.
+  const [marketSettings, setMarketSettings] = useState<MarketSettings>(initialMarketSettings ?? DEFAULT_MARKET_SETTINGS);
+  const [marketSettingsOpen, setMarketSettingsOpen] = useState<boolean>(false);
   // Starting points for symbols bought before the journal (see LedgerAnchor).
   const [ledgerAnchors, setLedgerAnchors] = useState<LedgerAnchors>(initialLedgerAnchors ?? {});
 
@@ -1041,6 +1050,7 @@ export default function InvestmentDashboard({
           visibleAlerts={alerts} unseenAlertCount={unseenAlertCount} newAlertIds={newAlertIds}
           alertsOpen={alertsOpen} toggleAlerts={toggleAlerts} closeAlerts={() => setAlertsOpen(false)} dismissAlert={dismissAlert}
           undoSnapshot={undoSnapshot} undoLastAction={undoLastAction}
+          onEditMarketSettings={() => setMarketSettingsOpen(true)}
           onRangeWidthPreferenceChange={setRangeWidthPreference}
         />
 
@@ -1085,6 +1095,8 @@ export default function InvestmentDashboard({
           ) : (
             <PortfolioHealthCard health={portfolioHealth} />
           )}
+
+          <MarketStatusCard settings={marketSettings} onOpenSettings={() => setMarketSettingsOpen(true)} />
 
           <EquityCurveCard
             data={equityChartData} total={total} ath={equityAth} returnPct={equityReturn} drawdownPct={athDrawdownPct} privacyMode={privacyMode}
@@ -1140,6 +1152,10 @@ export default function InvestmentDashboard({
         portfolioHealth={portfolioHealth}
         privacyMode={privacyMode}
       />
+
+      {marketSettingsOpen && (
+        <MarketSettingsModal settings={marketSettings} onClose={() => setMarketSettingsOpen(false)} onSaved={setMarketSettings} />
+      )}
     </div>
   );
 }

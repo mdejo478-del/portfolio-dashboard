@@ -15,13 +15,14 @@ import { SettingsMenu } from "@/components/dashboard/SettingsMenu";
 export function Header({
   userName, total, cashFree, privacyMode, setPrivacyMode,
   visibleAlerts, unseenAlertCount, newAlertIds, alertsOpen, toggleAlerts, closeAlerts, dismissAlert,
-  undoSnapshot, undoLastAction, onRangeWidthPreferenceChange,
+  undoSnapshot, undoLastAction, onRangeWidthPreferenceChange, onEditMarketSettings,
 }: {
   userName: string; total: number; cashFree: number; privacyMode: boolean; setPrivacyMode: (fn: (v: boolean) => boolean) => void;
   visibleAlerts: Alert[]; unseenAlertCount: number; newAlertIds: Set<string>;
   alertsOpen: boolean; toggleAlerts: () => void; closeAlerts: () => void; dismissAlert: (id: string) => void;
   undoSnapshot: UndoSnapshot | null; undoLastAction: () => void;
   onRangeWidthPreferenceChange: (pref: RangeWidthPreference) => void;
+  onEditMarketSettings: () => void;
 }) {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [portfolioStyleOpen, setPortfolioStyleOpen] = useState(false);
@@ -154,6 +155,7 @@ export function Header({
           <SettingsMenu
             onChangePassword={() => setChangePasswordOpen(true)}
             onEditPortfolioStyle={() => setPortfolioStyleOpen(true)}
+            onEditMarketSettings={onEditMarketSettings}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
           />
           <form action={logout}>
@@ -210,6 +212,7 @@ export function Header({
             compact
             onChangePassword={() => setChangePasswordOpen(true)}
             onEditPortfolioStyle={() => setPortfolioStyleOpen(true)}
+            onEditMarketSettings={onEditMarketSettings}
             onDeleteAccount={() => setDeleteAccountOpen(true)}
           />
         </div>

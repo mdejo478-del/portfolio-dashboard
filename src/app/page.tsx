@@ -3,6 +3,7 @@ import InvestmentDashboard from "@/components/InvestmentDashboard";
 import { verifySession } from "@/lib/dal";
 import { loadPortfolio, currentRevision } from "@/lib/portfolio";
 import { PortfolioSchemaError } from "@/lib/schema";
+import { normalizeMarketSettings } from "@/lib/marketStatus";
 
 export default async function Home() {
   const session = await verifySession();
@@ -35,6 +36,7 @@ export default async function Home() {
       initialTrades={portfolio.trades}
       initialLedger={portfolio.ledger}
       initialLedgerAnchors={portfolio.ledgerAnchors ?? {}}
+      initialMarketSettings={normalizeMarketSettings(portfolio.marketSettings)}
       initialNextPositionId={portfolio.nextPositionId}
       initialNextTradeId={portfolio.nextTradeId}
       initialEquityHistory={portfolio.equityHistory}

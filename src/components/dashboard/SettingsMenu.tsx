@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type CSSProperties } from "react";
-import { Settings, KeyRound, Trash2, LogOut, SlidersHorizontal } from "lucide-react";
+import { Settings, KeyRound, Trash2, LogOut, SlidersHorizontal, Gauge } from "lucide-react";
 import { usePopoverPosition } from "@/components/dashboard/usePopoverPosition";
 import { logoutAllDevices } from "@/app/actions/auth";
 
@@ -12,16 +12,17 @@ import { logoutAllDevices } from "@/app/actions/auth";
 // its own open/closed state, safe to render twice (desktop row + mobile row)
 // since each instance is fully independent.
 export function SettingsMenu({
-  onChangePassword, onEditPortfolioStyle, onDeleteAccount, compact,
+  onChangePassword, onEditPortfolioStyle, onEditMarketSettings, onDeleteAccount, compact,
 }: {
   onChangePassword: () => void;
   onEditPortfolioStyle: () => void;
+  onEditMarketSettings: () => void;
   onDeleteAccount: () => void;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const pos = usePopoverPosition(open, wrapperRef, 200);
+  const pos = usePopoverPosition(open, wrapperRef, 250);
 
   const triggerStyle: CSSProperties = compact
     ? {
@@ -89,6 +90,19 @@ export function SettingsMenu({
               }}
             >
               <SlidersHorizontal size={15} /> סגנון השקעה
+            </button>
+            <button
+              type="button"
+              className="settings-menu-item"
+              onClick={() => { onEditMarketSettings(); setOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                fontSize: 13.5, fontWeight: 600, color: "var(--text-dim)", background: "transparent",
+                border: "none", borderBottom: "1px solid var(--border)", textAlign: "right", width: "100%",
+                cursor: "pointer",
+              }}
+            >
+              <Gauge size={15} /> הגדרות מצב שוק
             </button>
             <form action={logoutAllDevices} style={{ borderBottom: "1px solid var(--border)" }}>
               <button
