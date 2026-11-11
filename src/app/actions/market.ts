@@ -4,6 +4,7 @@ import { requireSession, verifySession } from "@/lib/dal";
 import { getMarketSnapshot } from "@/lib/marketData";
 import { saveMarketSettings } from "@/lib/portfolio";
 import { missingReading, validateMarketSettings, type MarketSettings, type MarketSnapshot } from "@/lib/marketStatus";
+import { computePressureIndex, missingComponent, PRESSURE_COMPONENT_IDS } from "@/lib/marketPressure";
 
 /** Both indicators for the market-status card, from the cache shared by all users. Never throws:
  * whatever goes wrong, the card gets "missing" readings and shows "לא זמין". */
@@ -13,7 +14,7 @@ export async function getMarketStatusAction(): Promise<MarketSnapshot> {
     return await getMarketSnapshot();
   } catch (err) {
     console.error("[market] snapshot failed:", err);
-    return { vix: missingReading("Yahoo Finance", false), fearGreed: missingReading("CNN", true) };
+    return { vix: missingReading("Yahoo Finance"), pressure: computePressureIndex(PRESSURE_COMPONENT_IDS.map(missingComponent)) };
   }
 }
 

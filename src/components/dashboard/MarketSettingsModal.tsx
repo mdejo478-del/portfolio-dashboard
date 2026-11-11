@@ -15,17 +15,17 @@ interface Fields {
   alertBelow: string;
   buyBelow: string;
   panicUpTo: string;
-  fearGreed: string;
+  pressure: string;
 }
 
 const toFields = (s: MarketSettings): Fields => ({
   calmBelow: String(s.vixZones.calmBelow), alertBelow: String(s.vixZones.alertBelow), buyBelow: String(s.vixZones.buyBelow),
-  panicUpTo: String(s.vixZones.panicUpTo), fearGreed: String(s.fearGreedExtremeBelow),
+  panicUpTo: String(s.vixZones.panicUpTo), pressure: String(s.pressureExtremeAbove),
 });
 
 const fromFields = (f: Fields) => ({
   vixZones: { calmBelow: parseNum(f.calmBelow), alertBelow: parseNum(f.alertBelow), buyBelow: parseNum(f.buyBelow), panicUpTo: parseNum(f.panicUpTo) },
-  fearGreedExtremeBelow: parseNum(f.fearGreed),
+  pressureExtremeAbove: parseNum(f.pressure),
 });
 
 /** The owner's own thresholds for the market-status card (VIX zones, Fear & Greed extreme-fear level).
@@ -105,8 +105,8 @@ export function MarketSettingsModal({ settings, onClose, onSaved }: {
                 {VIX_ZONE_LABEL.calm}: מתחת ל-{check.settings.vixZones.calmBelow} · {VIX_ZONE_LABEL.alert}: {check.settings.vixZones.calmBelow}-{check.settings.vixZones.alertBelow} · {VIX_ZONE_LABEL.buy}: {check.settings.vixZones.alertBelow}-{check.settings.vixZones.buyBelow} · {VIX_ZONE_LABEL.panic}: {check.settings.vixZones.buyBelow}-{check.settings.vixZones.panicUpTo} · {VIX_ZONE_LABEL.extreme}: מעל {check.settings.vixZones.panicUpTo}
               </div>
             )}
-            <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>Fear & Greed</div>
-            <Field label="פחד קיצוני - מתחת ל-">{input("fearGreed")}</Field>
+            <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>מדד לחץ שוק (חישוב עצמי)</div>
+            <Field label="לחץ קיצוני - מעל">{input("pressure")}</Field>
 
             {error && (
               <div role="alert" style={{ padding: "var(--space-2) var(--space-3)", background: "var(--loss-subtle)", border: "1px solid var(--loss-subtle-border)", borderRadius: 8, color: "var(--loss)", fontSize: 12.5, lineHeight: 1.5 }}>

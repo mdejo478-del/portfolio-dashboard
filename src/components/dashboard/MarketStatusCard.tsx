@@ -1,19 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { Gauge, Settings2, ArrowUp, ArrowDown } from "lucide-react";
+import { Gauge, Settings2, ArrowUp, ArrowDown, ExternalLink } from "lucide-react";
 import { getMarketStatusAction } from "@/app/actions/market";
 import {
-  VIX_ZONE_LABEL, changeOf, fearGreedRatingHe, gaugeFraction, isExtremeFear, missingReading, vixGaugeMax, vixGaugeSegments, vixZone,
+  VIX_ZONE_LABEL, changeOf, gaugeFraction, missingReading, vixGaugeMax, vixGaugeSegments, vixZone,
   type IndicatorReading, type MarketSettings, type MarketSnapshot, type VixZoneId,
 } from "@/lib/marketStatus";
-import { PRICE_STATUS_LABEL } from "@/lib/priceStatus";
+import {
+  PRESSURE_COMPONENT_IDS, isExtremePressure, missingComponent, computePressureIndex, pressureFormulaLines,
+  type PressureComponent, type PressureComponentId, type PressureIndex,
+} from "@/lib/marketPressure";
+import { PRICE_STATUS_LABEL, type PriceStatus } from "@/lib/priceStatus";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
 
-// "Market status": the VIX and CNN Fear & Greed, shown against the owner's OWN rules (the zones
-// below are the owner's thresholds from settings). Display only - nothing here recommends a trade.
+// "Market status": the VIX and an own-calculation market pressure index, shown against the owner's OWN
+// rules (the zones below are the owner's thresholds from settings). Display only - nothing here
+// recommends a trade.
 
 const REFRESH_MS = 5 * 60_000;
+const CNN_FEAR_GREED_URL = "https://www.cnn.com/markets/fear-and-greed";
 
 const ZONE_COLOR: Record<VixZoneId, string> = {
   calm: "var(--gain)", alert: "var(--info)", buy: "var(--accent)", panic: "var(--warning)", extreme: "var(--loss)",
@@ -26,16 +32,15 @@ function clock(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Source, when it was obtained, and whether it can be trusted - the same ok / stale / missing
- * vocabulary as the price status. A source with no official API says so. */
-function ReliabilityLine({ reading }: { reading: IndicatorReading }) {
-  const time = clock(reading.fetchedAt);
+/** Source, when it was obtained, and whether it can be trusted - the same ok / stale / missing vocabulary
+ * as the price status. */
+function ReliabilityLine({ status, source, fetchedAt, asOf }: { status: PriceStatus; source: string; fetchedAt: string | null; asOf: string | null }) {
+  const time = clock(fetchedAt);
   return (
-    <div data-reliability={reading.status} style={{ fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.6 }}>
-      <span style={{ color: STATUS_COLOR[reading.status], fontWeight: 700 }}>● {PRICE_STATUS_LABEL[reading.status]}</span>
-      {" · מקור: " + reading.source}
-      {reading.unofficial && <span data-unofficial="true" style={{ color: "var(--warning)", fontWeight: 600 }}> (מקור לא רשמי)</span>}
-      {time ? " · עודכן " + time : reading.asOf ? " · נתון מתאריך " + reading.asOf.slice(0, 10) : ""}
+    <div data-reliability={status} style={{ fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.6 }}>
+      <span style={{ color: STATUS_COLOR[status], fontWeight: 700 }}>● {PRICE_STATUS_LABEL[status]}</span>
+      {" · מקור: " + source}
+      {time ? " · עודכן " + time : asOf ? " · נתון מתאריך " + asOf.slice(0, 10) : ""}
     </div>
   );
 }
@@ -62,13 +67,13 @@ const panelStyle: CSSProperties = {
   padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, minWidth: 0,
 };
 
-function Unavailable({ title, reading, hint }: { title: string; reading: IndicatorReading; hint: string }) {
+function Unavailable({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div style={panelStyle} data-panel-missing>
       <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-faint)" }}>לא זמין</div>
       <div style={{ fontSize: 12, color: "var(--text-dim)", lineHeight: 1.5 }}>{hint}</div>
-      <ReliabilityLine reading={reading} />
+      {children}
     </div>
   );
 }
@@ -98,7 +103,11 @@ function Gauge1D({ segments, max, value, ticks, activeId }: {
 
 function VixPanel({ reading, settings }: { reading: IndicatorReading; settings: MarketSettings }) {
   if (reading.value === null) {
-    return <Unavailable title="VIX - מדד התנודתיות" reading={reading} hint="לא התקבל נתון מ-Yahoo Finance. שאר הכרטיס ממשיך לעבוד." />;
+    return (
+      <Unavailable title="VIX - מדד התנודתיות" hint="לא התקבל נתון מ-Yahoo Finance. שאר הכרטיס ממשיך לעבוד.">
+        <ReliabilityLine status={reading.status} source={reading.source} fetchedAt={reading.fetchedAt} asOf={reading.asOf} />
+      </Unavailable>
+    );
   }
   const zone = vixZone(reading.value, settings.vixZones);
   const max = vixGaugeMax(settings.vixZones);
@@ -118,40 +127,99 @@ function VixPanel({ reading, settings }: { reading: IndicatorReading; settings: 
         max={max} value={reading.value} activeId={zone} ticks={[z.calmBelow, z.alertBelow, z.buyBelow, z.panicUpTo]}
         segments={vixGaugeSegments(z, max).map((s) => ({ ...s, color: ZONE_COLOR[s.id] }))}
       />
-      <ReliabilityLine reading={reading} />
+      <ReliabilityLine status={reading.status} source={reading.source} fetchedAt={reading.fetchedAt} asOf={reading.asOf} />
     </div>
   );
 }
 
-function FearGreedPanel({ reading, settings }: { reading: IndicatorReading; settings: MarketSettings }) {
-  if (reading.value === null) {
-    return <Unavailable title="Fear & Greed (CNN)" reading={reading} hint="המקור הלא רשמי של CNN לא החזיר נתון (ייתכן שהוא חוסם בקשות אוטומטיות). שאר הכרטיס ממשיך לעבוד." />;
+/** What one component's raw input looks like, in words. */
+function rawText(c: PressureComponent): string {
+  if (c.raw === null) return "";
+  switch (c.id) {
+    case "vix": return c.raw.toFixed(2);
+    case "term": return c.raw.toFixed(3) + (c.backwardation ? " (מעל 1 - backwardation)" : "");
+    case "drawdown": return (c.raw === 0 ? "בשיא" : "-" + (c.raw * 100).toFixed(1) + "% מהשיא");
+    case "trend": return (c.raw >= 0 ? "+" : "") + (c.raw * 100).toFixed(1) + "% מהממוצע";
   }
-  const threshold = settings.fearGreedExtremeBelow;
-  const extreme = isExtremeFear(reading.value, threshold);
-  const rating = fearGreedRatingHe(reading.rating);
+}
+
+function ComponentRow({ c }: { c: PressureComponent }) {
+  const missing = c.score === null || c.status === "missing";
+  const time = clock(c.fetchedAt);
+  const title = missing ? "חסר - לא נספר במדד" : PRICE_STATUS_LABEL[c.status] + " · מקור: " + c.source + (time ? " · עודכן " + time : c.asOf ? " · נתון מתאריך " + c.asOf.slice(0, 10) : "");
   return (
-    <div style={panelStyle} data-panel="fear-greed">
-      <div style={{ fontWeight: 700, fontSize: 13.5 }}>Fear & Greed (CNN) <span style={{ color: "var(--warning)", fontWeight: 600, fontSize: 11.5 }}>· מקור לא רשמי</span></div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <span data-value style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700 }}>{reading.value.toFixed(1)}</span>
-        {rating && <span data-rating style={{ fontSize: 12.5, color: "var(--text-dim)" }}>{rating}</span>}
-      </div>
-      <div data-extreme-fear={extreme ? "true" : "false"} style={{ fontSize: 12.5, fontWeight: extreme ? 700 : 500, color: extreme ? "var(--accent)" : "var(--text-faint)" }}>
-        {extreme ? "פחד קיצוני - מתחת ל-" + threshold + " (לפי הכלל שלך)" : "מעל סף פחד קיצוני (" + threshold + ")"}
-      </div>
-      <ChangeLine reading={reading} digits={1} percent={false} />
-      <Gauge1D
-        max={100} value={reading.value} activeId={extreme ? "extreme" : "rest"} ticks={[0, threshold, 100]}
-        segments={[
-          { id: "extreme", from: 0, to: threshold, color: "var(--accent)" },
-          { id: "rest", from: threshold, to: 100, color: "var(--text-faint)" },
-        ]}
-      />
-      <ReliabilityLine reading={reading} />
+    <div data-component={c.id} data-component-status={c.status} title={title} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 10px", fontSize: 12, lineHeight: 1.5 }}>
+      <span style={{ color: "var(--text-dim)" }}>
+        <span style={{ color: STATUS_COLOR[c.status] }}>●</span> {c.label}
+        {c.backwardation && <span data-backwardation style={{ color: "var(--warning)", fontWeight: 700 }}> · backwardation</span>}
+      </span>
+      <span style={{ fontFamily: "var(--mono)", direction: "ltr", textAlign: "left", fontWeight: 600 }}>
+        {missing ? <span style={{ color: "var(--loss)" }}>חסר</span> : <>{c.score!.toFixed(0)}<span style={{ color: "var(--text-faint)" }}>/100</span></>}
+      </span>
+      <span style={{ color: "var(--text-faint)", fontSize: 11.5, gridColumn: "1 / -1" }}>
+        {missing ? "לא נספר במדד (לא כ-0)" : rawText(c)}
+        {!missing && c.status === "stale" ? " · ישן" : ""}
+      </span>
     </div>
   );
 }
+
+function PressurePanel({ index, settings }: { index: PressureIndex; settings: MarketSettings }) {
+  const title = "מדד לחץ שוק (חישוב עצמי)";
+  const notCnn = (
+    <div data-not-cnn style={{ fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.6 }}>
+      זה לא המדד של CNN. <a href={CNN_FEAR_GREED_URL} target="_blank" rel="noopener noreferrer" data-cnn-link
+        style={{ color: "var(--accent)", display: "inline-flex", alignItems: "center", gap: 3 }}>לצפייה ב-CNN <ExternalLink size={11} /></a>
+    </div>
+  );
+  const reliability = <ReliabilityLine status={index.status} source="Yahoo Finance (חישוב עצמי)" fetchedAt={index.components.map((c) => c.fetchedAt).filter((x): x is string => x !== null).sort()[0] ?? null} asOf={index.components.map((c) => c.asOf).find((x) => x !== null) ?? null} />;
+  if (index.value === null) {
+    return (
+      <Unavailable title={title} hint="אף אחד מרכיבי המדד לא התקבל מ-Yahoo Finance. שאר הכרטיס ממשיך לעבוד.">
+        {notCnn}
+        {reliability}
+      </Unavailable>
+    );
+  }
+  const threshold = settings.pressureExtremeAbove;
+  const extreme = isExtremePressure(index.value, threshold);
+  return (
+    <div style={panelStyle} data-panel="pressure">
+      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <span data-value style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700 }}>{index.value.toFixed(1)}</span>
+        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>0 = שקט · 100 = לחץ מקסימלי</span>
+      </div>
+      <div data-extreme-pressure={extreme ? "true" : "false"} style={{ fontSize: 12.5, fontWeight: extreme ? 700 : 500, color: extreme ? "var(--loss)" : "var(--text-faint)" }}>
+        {extreme ? "לחץ קיצוני - מעל " + threshold + " (לפי הכלל שלך)" : "מתחת לסף לחץ קיצוני (" + threshold + ")"}
+      </div>
+      <div data-built-from style={{ fontSize: 12, color: "var(--text-dim)" }}>
+        מחושב מ-{index.available} מתוך {index.components.length} רכיבים
+        {index.missing > 0 && <span style={{ color: "var(--warning)", fontWeight: 600 }}> · חסרים {index.missing}</span>}
+      </div>
+      <Gauge1D
+        max={100} value={index.value} activeId={extreme ? "extreme" : "rest"} ticks={[0, threshold, 100]}
+        segments={[
+          { id: "rest", from: 0, to: threshold, color: "var(--text-faint)" },
+          { id: "extreme", from: threshold, to: 100, color: "var(--loss)" },
+        ]}
+      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--border)", paddingTop: 8 }} data-components>
+        {index.components.map((c) => <ComponentRow key={c.id} c={c} />)}
+      </div>
+      <details data-formulas style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+        <summary style={{ cursor: "pointer" }}>איך המדד מחושב</summary>
+        <ul style={{ margin: "4px 0 0", paddingInlineStart: 18, lineHeight: 1.7 }}>
+          {pressureFormulaLines().map((l) => <li key={l}>{l}</li>)}
+        </ul>
+      </details>
+      {notCnn}
+      {reliability}
+    </div>
+  );
+}
+
+const allMissingIndex = (): PressureIndex => computePressureIndex((PRESSURE_COMPONENT_IDS as PressureComponentId[]).map(missingComponent));
 
 export function MarketStatusCard({ settings, onOpenSettings }: { settings: MarketSettings; onOpenSettings: () => void }) {
   const isMobile = useIsMobile(760);
@@ -176,8 +244,8 @@ export function MarketStatusCard({ settings, onOpenSettings }: { settings: Marke
     return () => clearInterval(interval);
   }, [load]);
 
-  // If the very request failed, show both indicators as missing rather than a blank card.
-  const shown: MarketSnapshot | null = snapshot ?? (loadFailed ? { vix: missingReading("Yahoo Finance", false), fearGreed: missingReading("CNN", true) } : null);
+  // If the very request failed, show both panels as missing rather than a blank card.
+  const shown: MarketSnapshot | null = snapshot ?? (loadFailed ? { vix: missingReading("Yahoo Finance"), pressure: allMissingIndex() } : null);
 
   return (
     <section aria-label="מצב שוק" data-market-card style={{
@@ -203,7 +271,7 @@ export function MarketStatusCard({ settings, onOpenSettings }: { settings: Marke
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
           <VixPanel reading={shown.vix} settings={settings} />
-          <FearGreedPanel reading={shown.fearGreed} settings={settings} />
+          <PressurePanel index={shown.pressure} settings={settings} />
         </div>
       )}
     </section>

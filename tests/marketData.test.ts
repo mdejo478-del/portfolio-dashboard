@@ -1,7 +1,8 @@
-// 9.2 - the market data layer with a MOCKED network (nothing real is called): VIX from Yahoo,
-// Fear & Greed from CNN's unofficial endpoint, the cache shared by all users, what happens when a
-// source is unavailable, the daily history file, the daily-snapshot hook, and the owner's settings.
-// Disk work runs in a throwaway temp directory - never touching the real data/.
+// The market data layer with a MOCKED network (nothing real is called): the VIX, the VIX3M and the
+// S&P 500 from Yahoo and the own-calculation pressure index built from them; the cache shared by all
+// users; what happens when a source is unavailable; the daily history file; the daily-snapshot hook;
+// the owner's settings; and that CNN is never contacted. Disk work runs in a throwaway temp directory -
+// never touching the real data/.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "fs";
@@ -16,33 +17,35 @@ mkdirSync(path.join(DATA, "portfolios"), { recursive: true });
 delete process.env.FINNHUB_API_KEY; // the daily snapshot's earnings/news calls then return nothing without a network call
 
 // ---- the mocked network --------------------------------------------------------------------------------
-type CnnMode = "ok" | "teapot" | "error500" | "malformed" | "out-of-range" | "no-field" | "network";
-type YahooMode = "ok" | "not-found" | "network";
-const net = { cnn: "ok" as CnnMode, yahoo: "ok" as YahooMode, cnnScore: 22.4, cnnPrev: 31.2, cnnRating: "extreme fear", vixCloses: [19.46, 17.63], calls: { cnn: 0, yahoo: 0 } };
+type Mode = "ok" | "not-found" | "network";
+const net = {
+  vix: "ok" as Mode, vix3m: "ok" as Mode, spx: "ok" as Mode,
+  vixCloses: [19.46, 17.63], vix3mCloses: [19.8, 19.41],
+  calls: { vix: 0, vix3m: 0, spx: 0 }, other: [] as string[],
+};
+// S&P 500: 250 closes at 100, then 49 at 120, then a last close of 108 (300 trading days ending today):
+// 52-week high 120, last 108 (10% below it), 125-day average (75x100 + 49x120 + 108) / 125 = 107.904.
+const SPX_CLOSES = [...Array(250).fill(100), ...Array(49).fill(120), 108];
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL) => {
   const url = String(input);
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-  if (url.includes("production.dataviz.cnn.io")) {
-    net.calls.cnn++;
-    switch (net.cnn) {
-      case "teapot": return new Response("I'm a teapot. You're a bot.", { status: 418 });
-      case "error500": return new Response("boom", { status: 500 });
-      case "malformed": return new Response("<html>not json</html>", { status: 200 });
-      case "out-of-range": return json({ fear_and_greed: { score: 340, rating: "greed" } });
-      case "no-field": return json({ something_else: 1 });
-      case "network": throw new TypeError("fetch failed");
-      default: return json({ fear_and_greed: { score: net.cnnScore, rating: net.cnnRating, timestamp: "2026-03-10T14:55:00+00:00", previous_close: net.cnnPrev, previous_1_week: 40 } });
-    }
-  }
-  if (url.includes("query1.finance.yahoo.com") && url.includes("%5EVIX")) {
-    net.calls.yahoo++;
-    if (net.yahoo === "network") throw new TypeError("fetch failed");
-    if (net.yahoo === "not-found") return new Response("{}", { status: 404 });
-    const closes = net.vixCloses;
+  const chart = (closes: number[]) => {
     const base = Math.floor(Date.now() / 1000) - closes.length * 86_400;
     return json({ chart: { result: [{ timestamp: closes.map((_, i) => base + (i + 1) * 86_400), indicators: { quote: [{ close: closes }] } }] } });
+  };
+  const serve = (key: "vix" | "vix3m" | "spx", closes: number[]) => {
+    net.calls[key]++;
+    if (net[key] === "network") throw new TypeError("fetch failed");
+    if (net[key] === "not-found") return new Response("{}", { status: 404 });
+    return chart(closes);
+  };
+  if (url.includes("query1.finance.yahoo.com")) {
+    if (url.includes("%5EVIX3M?")) return serve("vix3m", net.vix3mCloses);
+    if (url.includes("%5EVIX?")) return serve("vix", net.vixCloses);
+    if (url.includes("%5EGSPC?")) return serve("spx", SPX_CLOSES);
   }
+  net.other.push(url);
   return new Response("{}", { status: 404 });
 }) as typeof fetch;
 test.after(() => { globalThis.fetch = realFetch; });
@@ -53,12 +56,12 @@ const T0 = Date.parse("2026-03-10T15:00:00.000Z");
 beforeEach(async () => {
   const { resetMarketCache } = await import("../src/lib/marketData");
   resetMarketCache();
-  Object.assign(net, { cnn: "ok", yahoo: "ok", cnnScore: 22.4, cnnPrev: 31.2, cnnRating: "extreme fear", vixCloses: [19.46, 17.63] });
-  net.calls.cnn = 0; net.calls.yahoo = 0;
+  Object.assign(net, { vix: "ok", vix3m: "ok", spx: "ok", vixCloses: [19.46, 17.63], vix3mCloses: [19.8, 19.41], other: [] });
+  net.calls.vix = 0; net.calls.vix3m = 0; net.calls.spx = 0;
   if (existsSync(HISTORY)) writeFileSync(HISTORY, JSON.stringify({ days: {} }));
 });
 
-// ---- the two sources --------------------------------------------------------------------------------------
+// ---- the three Yahoo series and the index built from them --------------------------------------------------
 
 test("VIX: value, yesterday's close, source and reliability come from Yahoo's daily closes", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
@@ -66,140 +69,170 @@ test("VIX: value, yesterday's close, source and reliability come from Yahoo's da
   assert.equal(vix.value, 17.63);
   assert.equal(vix.previous, 19.46);
   assert.equal(vix.source, "Yahoo Finance");
-  assert.equal(vix.unofficial, false);
   assert.equal(vix.status, "ok");
   assert.equal(vix.fetchedAt, new Date(T0).toISOString());
   assert.ok(vix.asOf && !Number.isNaN(Date.parse(vix.asOf)), "the data point's own time");
 });
 
-test("Fear & Greed: score, yesterday, CNN's rating and the 'unofficial' flag", async () => {
+test("the pressure index is built from VIX, VIX3M and the S&P 500 series - checked against the hand-worked numbers", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
-  const { fearGreed } = await getMarketSnapshot({ nowMs: T0 });
-  assert.equal(fearGreed.value, 22.4);
-  assert.equal(fearGreed.previous, 31.2);
-  assert.equal(fearGreed.rating, "extreme fear");
-  assert.equal(fearGreed.source, "CNN");
-  assert.equal(fearGreed.unofficial, true, "always labeled as unofficial");
-  assert.equal(fearGreed.status, "ok");
-  assert.equal(fearGreed.asOf, "2026-03-10T14:55:00.000Z");
+  const { pressure } = await getMarketSnapshot({ nowMs: T0 });
+  assert.deepEqual(pressure.components.map((c) => c.id), ["vix", "term", "drawdown", "trend"]);
+  const by = Object.fromEntries(pressure.components.map((c) => [c.id, c]));
+  assert.equal(by.vix.raw, 17.63);
+  assert.ok(Math.abs((by.term.raw as number) - 17.63 / 19.41) < 1e-9, "VIX / VIX3M");
+  assert.ok(Math.abs((by.drawdown.raw as number) - 0.1) < 1e-9, "10% below the 52-week high of 120");
+  assert.ok(Math.abs((by.trend.raw as number) - (108 / 107.904 - 1)) < 1e-9, "vs the 125-day average 107.904");
+  assert.ok(Math.abs((by.vix.score as number) - 20.10714) < 1e-4);
+  assert.ok(Math.abs((by.drawdown.score as number) - 50) < 1e-9);
+  assert.equal(pressure.value, 32.5);
+  assert.deepEqual([pressure.available, pressure.missing, pressure.status], [4, 0, "ok"]);
+  assert.ok(pressure.components.every((c) => c.status === "ok" && c.source === "Yahoo Finance" && c.fetchedAt === new Date(T0).toISOString()), "each component carries source, time and status");
 });
 
-test("a source that is unavailable gives 'missing' - and the OTHER indicator is unaffected, nothing throws", async () => {
+test("backwardation: VIX above VIX3M is flagged on the ratio component", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
-  net.cnn = "teapot"; // what the real endpoint answers an automated request with: HTTP 418
-  const a = await getMarketSnapshot({ nowMs: T0 });
-  assert.deepEqual([a.fearGreed.value, a.fearGreed.status, a.fearGreed.unofficial], [null, "missing", true]);
-  assert.equal(a.vix.status, "ok", "the card still has the VIX");
-
-  const { resetMarketCache } = await import("../src/lib/marketData");
-  resetMarketCache();
-  net.cnn = "ok"; net.yahoo = "not-found";
-  const b = await getMarketSnapshot({ nowMs: T0 });
-  assert.deepEqual([b.vix.value, b.vix.status], [null, "missing"]);
-  assert.equal(b.fearGreed.status, "ok");
-
-  resetMarketCache();
-  net.yahoo = "network"; net.cnn = "network";
-  const c = await getMarketSnapshot({ nowMs: T0 });
-  assert.deepEqual([c.vix.status, c.fearGreed.status], ["missing", "missing"], "everything down: still no exception");
+  net.vixCloses = [20, 24]; net.vix3mCloses = [21, 21];
+  const { pressure } = await getMarketSnapshot({ nowMs: T0 });
+  const term = pressure.components.find((c) => c.id === "term")!;
+  assert.equal(term.backwardation, true);
+  assert.ok((term.score as number) > 50);
 });
 
-test("CNN answering with junk is 'missing', never a crash or a made-up number", async () => {
-  const { getMarketSnapshot, resetMarketCache, parseFearGreed } = await import("../src/lib/marketData");
-  for (const mode of ["malformed", "out-of-range", "no-field", "error500"] as const) {
-    resetMarketCache();
-    net.cnn = mode;
-    const { fearGreed } = await getMarketSnapshot({ nowMs: T0 });
-    assert.deepEqual([fearGreed.value, fearGreed.status], [null, "missing"], mode);
-  }
-  for (const junk of [null, undefined, 5, "x", {}, { fear_and_greed: null }, { fear_and_greed: { score: "abc" } }, { fear_and_greed: { score: -1 } }, { fear_and_greed: { score: 101 } }]) {
-    assert.equal(parseFearGreed(junk).status, "missing", JSON.stringify(junk));
-  }
-  assert.equal(parseFearGreed({ fear_and_greed: { score: "55.5" } }).value, 55.5, "a numeric string is fine");
-  assert.equal(parseFearGreed({ fear_and_greed: { score: 50, previous_close: 999 } }).previous, null, "an impossible 'yesterday' is dropped");
-});
-
-test("a refusing endpoint (418) is asked ONCE - 4xx isn't retried - and a 5xx once more", async () => {
+test("a source that is unavailable leaves out only the components that need it, and nothing throws", async () => {
   const { getMarketSnapshot, resetMarketCache } = await import("../src/lib/marketData");
-  net.cnn = "teapot";
+  net.vix3m = "not-found";
+  const a = await getMarketSnapshot({ nowMs: T0 });
+  assert.equal(a.vix.status, "ok", "the VIX panel is unaffected");
+  assert.deepEqual([a.pressure.available, a.pressure.missing], [3, 1]);
+  assert.equal(a.pressure.components.find((c) => c.id === "term")!.status, "missing");
+  assert.equal(a.pressure.value, 34.3, "the average of the three that exist - the missing one is not a 0");
+
+  resetMarketCache();
+  net.vix3m = "ok"; net.spx = "not-found";
+  const b = await getMarketSnapshot({ nowMs: T0 });
+  assert.deepEqual([b.pressure.available, b.pressure.missing], [2, 2]);
+  assert.deepEqual(b.pressure.components.map((c) => c.status), ["ok", "ok", "missing", "missing"]);
+
+  resetMarketCache();
+  net.vix = "network"; net.vix3m = "network"; net.spx = "network";
+  const c = await getMarketSnapshot({ nowMs: T0 });
+  assert.deepEqual([c.vix.status, c.vix.value, c.pressure.value, c.pressure.available, c.pressure.status], ["missing", null, null, 0, "missing"], "everything down: still no exception");
+});
+
+test("CNN is never contacted - and nothing in the source still refers to its data endpoint", async () => {
+  const { getMarketSnapshot } = await import("../src/lib/marketData");
   await getMarketSnapshot({ nowMs: T0 });
-  assert.equal(net.calls.cnn, 1);
-  resetMarketCache(); net.calls.cnn = 0;
-  net.cnn = "error500";
-  await getMarketSnapshot({ nowMs: T0 });
-  assert.equal(net.calls.cnn, 2, "one retry for a server error");
+  await getMarketSnapshot({ nowMs: T0 + 20 * MIN, force: true });
+  assert.deepEqual(net.other, [], "only Yahoo's chart API is called");
+  const root = path.join(__dirname, "..", "src");
+  const offenders: string[] = [];
+  (function walk(d: string) {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|tsx)$/.test(e.name) && /dataviz\.cnn\.io|fearandgreed\/graphdata|fetchFearGreed|parseFearGreed/.test(readFileSync(p, "utf8"))) offenders.push(p);
+    }
+  })(root);
+  assert.deepEqual(offenders, [], "no call to CNN's endpoint remains in the code");
 });
 
 // ---- the shared cache -----------------------------------------------------------------------------------------
 
-test("served from the shared cache within its lifetime, fetched again after it", async () => {
+test("served from the shared cache within its lifetime, fetched again after it (each series on its own clock)", async () => {
   const { getMarketSnapshot, MARKET_CACHE_TTL_MS } = await import("../src/lib/marketData");
   await getMarketSnapshot({ nowMs: T0 });
   await getMarketSnapshot({ nowMs: T0 + MIN });
   await getMarketSnapshot({ nowMs: T0 + 4 * MIN });
-  assert.deepEqual([net.calls.yahoo, net.calls.cnn], [1, 1], "three users' requests, one fetch each");
+  assert.deepEqual([net.calls.vix, net.calls.vix3m, net.calls.spx], [1, 1, 1], "three users' requests, one fetch per series");
   await getMarketSnapshot({ nowMs: T0 + MARKET_CACHE_TTL_MS.vix + 1 });
-  assert.deepEqual([net.calls.yahoo, net.calls.cnn], [2, 1], "the VIX is refreshed after 5 minutes, Fear & Greed (15 minutes) is not yet");
-  await getMarketSnapshot({ nowMs: T0 + MARKET_CACHE_TTL_MS.fearGreed + 1 });
-  assert.equal(net.calls.cnn, 2);
+  assert.deepEqual([net.calls.vix, net.calls.vix3m, net.calls.spx], [2, 2, 1], "the VIXes are refreshed after 5 minutes, the S&P (10 minutes) is not yet");
+  await getMarketSnapshot({ nowMs: T0 + MARKET_CACHE_TTL_MS.spx + 1 });
+  assert.equal(net.calls.spx, 2);
 });
 
-test("concurrent callers share a single fetch", async () => {
+test("concurrent callers share a single fetch per series", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
   await Promise.all(Array.from({ length: 8 }, () => getMarketSnapshot({ nowMs: T0 })));
-  assert.deepEqual([net.calls.yahoo, net.calls.cnn], [1, 1]);
+  assert.deepEqual([net.calls.vix, net.calls.vix3m, net.calls.spx], [1, 1, 1]);
 });
 
-test("a source that failed is not hammered: no new attempt during the back-off, a new one after it", async () => {
+test("a series that failed is not hammered: no new attempt during the back-off, a new one after it, and it recovers", async () => {
   const { getMarketSnapshot, MARKET_FAILURE_BACKOFF_MS } = await import("../src/lib/marketData");
-  net.cnn = "teapot";
+  net.spx = "not-found";
   await getMarketSnapshot({ nowMs: T0 });
+  const afterFirst = net.calls.spx;
   await getMarketSnapshot({ nowMs: T0 + MIN });
-  await getMarketSnapshot({ nowMs: T0 + 5 * MIN });
-  assert.equal(net.calls.cnn, 1, "every refresh of every user would otherwise hit it");
-  net.cnn = "ok";
-  const later = await getMarketSnapshot({ nowMs: T0 + MARKET_FAILURE_BACKOFF_MS.fearGreed + 1 });
-  assert.equal(net.calls.cnn, 2);
-  assert.equal(later.fearGreed.status, "ok", "and it recovers on its own");
+  await getMarketSnapshot({ nowMs: T0 + 3 * MIN });
+  assert.equal(net.calls.spx, afterFirst, "every refresh of every user would otherwise hit it");
+  net.spx = "ok";
+  const later = await getMarketSnapshot({ nowMs: T0 + MARKET_FAILURE_BACKOFF_MS.spx + 1 });
+  assert.equal(net.calls.spx, afterFirst + 1);
+  assert.equal(later.pressure.available, 4, "and it recovers on its own");
 });
 
-test("when a refresh fails the last good value is kept - 'ok' while recent, 'stale' once it ages", async () => {
+test("when a refresh fails the last good values are kept - 'ok' while recent, 'stale' once they age - per component", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
   const first = await getMarketSnapshot({ nowMs: T0 });
   assert.equal(first.vix.value, 17.63);
-  net.yahoo = "not-found";
-  const soon = await getMarketSnapshot({ nowMs: T0 + 10 * MIN });          // refresh fails, the value is 10 minutes old
+  net.vix = "not-found"; net.vix3m = "not-found"; net.spx = "not-found";
+  const soon = await getMarketSnapshot({ nowMs: T0 + 10 * MIN });
   assert.deepEqual([soon.vix.value, soon.vix.status], [17.63, "ok"]);
   assert.equal(soon.vix.fetchedAt, new Date(T0).toISOString(), "its time did NOT move - it was not re-fetched");
-  const later = await getMarketSnapshot({ nowMs: T0 + 45 * MIN });          // 45 minutes old
-  assert.deepEqual([later.vix.value, later.vix.status], [17.63, "stale"]);
-  net.yahoo = "ok"; net.vixCloses = [17.63, 21.0];
-  const back = await getMarketSnapshot({ nowMs: T0 + 3 * 60 * MIN });
-  assert.deepEqual([back.vix.value, back.vix.status], [21.0, "ok"]);
+  assert.equal(soon.pressure.value, 32.5, "the index is still built from the last good values");
+  const later = await getMarketSnapshot({ nowMs: T0 + 45 * MIN });
+  assert.equal(later.vix.status, "stale");
+  assert.deepEqual(later.pressure.components.map((c) => c.status), ["stale", "stale", "ok", "ok"], "the VIX-based components aged out, the S&P ones (3 hours) did not");
+  assert.equal(later.pressure.status, "stale");
+  const muchLater = await getMarketSnapshot({ nowMs: T0 + 4 * 3600_000 });
+  assert.ok(muchLater.pressure.components.every((c) => c.status === "stale"));
+  net.vix = "ok"; net.vix3m = "ok"; net.spx = "ok"; net.vixCloses = [17.63, 21.0];
+  const back = await getMarketSnapshot({ nowMs: T0 + 6 * 3600_000 });
+  assert.deepEqual([back.vix.value, back.vix.status, back.pressure.status], [21.0, "ok", "ok"]);
 });
 
 // ---- the daily history (shared, not per portfolio) -------------------------------------------------------------
 
-const readHist = () => JSON.parse(readFileSync(HISTORY, "utf8")) as { days: Record<string, { vix: number | null; fearGreed: number | null }> };
+type Day = { vix: number | null; pressure: number | null; pressureComponents?: number; components?: Record<string, { raw: number; score: number }>; fearGreed?: number | null };
+const readHist = () => JSON.parse(readFileSync(HISTORY, "utf8")) as { days: Record<string, Day> };
 
 test("history: one record per day, a missing value never overwrites a recorded one, bad dates are refused", async () => {
   const { recordMarketHistory } = await import("../src/lib/marketData");
-  await recordMarketHistory("2026-03-01", { vix: 18.2, fearGreed: 40 });
-  await recordMarketHistory("2026-03-01", { vix: null, fearGreed: 33 });       // Fear & Greed updated, VIX not available now
+  await recordMarketHistory("2026-03-01", { vix: 18.2, pressure: 40, pressureComponents: 4 });
+  await recordMarketHistory("2026-03-01", { vix: null });                       // nothing new this time
   await recordMarketHistory("2026-03-02", { vix: 21.5 });
   const h = readHist();
-  assert.deepEqual([h.days["2026-03-01"].vix, h.days["2026-03-01"].fearGreed], [18.2, 33], "merged, nothing lost");
-  assert.deepEqual([h.days["2026-03-02"].vix, h.days["2026-03-02"].fearGreed], [21.5, null]);
-  await recordMarketHistory("2026-03-03", { vix: null, fearGreed: null });
+  assert.deepEqual([h.days["2026-03-01"].vix, h.days["2026-03-01"].pressure], [18.2, 40], "nothing lost");
+  assert.deepEqual([h.days["2026-03-02"].vix, h.days["2026-03-02"].pressure], [21.5, null]);
+  await recordMarketHistory("2026-03-03", { vix: null, pressure: null });
   assert.equal("2026-03-03" in readHist().days, false, "nothing to record, nothing written");
   await assert.rejects(recordMarketHistory("03/04/2026", { vix: 1 }));
+});
+
+test("history: an entry written by the first version (with a Fear & Greed value) is kept, never dropped", async () => {
+  const { recordMarketHistory } = await import("../src/lib/marketData");
+  writeFileSync(HISTORY, JSON.stringify({ days: { "2026-03-01": { vix: 18, fearGreed: 41, recordedAt: "x" } } }));
+  await recordMarketHistory("2026-03-01", { vix: 18.5, pressure: 33, pressureComponents: 4 });
+  const d = readHist().days["2026-03-01"];
+  assert.deepEqual([d.vix, d.pressure, d.fearGreed], [18.5, 33, 41]);
+});
+
+test("history: a day recorded from MORE components is not replaced by a later run that managed fewer", async () => {
+  const { recordMarketHistory } = await import("../src/lib/marketData");
+  const comp = (n: number) => Object.fromEntries(["vix", "term", "drawdown", "trend"].slice(0, n).map((id) => [id, { raw: 1, score: 10 }]));
+  await recordMarketHistory("2026-03-05", { vix: 18, pressure: 30, pressureComponents: 2, components: comp(2) });
+  await recordMarketHistory("2026-03-05", { pressure: 35, pressureComponents: 4, components: comp(4) });
+  assert.deepEqual([readHist().days["2026-03-05"].pressure, readHist().days["2026-03-05"].pressureComponents], [35, 4], "a better one replaces");
+  await recordMarketHistory("2026-03-05", { pressure: 20, pressureComponents: 3, components: comp(3) });
+  assert.deepEqual([readHist().days["2026-03-05"].pressure, readHist().days["2026-03-05"].pressureComponents], [35, 4], "a worse one does not");
+  assert.equal(Object.keys(readHist().days["2026-03-05"].components!).length, 4, "and the components stay in step with the index");
 });
 
 test("history: keeps about ten years, dropping the oldest days", async () => {
   const { recordMarketHistory } = await import("../src/lib/marketData");
   const days: Record<string, unknown> = {};
   const start = Date.parse("2010-01-01T00:00:00Z");
-  for (let i = 0; i < 3650; i++) days[new Date(start + i * 86_400_000).toISOString().slice(0, 10)] = { vix: 15, fearGreed: 50, recordedAt: "x" };
+  for (let i = 0; i < 3650; i++) days[new Date(start + i * 86_400_000).toISOString().slice(0, 10)] = { vix: 15, pressure: 30, recordedAt: "x" };
   writeFileSync(HISTORY, JSON.stringify({ days }));
   await recordMarketHistory("2026-03-10", { vix: 17 });
   const keys = Object.keys(readHist().days).sort();
@@ -208,7 +241,7 @@ test("history: keeps about ten years, dropping the oldest days", async () => {
   assert.equal(keys[keys.length - 1], "2026-03-10");
 });
 
-test("history: an unreadable file is set aside (not silently overwritten) and a new one is started", async () => {
+test("history: an unreadable file with no snapshot to restore from is set aside (not silently overwritten) and a new one is started", async () => {
   const { recordMarketHistory, readMarketHistory } = await import("../src/lib/marketData");
   writeFileSync(HISTORY, "{ this is not json");
   assert.deepEqual(await readMarketHistory(), { days: {} });
@@ -218,42 +251,56 @@ test("history: an unreadable file is set aside (not silently overwritten) and a 
   assert.equal(readHist().days["2026-03-10"].vix, 17);
 });
 
-test("history: only values obtained NOW are recorded - never a stale fallback - and both indicators merge over runs", async () => {
+test("history: the daily record holds the VIX, the pressure index and each component's raw input and score", async () => {
   const { recordDailyMarketHistory } = await import("../src/lib/marketData");
-  net.cnn = "teapot";                                                          // Fear & Greed unavailable this run
+  await recordDailyMarketHistory("2026-03-10");
+  const day = readHist().days["2026-03-10"];
+  assert.equal(day.vix, 17.63);
+  assert.equal(day.pressure, 32.5);
+  assert.equal(day.pressureComponents, 4);
+  assert.deepEqual(Object.keys(day.components!).sort(), ["drawdown", "term", "trend", "vix"]);
+  assert.ok(Math.abs(day.components!.drawdown.raw - 0.1) < 1e-9 && Math.abs(day.components!.drawdown.score - 50) < 1e-9);
+  assert.equal("fearGreed" in day, false, "no Fear & Greed is recorded any more");
+});
+
+test("history: only values obtained NOW are recorded - never a stale fallback - and a partial day is replaced by a fuller one", async () => {
+  const { recordDailyMarketHistory } = await import("../src/lib/marketData");
+  net.spx = "not-found";                                                       // the S&P series is unavailable this run
   await recordDailyMarketHistory("2026-03-10");
   let day = readHist().days["2026-03-10"];
-  assert.deepEqual([day.vix, day.fearGreed], [17.63, null]);
-  net.cnn = "ok";                                                              // a later run the same day gets it
+  assert.deepEqual([day.vix, day.pressureComponents, Object.keys(day.components!).sort()], [17.63, 2, ["term", "vix"]], "the index of the two components that exist");
+  net.spx = "ok";                                                              // a later run the same day has all four
   await recordDailyMarketHistory("2026-03-10");
   day = readHist().days["2026-03-10"];
-  assert.deepEqual([day.vix, day.fearGreed], [17.63, 22.4], "merged");
+  assert.deepEqual([day.pressure, day.pressureComponents], [32.5, 4]);
   const before = readFileSync(HISTORY, "utf8");
-  net.cnn = "teapot"; net.yahoo = "not-found";                                 // everything down, an hour later
+  net.vix = "not-found"; net.vix3m = "not-found"; net.spx = "not-found";        // everything down, an hour later
   await recordDailyMarketHistory("2026-03-11", Date.now() + 60 * MIN);
-  assert.equal(readFileSync(HISTORY, "utf8"), before, "the hour-old values (still 'ok' for Fear & Greed) are NOT filed under a new date");
+  assert.equal(readFileSync(HISTORY, "utf8"), before, "the hour-old values (still 'ok' for the S&P) are NOT filed under a new date");
 });
 
-test("after a restart with no live data, the last recorded day is shown as 'stale', with its date", async () => {
+test("after a restart with no live data, the last recorded day is shown as 'stale', with its date and components", async () => {
   const { getMarketSnapshot } = await import("../src/lib/marketData");
   writeFileSync(HISTORY, JSON.stringify({ days: {
-    "2026-03-07": { vix: 18.0, fearGreed: 45, recordedAt: "x" },
-    "2026-03-08": { vix: 19.0, fearGreed: null, recordedAt: "x" },
-    "2026-03-09": { vix: 20.5, fearGreed: 38, recordedAt: "x" },
+    "2026-03-07": { vix: 18.0, pressure: 30, pressureComponents: 4, recordedAt: "x" },
+    "2026-03-09": { vix: 20.5, pressure: 41.5, pressureComponents: 2, components: { vix: { raw: 20.5, score: 30.4 }, term: { raw: 1.02, score: 55 } }, recordedAt: "x" },
   } }));
-  net.yahoo = "not-found"; net.cnn = "teapot";
-  const { vix, fearGreed } = await getMarketSnapshot({ nowMs: T0 });
-  assert.deepEqual([vix.value, vix.previous, vix.status, vix.fetchedAt, vix.asOf], [20.5, 19.0, "stale", null, "2026-03-09"]);
-  assert.deepEqual([fearGreed.value, fearGreed.previous, fearGreed.status, fearGreed.unofficial], [38, 45, "stale", true]);
+  net.vix = "not-found"; net.vix3m = "not-found"; net.spx = "not-found";
+  const { vix, pressure } = await getMarketSnapshot({ nowMs: T0 });
+  assert.deepEqual([vix.value, vix.previous, vix.status, vix.fetchedAt, vix.asOf], [20.5, 18.0, "stale", null, "2026-03-09"]);
+  assert.equal(pressure.status, "stale");
+  assert.deepEqual([pressure.available, pressure.missing], [2, 2]);
+  assert.deepEqual(pressure.components.map((c) => c.status), ["stale", "stale", "missing", "missing"]);
+  assert.equal(pressure.components[1].asOf, "2026-03-09");
 });
 
-test("the daily snapshot job records the market once per run, and a failing market never stops it", async () => {
+test("the daily snapshot job records the market once per run, and failing sources never stop it", async () => {
   const { maybeRunDailySnapshot } = await import("../src/lib/dailySnapshot");
   const today = new Date().toISOString().slice(0, 10);
-  net.cnn = "teapot";
+  net.vix3m = "not-found";
   await maybeRunDailySnapshot();
   assert.equal(readHist().days[today].vix, 17.63, "recorded by the real daily job");
-  assert.equal(readHist().days[today].fearGreed, null);
+  assert.equal(readHist().days[today].pressureComponents, 3);
   assert.ok(existsSync(path.join(DATA, "daily-snapshot-meta.json")), "and the job itself completed");
   // History is one shared file - not inside any user's portfolio.
   assert.deepEqual(readdirSync(path.join(DATA, "portfolios")), []);
@@ -270,7 +317,7 @@ test("settings: per user, saved with the portfolio, validated on read, no revisi
   writeFileSync(path.join(DATA, "portfolios", uid + ".json"), JSON.stringify({ ...base, equityHistory: [], alertAcks: {}, revision: 3 }));
 
   assert.deepEqual(await getMarketSettings(uid), DEFAULT_MARKET_SETTINGS, "defaults until the owner changes them");
-  const mine = { vixZones: { calmBelow: 16, alertBelow: 22, buyBelow: 28, panicUpTo: 36 }, fearGreedExtremeBelow: 30 };
+  const mine = { vixZones: { calmBelow: 16, alertBelow: 22, buyBelow: 28, panicUpTo: 36 }, pressureExtremeAbove: 60 };
   await saveMarketSettings(uid, mine);
   assert.deepEqual(await getMarketSettings(uid), mine);
   assert.equal(currentRevision(await getPortfolio(uid)), 3, "not part of the client's data: the revision is untouched");
@@ -279,8 +326,12 @@ test("settings: per user, saved with the portfolio, validated on read, no revisi
   assert.deepEqual(await savePortfolio(uid, base, 3), { ok: true, revision: 4 });
   assert.deepEqual(await getMarketSettings(uid), mine, "an ordinary save leaves them alone");
 
-  // A corrupted stored value never breaks the card.
+  // Settings saved by the first version (a Fear & Greed threshold): the VIX zones survive, the new threshold is the default.
   const raw = JSON.parse(readFileSync(path.join(DATA, "portfolios", uid + ".json"), "utf8"));
-  writeFileSync(path.join(DATA, "portfolios", uid + ".json"), JSON.stringify({ ...raw, marketSettings: { vixZones: { calmBelow: 50, alertBelow: 40, buyBelow: 30, panicUpTo: 20 }, fearGreedExtremeBelow: 25 } }));
+  writeFileSync(path.join(DATA, "portfolios", uid + ".json"), JSON.stringify({ ...raw, marketSettings: { vixZones: mine.vixZones, fearGreedExtremeBelow: 25 } }));
+  assert.deepEqual(await getMarketSettings(uid), { vixZones: mine.vixZones, pressureExtremeAbove: 75 });
+
+  // A corrupted stored value never breaks the card.
+  writeFileSync(path.join(DATA, "portfolios", uid + ".json"), JSON.stringify({ ...raw, marketSettings: { vixZones: { calmBelow: 50, alertBelow: 40, buyBelow: 30, panicUpTo: 20 }, pressureExtremeAbove: 999 } }));
   assert.deepEqual(await getMarketSettings(uid), DEFAULT_MARKET_SETTINGS);
 });
