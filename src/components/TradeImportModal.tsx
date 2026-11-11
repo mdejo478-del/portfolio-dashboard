@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { X, AlertTriangle, CheckCircle2, FileWarning } from "lucide-react";
 import type { ParseResult, ParsedTradeRow } from "@/lib/tradeImport";
+import { countPositiveFees, effectiveFee } from "@/lib/importFees";
 import { formatMoney } from "@/components/dashboard/format";
 import type { Tone } from "@/components/dashboard/types";
 import { Badge } from "@/components/dashboard/ui/Badge";
@@ -19,7 +21,8 @@ interface TradeImportModalProps {
    * "will be skipped"; onConfirm still receives every valid row and the caller
    * drops those, so the preview and the import can't disagree. */
   duplicateRowNumbers?: Set<number>;
-  onConfirm: (rows: ParsedTradeRow[]) => void;
+  /** `convertPositiveFees`: store a positive fee from the file as a negative one (a cost). */
+  onConfirm: (rows: ParsedTradeRow[], options: { convertPositiveFees: boolean }) => void;
   onClose: () => void;
 }
 
@@ -29,6 +32,11 @@ export default function TradeImportModal({ result, fileName, privacyMode, duplic
   const isDuplicate = (r: ParsedTradeRow) => !r.error && !!duplicateRowNumbers && duplicateRowNumbers.has(r.rowNumber);
   const duplicateCount = validRows.filter(isDuplicate).length;
   const newCount = validRows.length - duplicateCount;
+  // Fees are stored as negative numbers (a cost). A file that lists a commission as a
+  // positive number would otherwise INCREASE cash - so positive fees are converted
+  // unless the user switches that off. Only rows that will actually be imported count.
+  const [convertFees, setConvertFees] = useState<boolean>(true);
+  const positiveFeeCount = countPositiveFees(validRows.filter((r) => !isDuplicate(r)));
 
   return (
     <div
@@ -72,6 +80,14 @@ export default function TradeImportModal({ result, fileName, privacyMode, duplic
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--gain)", fontSize: 13, fontWeight: 700 }}>
                   <CheckCircle2 size={15} /> {newCount} עסקאות חדשות יתווספו ליומן
                 </div>
+                {positiveFeeCount > 0 && (
+                  <div data-positive-fees={positiveFeeCount} style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
+                    <AlertTriangle size={15} />
+                    {convertFees
+                      ? positiveFeeCount + " שורות עם עמלה חיובית – יומרו לשליליות"
+                      : positiveFeeCount + " שורות עם עמלה חיובית – ייובאו כפי שהן (העמלה תגדיל את המזומן)"}
+                  </div>
+                )}
                 {duplicateCount > 0 && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: 13, fontWeight: 700 }}>
                     <AlertTriangle size={15} /> {duplicateCount} שורות כבר קיימות ביומן – ידולגו
@@ -84,6 +100,12 @@ export default function TradeImportModal({ result, fileName, privacyMode, duplic
                 )}
               </div>
 
+              {positiveFeeCount > 0 && (
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, lineHeight: 1.6, marginBottom: "var(--space-4)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={convertFees} onChange={(e) => setConvertFees(e.target.checked)} style={{ marginTop: 4 }} />
+                  <span>המר עמלות חיוביות לשליליות. עמלה נרשמת ביומן כמספר שלילי (עלות); עמלה חיובית הייתה מגדילה את המזומן במקום להקטין אותו. עסקאות שכבר ביומן לא משתנות.</span>
+                </label>
+              )}
               <div style={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto", maxHeight: "48vh" }}>
                 <table>
                   <thead style={{ position: "sticky", top: 0, background: "var(--panel-2)", zIndex: 1 }}>
@@ -106,7 +128,10 @@ export default function TradeImportModal({ result, fileName, privacyMode, duplic
                         </td>
                         <td className="num">{row.qty !== null ? row.qty : "-"}</td>
                         <td className="num">{row.price !== null ? formatMoney(row.price, privacyMode, { digits: 2 }) : "-"}</td>
-                        <td className="num" style={{ color: "var(--text-faint)" }}>{formatMoney(row.fee, privacyMode)}</td>
+                        <td className="num" style={{ color: "var(--text-faint)" }}
+                          title={convertFees && !row.error && row.fee > 0 ? "הקובץ: " + formatMoney(row.fee, privacyMode) + " - יומר לשלילי" : undefined}>
+                          {formatMoney(effectiveFee(row.fee, convertFees && !row.error), privacyMode)}
+                        </td>
                         <td className="num" style={{ color: "var(--text-faint)" }}>{row.pnlOverride !== null ? formatMoney(row.pnlOverride, privacyMode) : "-"}</td>
                         <td style={{ maxWidth: 260 }}>
                           {row.error ? (
@@ -137,7 +162,7 @@ export default function TradeImportModal({ result, fileName, privacyMode, duplic
           {!result.fileError && (
             <Button
               variant="primary" disabled={newCount === 0}
-              onClick={() => onConfirm(validRows)}
+              onClick={() => onConfirm(validRows, { convertPositiveFees: convertFees })}
             >
               אישור והוספה ליומן ({newCount})
             </Button>

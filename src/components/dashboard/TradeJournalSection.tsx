@@ -8,6 +8,7 @@ import { cashEffect } from "@/lib/portfolioTypes";
 import { anchorCountsTrade, buildLedger, sellContextBefore, suggestSellPnl, retPctFor, diffLedgers, planImport, planAnchorsFromHoldings, type AnchorPlan, type ImportRowInput, type LedgerDifference } from "@/lib/ledger";
 import type { LedgerAnchors } from "@/lib/portfolioTypes";
 import { splitDuplicates } from "@/lib/tradeDuplicates";
+import { applyFeeSign } from "@/lib/importFees";
 import { validateTrade, newErrors, errorsOf } from "@/lib/validation";
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
 import type { TradeFormState } from "@/components/dashboard/types";
@@ -211,8 +212,12 @@ export function TradeJournalSection({
     return new Set(splitDuplicates(trades, valid).duplicates.map((r) => r.rowNumber));
   }, [importResult, trades]);
 
-  function confirmImport(validRows: ParsedTradeRow[]) {
-    const { fresh, duplicates } = splitDuplicates(trades, validRows.map(toImportRow));
+  function confirmImport(validRows: ParsedTradeRow[], options: { convertPositiveFees: boolean }) {
+    const split = splitDuplicates(trades, validRows.map(toImportRow));
+    const duplicates = split.duplicates;
+    // Fee sign: only the rows being imported are converted - never what is already in the journal.
+    const signed = applyFeeSign(split.fresh, options.convertPositiveFees);
+    const fresh = signed.rows;
     if (fresh.length === 0) {
       setJournalNotice(duplicates.length > 0 ? ["כל " + duplicates.length + " השורות בקובץ כבר קיימות ביומן - לא נוסף דבר."] : null);
       closeImportModal();
@@ -229,6 +234,11 @@ export function TradeJournalSection({
     applyCashDelta(plan.cashDelta);
     const lines = ["יובאו " + plan.newTrades.length + " עסקאות."];
     if (duplicates.length > 0) lines.push(duplicates.length + " שורות כבר היו ביומן ודולגו.");
+    if (signed.positives > 0) {
+      lines.push(options.convertPositiveFees
+        ? signed.positives + " שורות עם עמלה חיובית הומרו לשליליות (עמלה נרשמת כעלות)."
+        : signed.positives + " שורות יובאו עם עמלה חיובית, והיא מגדילה את המזומן.");
+    }
     if (plan.unresolvedSells.length > 0) {
       lines.push(plan.unresolvedSells.length + " מכירות נשארו בלי רווח/הפסד, כי אין ביומן מספיק היסטוריית קנייה עבורן (או שהכמות הנמכרת גדולה מהכמות שנקנתה). ניתן להזין את הרווח ידנית בעריכת העסקה.");
     }
