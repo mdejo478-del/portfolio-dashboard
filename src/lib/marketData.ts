@@ -11,6 +11,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { withFileLock } from "@/lib/fileLock";
 import { writeFileDurable } from "@/lib/durableFile";
+import { isValidMarketHistory, recoverFromBackup } from "@/lib/backup";
 import { fetchYahooDailyClosesInRange } from "@/lib/prices";
 import {
   FEAR_GREED_STALE_AFTER_MS, VIX_STALE_AFTER_MS, missingReading, readingStatus,
@@ -189,8 +190,9 @@ async function quarantineHistory(reason: string): Promise<void> {
   }
 }
 
-/** The recorded daily history. A missing file is empty; an unreadable one is kept aside (never silently
- * overwritten) and treated as empty. */
+/** The recorded daily history. A missing file is empty. An unreadable one is restored from the newest valid
+ * backup snapshot (the damaged file is kept aside, like the user files); with no valid snapshot it is kept
+ * aside (never silently overwritten) and treated as empty. */
 export async function readMarketHistory(): Promise<MarketHistory> {
   let text: string;
   try {
@@ -200,12 +202,14 @@ export async function readMarketHistory(): Promise<MarketHistory> {
     throw err;
   }
   try {
-    const parsed = JSON.parse(text) as MarketHistory;
-    if (parsed && typeof parsed === "object" && parsed.days && typeof parsed.days === "object" && !Array.isArray(parsed.days)) return parsed;
-    await quarantineHistory("unexpected shape");
+    const parsed = JSON.parse(text) as unknown;
+    if (isValidMarketHistory(parsed)) return parsed as MarketHistory;
   } catch {
-    await quarantineHistory("not valid JSON");
+    // fall through to recovery
   }
+  const restored = await recoverFromBackup({ livePath: HISTORY_FILE, relPath: "market-history.json", isValid: isValidMarketHistory });
+  if (isValidMarketHistory(restored)) return restored as MarketHistory;
+  await quarantineHistory("unreadable, and no snapshot holds a valid copy");
   return { days: {} };
 }
 

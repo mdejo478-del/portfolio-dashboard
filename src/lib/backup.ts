@@ -3,8 +3,8 @@ import path from "path";
 import { writeFileDurable } from "@/lib/durableFile";
 import { withFileLock } from "@/lib/fileLock";
 
-// Snapshots data/users.json and every data/portfolios/*.json into a new
-// timestamped folder under data/backups, on the same Railway volume as the
+// Snapshots data/users.json, every data/portfolios/*.json and the shared
+// data/market-history.json into a new timestamped folder under data/backups, on the same Railway volume as the
 // live data. This protects against the app (or a bug in it) corrupting or
 // losing a file - it does NOT protect against losing the volume itself. If
 // that matters, these snapshots should eventually also be shipped somewhere
@@ -12,6 +12,8 @@ import { withFileLock } from "@/lib/fileLock";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
+// The shared daily history of the market indicators (see marketData.ts - same path).
+const MARKET_HISTORY_FILE = path.join(DATA_DIR, "market-history.json");
 const PORTFOLIOS_DIR = path.join(DATA_DIR, "portfolios");
 const BACKUPS_DIR = path.join(DATA_DIR, "backups");
 const META_FILE = path.join(BACKUPS_DIR, ".meta.json");
@@ -48,11 +50,20 @@ function timestampSlug(d: Date): string {
   return d.toISOString().replace(/:/g, "-");
 }
 
-type BackupKind = "users" | "portfolio";
+type BackupKind = "users" | "portfolio" | "market-history";
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** What a market-history file must look like to be trusted (as a snapshot source and as a restore
+ * source): an object with a `days` object, which is how marketData.ts reads it. */
+export function isValidMarketHistory(parsed: unknown): boolean {
+  return isPlainObject(parsed) && isPlainObject(parsed.days);
+}
 
 function isValidFor(kind: BackupKind, parsed: unknown): boolean {
   if (kind === "users") return Array.isArray(parsed);
-  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  if (kind === "market-history") return isValidMarketHistory(parsed);
+  return isPlainObject(parsed);
 }
 
 /** Copies a live data file into a snapshot - but only if it currently parses.
@@ -102,6 +113,9 @@ async function createSnapshot(): Promise<void> {
   const snapshotDir = path.join(BACKUPS_DIR, timestampSlug(new Date()));
 
   await copyValidated(USERS_FILE, snapshotDir, "users.json", "users"); // no users.json yet - nothing to snapshot
+  // Shared, not per-user: one copy per snapshot. Skipped (and reported) if it is damaged, like the others,
+  // so a poisoned file can't push out the last good copy; absent until the first daily run has recorded something.
+  await copyValidated(MARKET_HISTORY_FILE, snapshotDir, "market-history.json", "market-history");
 
   let portfolioFiles: string[] = [];
   try {
@@ -213,12 +227,6 @@ export async function recoverFromBackup(opts: {
   });
 }
 
-/** Removes this user's portfolio file from every existing backup snapshot -
- * used by account deletion, so "delete my data" doesn't leave copies of the
- * portfolio recoverable from a past snapshot. Historical copies of
- * users.json (which also briefly contained this user's record) are left
- * alone: they're whole-table point-in-time snapshots, not per-user data,
- * and age out on their own via the existing rolling retention window. */
 /** Removes this user's quarantined copies (data/corrupted/<userId>.json.<time>.corrupt - the
  * damaged file kept aside by a self-heal, which can still hold readable data). Part of
  * account deletion. Only files that belong to this user are touched. */
@@ -236,6 +244,12 @@ export async function deleteUserQuarantinedCopies(userId: string): Promise<void>
   }
 }
 
+/** Removes this user's portfolio file from every existing backup snapshot -
+ * used by account deletion, so "delete my data" doesn't leave copies of the
+ * portfolio recoverable from a past snapshot. Historical copies of
+ * users.json (which also briefly contained this user's record) are left
+ * alone: they're whole-table point-in-time snapshots, not per-user data,
+ * and age out on their own via the existing rolling retention window. */
 export async function deleteUserPortfolioBackups(userId: string): Promise<void> {
   const dirs = await listBackupDirs();
   for (const name of dirs) {
