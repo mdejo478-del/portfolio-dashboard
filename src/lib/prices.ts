@@ -1,3 +1,5 @@
+import type { QuoteFailure, SymbolQuote } from "./priceStatus";
+
 const FINNHUB_BASE = "https://finnhub.io/api/v1";
 
 // Finnhub's free tier can stall instead of failing fast on endpoints it
@@ -32,27 +34,62 @@ export interface QuotesResult {
   // during the regular session (or when the market's fully closed) this is
   // null, since Finnhub's quote above already covers the regular price.
   extended: Record<string, ExtendedQuote | null>;
+  // Per-symbol outcome of this fetch (price, source, time, or why there is no
+  // price) - what the status shown in the holdings table is built from. A symbol
+  // with no price is present here with price: null, never silently absent.
+  quotes: Record<string, SymbolQuote>;
 }
 
-interface QuoteFetchResult {
-  price: number;
-  dayChangePct: number | null;
-}
+type QuoteFetchResult =
+  | { ok: true; price: number; dayChangePct: number | null }
+  | { ok: false; failure: QuoteFailure };
 
-async function fetchQuote(symbol: string, apiKey: string): Promise<QuoteFetchResult | null> {
-  const finnhubSymbol = SYMBOL_OVERRIDES[symbol] || symbol;
-  try {
-    const res = await fetch(
-      `${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`,
-      { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { c?: number; dp?: number };
-    if (typeof data.c !== "number" || data.c <= 0) return null;
-    return { price: data.c, dayChangePct: typeof data.dp === "number" ? data.dp / 100 : null };
-  } catch {
-    return null;
+// Finnhub's free tier allows ~60 calls/minute and Yahoo rate-limits by IP, so a
+// big portfolio must not fire one request per symbol all at once.
+const QUOTE_CONCURRENCY = 8;
+const QUOTE_RETRY_DELAY_MS = 400;
+
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i]);
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+// One retry for a rate limit (429), a server error or a network hiccup; anything
+// else (bad key, unknown symbol, empty quote) won't change by retrying. The
+// outcome says WHY a symbol has no price instead of collapsing to null.
+async function fetchQuote(symbol: string, apiKey: string): Promise<QuoteFetchResult> {
+  const finnhubSymbol = SYMBOL_OVERRIDES[symbol] || symbol;
+  let failure: QuoteFailure = "error";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(
+        `${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(finnhubSymbol)}&token=${apiKey}`,
+        { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+      );
+      if (res.status === 429 || res.status >= 500) {
+        failure = res.status === 429 ? "rate-limited" : "error";
+      } else if (!res.ok) {
+        return { ok: false, failure: "error" };
+      } else {
+        const data = (await res.json()) as { c?: number; dp?: number };
+        if (typeof data.c !== "number" || data.c <= 0) return { ok: false, failure: "no-data" };
+        return { ok: true, price: data.c, dayChangePct: typeof data.dp === "number" ? data.dp / 100 : null };
+      }
+    } catch {
+      failure = "error";
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, QUOTE_RETRY_DELAY_MS));
+  }
+  return { ok: false, failure };
 }
 
 interface YahooTradingPeriod { start?: number; end?: number }
@@ -124,20 +161,34 @@ export async function getQuotes(symbols: string[]): Promise<QuotesResult> {
   // shape for https://api.twelvedata.com/price?symbol=...&apikey=...
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) {
-    return { configured: false, prices: {}, dayChangePct: {}, extended: {} };
+    return { configured: false, prices: {}, dayChangePct: {}, extended: {}, quotes: {} };
   }
 
   const uniqueSymbols = Array.from(new Set(symbols));
-  const [quoteEntries, extendedEntries] = await Promise.all([
-    Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchQuote(symbol, apiKey)] as const)),
-    Promise.all(uniqueSymbols.map(async (symbol) => [symbol, await fetchExtendedHoursQuote(symbol)] as const)),
-  ]);
-  return {
-    configured: true,
-    prices: Object.fromEntries(quoteEntries.map(([symbol, q]) => [symbol, q?.price ?? null])),
-    dayChangePct: Object.fromEntries(quoteEntries.map(([symbol, q]) => [symbol, q?.dayChangePct ?? null])),
-    extended: Object.fromEntries(extendedEntries),
-  };
+  const results = await mapPool(uniqueSymbols, QUOTE_CONCURRENCY, async (symbol) => {
+    const [quote, extended] = await Promise.all([fetchQuote(symbol, apiKey), fetchExtendedHoursQuote(symbol)]);
+    return { symbol, quote, extended, fetchedAt: new Date().toISOString() };
+  });
+
+  const out: QuotesResult = { configured: true, prices: {}, dayChangePct: {}, extended: {}, quotes: {} };
+  for (const { symbol, quote, extended, fetchedAt } of results) {
+    const regular = quote.ok ? quote.price : null;
+    out.prices[symbol] = regular;
+    out.dayChangePct[symbol] = quote.ok ? quote.dayChangePct : null;
+    out.extended[symbol] = extended;
+    // Value at the extended-hours tick while the market is in pre/post (as the
+    // dashboard always has) - but record that it IS an extended-hours price.
+    const price = extended ? extended.price : regular;
+    out.quotes[symbol] = {
+      price,
+      source: extended ? "yahoo-extended" : regular !== null ? "finnhub" : null,
+      session: extended ? extended.session : "regular",
+      regularPrice: regular,
+      fetchedAt: price !== null ? fetchedAt : null,
+      failure: price !== null ? null : (quote.ok ? "no-data" : quote.failure),
+    };
+  }
+  return out;
 }
 
 const COMPANY_NAME_OVERRIDES: Record<string, string> = {

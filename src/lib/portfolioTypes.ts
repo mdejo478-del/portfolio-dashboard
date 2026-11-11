@@ -155,6 +155,10 @@ export function deriveRangeWidthPreference(risk: RiskTolerance, concentration: C
 export interface EquityPoint {
   date: string; // YYYY-MM-DD
   value: number;
+  // Set by the daily snapshot only: symbols that had no fresh price that day and
+  // were valued at their last known price (never 0), so the point is partly an
+  // estimate. Absent on normal points and on points saved from the dashboard.
+  staleSymbols?: string[];
 }
 
 // Persisted per-user "what has the user already been shown" record for one

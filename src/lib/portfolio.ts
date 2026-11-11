@@ -176,13 +176,14 @@ async function writeStoredPortfolio(userId: string, stored: StoredPortfolioData)
   await writeFileDurable(portfolioPath(userId), JSON.stringify(stored, null, 2));
 }
 
-function rollInEquityPoint(history: EquityPoint[], today: string, value: number): EquityPoint[] {
+function rollInEquityPoint(history: EquityPoint[], today: string, value: number, staleSymbols?: string[]): EquityPoint[] {
   const next = history.slice();
   const last = next[next.length - 1];
+  const point: EquityPoint = staleSymbols && staleSymbols.length > 0 ? { date: today, value, staleSymbols } : { date: today, value };
   if (last && last.date === today) {
-    next[next.length - 1] = { date: today, value };
+    next[next.length - 1] = point;
   } else {
-    next.push({ date: today, value });
+    next.push(point);
     if (next.length > MAX_EQUITY_POINTS) next.splice(0, next.length - MAX_EQUITY_POINTS);
   }
   return next;
@@ -311,12 +312,12 @@ export async function saveRangeWidthPreference(userId: string, pref: RangeWidthP
  * today. See dailySnapshot.ts. */
 export async function updateDailySnapshot(
   userId: string,
-  params: { equityValue: number; cashOverThreshold: boolean; morningBrief?: MorningBriefData; healthScoreAck?: HealthScoreAck }
+  params: { equityValue: number; staleSymbols?: string[]; cashOverThreshold: boolean; morningBrief?: MorningBriefData; healthScoreAck?: HealthScoreAck }
 ): Promise<void> {
   await withFileLock(portfolioPath(userId), async () => {
     const existing = await getPortfolio(userId);
     const today = new Date().toISOString().slice(0, 10);
-    const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue);
+    const history = rollInEquityPoint(existing.equityHistory, today, params.equityValue, params.staleSymbols);
     const cashIdleSince = params.cashOverThreshold ? (existing.cashIdleSince ?? today) : null;
     const morningBrief = params.morningBrief ?? existing.morningBrief;
     // Seed-only: never overwrites an ack that already exists (from the user

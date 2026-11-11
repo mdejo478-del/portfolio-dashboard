@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
 import { Wallet, RefreshCw, Archive, Plus, Check, X, Pencil, Trash2, ShieldCheck, AlertTriangle, ArrowLeftRight, Inbox, Lock } from "lucide-react";
 import type { Position, RangeWidthPreference } from "@/lib/portfolio";
 // From portfolioTypes.ts, not portfolio.ts - this is a client component, and
@@ -18,6 +18,8 @@ import { Button } from "@/components/dashboard/ui/Button";
 import { PageBanner, SectionTitle, Field } from "@/components/dashboard/ui/Layout";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { ExtendedPriceBadge } from "@/components/dashboard/ExtendedPriceBadge";
+import { PriceStatusMark } from "@/components/dashboard/PriceStatusMark";
+import type { PriceInfo, PriceSummary } from "@/lib/priceStatus";
 import { AllocationCard } from "@/components/dashboard/AllocationCard";
 import { MorningBriefCard } from "@/components/dashboard/MorningBriefCard";
 import { useIsMobile } from "@/components/dashboard/useIsMobile";
@@ -32,6 +34,8 @@ interface HoldingsSectionProps {
   privacyMode: boolean;
   rangeWidthPreference: RangeWidthPreference;
   extendedPrices: Record<string, ExtendedQuote | null>;
+  priceInfo: Record<string, PriceInfo>;
+  priceSummary: PriceSummary;
   openDetail: (symbol: string) => void;
   pricesConfigured: boolean | null;
   lastPriceUpdate: Date | null;
@@ -50,7 +54,7 @@ interface HoldingsSectionProps {
 }
 
 export function HoldingsSection({
-  evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, rangeWidthPreference, extendedPrices, openDetail,
+  evaluated, positions, setPositions, nextPosIdRef, pushUndoSnapshot, total, privacyMode, rangeWidthPreference, extendedPrices, priceInfo, priceSummary, openDetail,
   pricesConfigured, lastPriceUpdate, pricesLoading, priceError, refreshPrices, saveStatus, backupRunning, backupDoneAt, onBackupNow,
   morningBrief, bigMovers, morningBriefLoading, morningBriefError, onOpenMorningBrief,
 }: HoldingsSectionProps) {
@@ -81,6 +85,15 @@ export function HoldingsSection({
   // the footer can say how much of the portfolio the figure covers instead of
   // implying it's the whole portfolio's return.
   const totalReturn = useMemo(() => totalPositionReturn(positions), [positions]);
+
+  // An extended-hours price is shown in italics with a dotted underline (and a
+  // tooltip naming the session and the regular close) so it can't be mistaken
+  // for a regular-session price.
+  function extendedPriceStyle(symbol: string): CSSProperties | undefined {
+    const info = priceInfo[symbol];
+    if (!info || info.status === "pending" || info.status === "missing" || info.session === "regular") return undefined;
+    return { fontStyle: "italic", textDecoration: "underline dotted", textUnderlineOffset: 3, cursor: "help" };
+  }
 
   function openAddPositionForm() {
     setShowAddPosition(true);
@@ -268,8 +281,9 @@ export function HoldingsSection({
           </CardStat>
           <CardStat label="מחיר">
             {p.price !== null && p.price !== undefined
-              ? formatMoney(p.price, privacyMode, { digits: 2 })
+              ? <span style={extendedPriceStyle(p.symbol)}>{formatMoney(p.price, privacyMode, { digits: 2 })}</span>
               : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
+            {p.symbol !== "CASH" && <PriceStatusMark info={priceInfo[p.symbol]} />}
             <ExtendedPriceBadge quote={extendedPrices[p.symbol]} privacyMode={privacyMode} />
           </CardStat>
           {p.symbol !== "CASH" && (
@@ -368,8 +382,22 @@ export function HoldingsSection({
             // own "ננסה שוב אוטומטית" wording, which is accurate there.
             ? "עדכון מחירים חי אינו מוגדר במערכת זו"
             : lastPriceUpdate
-              ? "מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")
-              : <>טוען מחירים <span className="ds-skeleton" style={{ display: "inline-block", width: 70, height: 10, borderRadius: 4, verticalAlign: "middle" }} /></>}
+              ? <>
+                {"מחירים עודכנו לאחרונה: " + lastPriceUpdate.toLocaleTimeString("he-IL")}
+                {(priceSummary.stale > 0 || priceSummary.missing > 0) && (
+                  <span data-price-summary="problem" style={{ color: "var(--warning)", fontWeight: 600 }} title="לסימולים אלה לא התקבל מחיר עדכני - הסטטוס מופיע מתחת למחיר בטבלה">
+                    {" · " + [priceSummary.stale > 0 ? priceSummary.stale + " ישנים" : "", priceSummary.missing > 0 ? priceSummary.missing + " חסרים" : ""].filter(Boolean).join(", ")}
+                  </span>
+                )}
+                {priceSummary.extended > 0 && (
+                  <span data-price-summary="extended" style={{ color: "var(--info)", fontWeight: 600 }} title="מחיר מסחר מורחב פחות אמין ממחיר סשן רגיל">
+                    {" · " + priceSummary.extended + " במסחר מורחב"}
+                  </span>
+                )}
+              </>
+              : priceSummary.stale + priceSummary.missing > 0
+                ? <span style={{ color: "var(--warning)", fontWeight: 600 }}>לא התקבלו מחירים עדכניים</span>
+                : <>טוען מחירים <span className="ds-skeleton" style={{ display: "inline-block", width: 70, height: 10, borderRadius: 4, verticalAlign: "middle" }} /></>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{
@@ -492,10 +520,11 @@ export function HoldingsSection({
                     ? formatMoney(p.avgCost, privacyMode, { digits: 2 })
                     : <span style={{ color: "var(--text-faint)" }} title="הזן מחיר ממוצע (בעיפרון) כדי לראות תשואה">—</span>}
                 </td>
-                <td className="num" style={{ color: "var(--text-dim)" }} title={extendedPrices[p.symbol] ? (extendedPrices[p.symbol]?.session === "pre" ? "טרום-פתיחה" : "אחרי סגירה") + ": " + formatMoney(extendedPrices[p.symbol]!.price, privacyMode, { digits: 2 }) : undefined}>
+                <td className="num" style={{ color: "var(--text-dim)" }}>
                   {p.price !== null && p.price !== undefined
-                    ? formatMoney(p.price, privacyMode, { digits: 2 })
+                    ? <span style={extendedPriceStyle(p.symbol)}>{formatMoney(p.price, privacyMode, { digits: 2 })}</span>
                     : p.symbol === "CASH" ? "—" : <span title="לא הצלחנו לעדכן מחיר עבור נכס זה" style={{ color: "var(--text-faint)" }}>לא זמין</span>}
+                  {p.symbol !== "CASH" && <PriceStatusMark info={priceInfo[p.symbol]} />}
                 </td>
                 <td className="num" style={{ fontWeight: p.symbol === "CASH" ? 700 : 600, color: p.symbol === "CASH" ? "var(--text)" : undefined }}>{formatMoney(p.value, privacyMode)}</td>
                 <td className="num"><PositionReturnValue position={p} privacyMode={privacyMode} /></td>

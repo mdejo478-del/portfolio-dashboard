@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { writeFileDurable } from "@/lib/durableFile";
 import { getPortfolio, listPortfolioUserIds, updateDailySnapshot, type MorningBriefData, type HealthScoreAck } from "@/lib/portfolio";
+import { fetchQuotesInBatches, valuePositions } from "@/lib/priceStatus";
 import { getQuotes, getEarningsCalendar, getCompanyNews, type RawEarningsEntry, type RawNewsHeadline } from "@/lib/prices";
 import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { evaluatePosition } from "@/components/dashboard/evaluatePosition";
@@ -122,17 +123,19 @@ async function snapshotUser(
   if (!needsEquitySnapshot && !needsBriefRefresh && !needsHealthScoreSeed) return;
 
   let equityValue: number;
+  let staleSymbols: string[] = [];
   if (needsEquitySnapshot) {
     const symbols = portfolio.positions.filter((p) => p.symbol !== "CASH" && p.qty !== null).map((p) => p.symbol);
-    const quotes = symbols.length > 0 ? await getQuotes(symbols) : { configured: true, prices: {}, dayChangePct: {}, extended: {} };
-    equityValue = 0;
-    for (const p of portfolio.positions) {
-      if (p.symbol === "CASH") { equityValue += p.value; continue; }
-      const livePrice = quotes.prices[p.symbol];
-      // Fall back to the last stored price for a symbol whose fetch failed,
-      // rather than dropping it out of the total entirely.
-      equityValue += p.qty !== null ? p.qty * (livePrice ?? p.price ?? 0) : p.value;
-    }
+    // Same batching as the dashboard: a portfolio over the per-request cap is
+    // priced in several requests, not cut off at the cap.
+    const quotes = symbols.length > 0
+      ? await fetchQuotesInBatches(symbols, getQuotes)
+      : { configured: true, prices: {}, dayChangePct: {}, extended: {}, quotes: {}, failedSymbols: [] };
+    // A symbol with no fresh price is valued at its last known price (or value)
+    // and listed in staleSymbols - never counted as 0 (audit H6).
+    const valuation = valuePositions(portfolio.positions, quotes.prices);
+    equityValue = valuation.total;
+    staleSymbols = valuation.staleSymbols;
   } else {
     // Equity already fresh for today - reuse it rather than re-fetching
     // quotes just to re-derive the same number.
@@ -152,7 +155,7 @@ async function snapshotUser(
     healthScoreAck = { score: health.score, rangeRatio: health.rangeRatio, cashHealth: health.cashHealth, breachScore: health.breachScore, seenAt: new Date().toISOString() };
   }
 
-  await updateDailySnapshot(userId, { equityValue, cashOverThreshold, morningBrief, healthScoreAck });
+  await updateDailySnapshot(userId, { equityValue, staleSymbols, cashOverThreshold, morningBrief, healthScoreAck });
 }
 
 async function runSnapshotNow(): Promise<void> {

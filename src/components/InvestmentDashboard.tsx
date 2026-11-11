@@ -6,6 +6,7 @@ import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAl
 import { getPricesAction } from "@/app/actions/prices";
 import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
 import type { ExtendedQuote } from "@/lib/prices";
+import { applyQuotes, derivePriceInfo, fetchQuotesInBatches, summarizePriceInfo, type PriceInfo, type QuoteMeta } from "@/lib/priceStatus";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck, RangeWidthPreference } from "@/lib/portfolio";
 import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
 import StockDetailDrawer from "@/components/StockDetailDrawer";
@@ -299,34 +300,63 @@ export default function InvestmentDashboard({
   // already receives.
   const [dayChangePct, setDayChangePct] = useState<Record<string, number | null>>({});
 
+  // Per-symbol record of the last SUCCESSFUL quote, and when the latest refresh
+  // cycle finished. Together they give each symbol an ok / stale / missing
+  // status (see lib/priceStatus.ts) instead of every symbol looking freshly
+  // updated whenever any request succeeded.
+  const [quoteMeta, setQuoteMeta] = useState<Record<string, QuoteMeta>>({});
+  const [cycleCompletedAt, setCycleCompletedAt] = useState<number | null>(null);
+
   const refreshPrices = useCallback(async () => {
     const symbols = positionsRef.current.filter((p) => p.symbol !== "CASH").map((p) => p.symbol);
     setPricesLoading(true);
     setPriceError("");
     try {
-      const result = await getPricesAction(symbols);
+      // Sent in batches so every symbol is priced - the server caps one
+      // request, and a bigger portfolio used to be silently cut off at the cap.
+      const result = await fetchQuotesInBatches(symbols, getPricesAction);
       setPricesConfigured(result.configured);
       if (result.configured) {
+        const failed = new Set(result.failedSymbols);
         setPositions((ps) => ps.map((p) => {
-          // Prefer the pre-market/after-hours tick when the market's in one of
-          // those windows, so the portfolio's value reflects the latest known
-          // price rather than freezing at the last regular-session close - the
-          // badge under the price still labels it so it reads as a thin/less
-          // reliable quote, not a regular-session price.
-          const newPrice = result.extended[p.symbol]?.price ?? result.prices[p.symbol];
+          // result.quotes[...].price is the price to value the position at: the
+          // pre-market/after-hours tick while the market's in one of those
+          // windows (so the portfolio's value reflects the latest known price
+          // rather than freezing at the last regular-session close), otherwise
+          // the regular quote. A symbol that got no price keeps its old price
+          // (its status then reads stale/missing) - it is never zeroed.
+          const newPrice = result.quotes[p.symbol]?.price ?? null;
           if (newPrice == null || p.qty == null) return p;
           return { ...p, price: newPrice, value: p.qty * newPrice };
         }));
-        setExtendedPrices(result.extended);
-        setDayChangePct(result.dayChangePct);
-        setLastPriceUpdate(new Date());
+        // A batch that failed outright keeps what was known for its symbols.
+        setExtendedPrices((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([s]) => failed.has(s))), ...result.extended }));
+        setDayChangePct((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([s]) => failed.has(s))), ...result.dayChangePct }));
+        setQuoteMeta((prev) => applyQuotes(prev, result.quotes));
+        // "Last updated" moves only when some symbol actually received a price
+        // (or there was nothing to price) - never because a request merely returned.
+        const gotAnyPrice = Object.values(result.quotes).some((q) => q.price !== null);
+        if (symbols.length === 0 || gotAnyPrice) setLastPriceUpdate(new Date());
+        if (symbols.length > 0 && !gotAnyPrice) {
+          setPriceError("לא הצלחנו לעדכן מחירים כרגע. ננסה שוב אוטומטית.");
+        } else if (failed.size > 0) {
+          setPriceError("לא הצלחנו לעדכן מחירים עבור " + failed.size + " סימולים. ננסה שוב אוטומטית.");
+        }
       }
     } catch {
       setPriceError("לא הצלחנו לעדכן מחירים כרגע. ננסה שוב אוטומטית.");
     } finally {
+      setCycleCompletedAt(Date.now());
       setPricesLoading(false);
     }
   }, []);
+
+  // Status of each held symbol's price, derived from data only (the time of the
+  // latest refresh cycle, not the clock at render).
+  const priceInfo = useMemo<Record<string, PriceInfo>>(() => Object.fromEntries(
+    positions.filter((p) => p.symbol !== "CASH").map((p) => [p.symbol, derivePriceInfo(p.price, quoteMeta[p.symbol], { completedAt: cycleCompletedAt })])
+  ), [positions, quoteMeta, cycleCompletedAt]);
+  const priceSummary = useMemo(() => summarizePriceInfo(Object.values(priceInfo)), [priceInfo]);
 
   useEffect(() => {
     // Fetch on mount, then poll - the canonical data-fetching Effect.
@@ -1038,6 +1068,7 @@ export default function InvestmentDashboard({
             pushUndoSnapshot={pushUndoSnapshot} total={total} privacyMode={privacyMode} extendedPrices={extendedPrices}
             rangeWidthPreference={rangeWidthPreference}
             openDetail={openDetail} pricesConfigured={pricesConfigured} lastPriceUpdate={lastPriceUpdate}
+            priceInfo={priceInfo} priceSummary={priceSummary}
             pricesLoading={pricesLoading} priceError={priceError} refreshPrices={refreshPrices} saveStatus={saveStatus}
             backupRunning={backupRunning} backupDoneAt={backupDoneAt} onBackupNow={handleBackupNow}
             morningBrief={morningBrief} bigMovers={bigMovers} morningBriefLoading={morningBriefLoading} morningBriefError={morningBriefError}
