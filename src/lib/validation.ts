@@ -21,16 +21,17 @@
 // (see newErrors), so a legacy portfolio that already contains a bad value can
 // still be edited and saved.
 
-import type { Ledger, LedgerAnchors, PortfolioData, Position, Trade } from "./portfolioTypes";
+import type { Ledger, LedgerAnchors, PortfolioData, Position, Trade, WatchlistItem } from "./portfolioTypes";
 
 // ---- structure ----------------------------------------------------------------------
 
 export const MAX_POSITIONS = 300;
 export const MAX_TRADES = 20_000;
 export const MAX_LEDGER_ENTRIES = 1_000;
+export const MAX_WATCHLIST_ITEMS = 200;
 export const MAX_SYMBOL_LEN = 20;
 const MAX_SHORT_STRING_LEN = 500;
-const MAX_NOTES_LEN = 5_000;
+export const MAX_NOTES_LEN = 5_000;
 export const VALID_ACTIONS: ReadonlySet<string> = new Set(["קנייה", "מכירה", "הפקדה", "משיכה", "אחר"]);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -111,6 +112,27 @@ function isValidAnchors(a: unknown): a is LedgerAnchors {
   });
 }
 
+function isValidWatchlist(w: unknown): w is WatchlistItem[] {
+  if (!Array.isArray(w) || w.length > MAX_WATCHLIST_ITEMS) return false;
+  return w.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const o = item as Record<string, unknown>;
+    return (
+      isNonEmptyShortString(o.id, 64) &&
+      isNonEmptyShortString(o.symbol, MAX_SYMBOL_LEN) &&
+      typeof o.name === "string" && o.name.length <= 200 &&
+      (o.assetType === "STOCK" || o.assetType === "ETF") &&
+      isFiniteNumberOrNull(o.entryPrice) &&
+      isFiniteNumberOrNull(o.targetWeight) &&
+      isFiniteNumber(o.interest) &&
+      typeof o.thesis === "string" && o.thesis.length <= MAX_NOTES_LEN &&
+      typeof o.notes === "string" && o.notes.length <= MAX_NOTES_LEN &&
+      typeof o.createdAt === "string" && o.createdAt.length <= 40 &&
+      typeof o.updatedAt === "string" && o.updatedAt.length <= 40
+    );
+  });
+}
+
 /** Runtime shape/bounds check for client-submitted portfolio data. TypeScript
  * types alone don't survive the network boundary, so this is the real guard
  * against malformed or oversized payloads reaching disk. */
@@ -118,6 +140,7 @@ export function isValidPortfolioData(data: unknown): data is PortfolioData {
   if (!data || typeof data !== "object") return false;
   const o = data as Record<string, unknown>;
   if (o.ledgerAnchors !== undefined && !isValidAnchors(o.ledgerAnchors)) return false;
+  if (o.watchlist !== undefined && !isValidWatchlist(o.watchlist)) return false;
   if (!Array.isArray(o.positions) || o.positions.length > MAX_POSITIONS) return false;
   if (!o.positions.every(isValidPosition)) return false;
   if (!Array.isArray(o.trades) || o.trades.length > MAX_TRADES) return false;
@@ -141,7 +164,7 @@ export interface ValidationIssue {
   key: string;
   /** Hebrew explanation, ready to show the user as is. */
   message: string;
-  kind: "position" | "trade" | "portfolio";
+  kind: "position" | "trade" | "portfolio" | "watchlist";
   id: number | null;
   symbol: string | null;
 }
@@ -239,6 +262,21 @@ export function validatePosition(p: Position): ValidationIssue[] {
   return out;
 }
 
+/** Problems with one watchlist item, from its own fields. */
+export function validateWatchlistItem(w: WatchlistItem): ValidationIssue[] {
+  const out: ValidationIssue[] = [];
+  const add = (sev: IssueSeverity, code: string, msg: string) => out.push(issue(sev, code, msg, "watchlist", null, w.symbol));
+  const label = "ברשימת המעקב, " + w.symbol + ": ";
+  if (w.entryPrice !== null && !(w.entryPrice > 0)) add("error", "watch-entry-invalid", label + "מחיר הכניסה הרצוי (" + money(w.entryPrice) + ") חייב להיות גדול מ-0 (או להישאר ריק).");
+  if (w.targetWeight !== null && !(w.targetWeight > 0 && w.targetWeight <= 1)) {
+    add("error", "watch-weight-invalid", label + "משקל היעד (" + pct(w.targetWeight) + ") חייב להיות בין 0% ל-100% (או להישאר ריק).");
+  }
+  if (!Number.isInteger(w.interest) || w.interest < 1 || w.interest > 5) add("error", "watch-interest-invalid", label + "רמת העניין (" + w.interest + ") חייבת להיות מספר שלם מ-1 עד 5.");
+  if (Number.isNaN(Date.parse(w.createdAt)) || Number.isNaN(Date.parse(w.updatedAt))) add("error", "watch-date-invalid", label + "תאריך היצירה או העדכון אינו תאריך תקין.");
+  if (!/^[A-Za-z0-9:_.-]+$/.test(w.symbol)) add("warning", "symbol-chars", "הסימול \"" + w.symbol + "\" ברשימת המעקב כולל תווים לא רגילים, ולכן אי אפשר לשלוף עבורו מחיר חי.");
+  return out;
+}
+
 export interface TradeValidationOptions {
   /** Today as YYYY-MM-DD, for the future-date warning. Defaults to the current UTC date. */
   today?: string;
@@ -309,6 +347,18 @@ export function validatePortfolio(data: PortfolioData, opts: TradeValidationOpti
     out.push(issue("error", "next-trade-id", "מונה מזהי העסקאות (" + data.nextTradeId + ") אינו גדול ממזהה קיים (" + maxTradeId + "), ולכן עסקה חדשה עלולה לקבל מזהה כפול.", "portfolio", null, null));
   }
   out.push(...validateAnchors(data.ledgerAnchors));
+
+  // The watchlist: each item on its own, plus duplicate symbols / ids. A symbol that is also held is fine.
+  const watchSymbols = new Set<string>();
+  const watchIds = new Set<string>();
+  for (const w of data.watchlist ?? []) {
+    out.push(...validateWatchlistItem(w));
+    const key = w.symbol.trim().toUpperCase();
+    if (watchSymbols.has(key)) out.push(issue("error", "watch-duplicate-symbol", "הסימול " + w.symbol + " מופיע ברשימת המעקב יותר מפעם אחת.", "watchlist", null, w.symbol));
+    watchSymbols.add(key);
+    if (watchIds.has(w.id)) out.push(issue("error", "watch-duplicate-id", "ברשימת המעקב, " + w.symbol + ": המזהה משותף ליותר מפריט אחד.", "watchlist", null, w.symbol + "#" + w.id));
+    watchIds.add(w.id);
+  }
   return out;
 }
 

@@ -36,6 +36,7 @@ export default async function Home() {
       initialTrades={portfolio.trades}
       initialLedger={portfolio.ledger}
       initialLedgerAnchors={portfolio.ledgerAnchors ?? {}}
+      initialWatchlist={portfolio.watchlist ?? []}
       initialMarketSettings={normalizeMarketSettings(portfolio.marketSettings)}
       initialNextPositionId={portfolio.nextPositionId}
       initialNextTradeId={portfolio.nextTradeId}

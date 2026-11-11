@@ -6,7 +6,7 @@ import { savePortfolioAction, rebuildEquityHistoryAction, backupNowAction, ackAl
 import { getPricesAction } from "@/app/actions/prices";
 import { getMorningBriefAction, type MorningBriefResult } from "@/app/actions/morningBrief";
 import type { ExtendedQuote } from "@/lib/prices";
-import type { LedgerAnchors } from "@/lib/portfolioTypes";
+import type { LedgerAnchors, WatchlistItem } from "@/lib/portfolioTypes";
 import { applyQuotes, derivePriceInfo, fetchQuotesInBatches, summarizePriceInfo, type PriceInfo, type QuoteMeta } from "@/lib/priceStatus";
 import type { Position, Trade, Ledger, PortfolioData, EquityPoint, AlertAck, HealthScoreAck, RangeWidthPreference } from "@/lib/portfolio";
 import { ALERT_RULES, isNewOccurrence, priceTargetSide, isPriceTargetNewOccurrence } from "@/lib/alertRules";
@@ -21,6 +21,8 @@ import { computePortfolioHealth } from "@/lib/portfolioHealth";
 import { externalFlowsByDate, timeWeightedReturn, performanceDrawdown } from "@/lib/returns";
 import { Header } from "@/components/dashboard/Header";
 import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
+import { WatchlistSection } from "@/components/dashboard/WatchlistSection";
+import { useWatchlistHighs } from "@/components/dashboard/useWatchlistHighs";
 import { MorningBriefDrawer } from "@/components/dashboard/MorningBriefDrawer";
 import { TradeJournalSection } from "@/components/dashboard/TradeJournalSection";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
@@ -63,6 +65,9 @@ function userDataFingerprint(data: PortfolioData): string {
     // Part of what the user edits: without it here an approved anchor would
     // never be saved (the fingerprint would not change).
     ledgerAnchors: data.ledgerAnchors ?? {},
+    // The watchlist is the user's own data too; absent and empty are the same thing, so a file from
+    // before the watchlist existed does not look "changed" on load.
+    watchlist: data.watchlist ?? [],
     nextPositionId: data.nextPositionId,
     nextTradeId: data.nextTradeId,
   });
@@ -76,6 +81,7 @@ interface InvestmentDashboardProps {
   initialTrades: Trade[];
   initialLedger: Ledger;
   initialLedgerAnchors?: LedgerAnchors;
+  initialWatchlist?: WatchlistItem[];
   initialMarketSettings?: MarketSettings;
   initialNextPositionId: number;
   initialNextTradeId: number;
@@ -93,6 +99,7 @@ export default function InvestmentDashboard({
   initialTrades,
   initialLedger,
   initialLedgerAnchors,
+  initialWatchlist,
   initialMarketSettings,
   initialNextPositionId,
   initialNextTradeId,
@@ -162,6 +169,8 @@ export default function InvestmentDashboard({
   const [marketSettingsOpen, setMarketSettingsOpen] = useState<boolean>(false);
   // Starting points for symbols bought before the journal (see LedgerAnchor).
   const [ledgerAnchors, setLedgerAnchors] = useState<LedgerAnchors>(initialLedgerAnchors ?? {});
+  // Symbols the owner watches but does not hold (see lib/watchlist.ts). Kept apart from `positions`.
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(initialWatchlist ?? []);
 
   const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
 
@@ -173,6 +182,8 @@ export default function InvestmentDashboard({
   useEffect(() => { ledgerRef.current = ledger; }, [ledger]);
   const ledgerAnchorsRef = useRef<LedgerAnchors>(ledgerAnchors);
   useEffect(() => { ledgerAnchorsRef.current = ledgerAnchors; }, [ledgerAnchors]);
+  const watchlistRef = useRef<WatchlistItem[]>(watchlist);
+  useEffect(() => { watchlistRef.current = watchlist; }, [watchlist]);
 
   // Autosave: strictly sequential, never more than one save in flight. Without
   // this, two rapid edits (e.g. adding two trades back-to-back) fire two
@@ -190,7 +201,7 @@ export default function InvestmentDashboard({
   const revisionRef = useRef<number>(initialRevision);
   // What was last confirmed saved - initially exactly what the page loaded.
   const lastSavedFingerprint = useRef<string>(userDataFingerprint({
-    positions: initialPositions, trades: initialTrades, ledger: initialLedger, ledgerAnchors: initialLedgerAnchors,
+    positions: initialPositions, trades: initialTrades, ledger: initialLedger, ledgerAnchors: initialLedgerAnchors, watchlist: initialWatchlist,
     nextPositionId: initialNextPositionId, nextTradeId: initialNextTradeId,
   }));
   // Once a save is refused as stale, this tab must not keep trying: every
@@ -210,6 +221,7 @@ export default function InvestmentDashboard({
           trades: tradesRef.current,
           ledger: ledgerRef.current,
           ledgerAnchors: ledgerAnchorsRef.current,
+          watchlist: watchlistRef.current,
           nextPositionId: nextPosId.current,
           nextTradeId: nextId.current,
         };
@@ -266,7 +278,7 @@ export default function InvestmentDashboard({
   useEffect(() => {
     if (skipNextSave.current) { skipNextSave.current = false; return; }
     runSave();
-  }, [positions, trades, ledger, ledgerAnchors, runSave]);
+  }, [positions, trades, ledger, ledgerAnchors, watchlist, runSave]);
 
   // Periodic backup save: a safety net independent of the change-triggered
   // save above, in case a transient failure was missed or dismissed.
@@ -336,8 +348,15 @@ export default function InvestmentDashboard({
   const [quoteMeta, setQuoteMeta] = useState<Record<string, QuoteMeta>>({});
   const [cycleCompletedAt, setCycleCompletedAt] = useState<number | null>(null);
 
+  // Last known live price of each WATCHED symbol. Kept apart from `positions` (a watched symbol is not a
+  // holding, so nothing is written into the portfolio), and only ever replaced by a newer successful
+  // price - a failed refresh leaves the old one in place, where the status mark calls it stale.
+  const [watchPrices, setWatchPrices] = useState<Record<string, number>>({});
+
   const refreshPrices = useCallback(async () => {
-    const symbols = positionsRef.current.filter((p) => p.symbol !== "CASH").map((p) => p.symbol);
+    const watched = watchlistRef.current.map((w) => w.symbol);
+    // Held and watched symbols are priced in the same cycle (one request set, de-duplicated).
+    const symbols = Array.from(new Set([...positionsRef.current.filter((p) => p.symbol !== "CASH").map((p) => p.symbol), ...watched]));
     setPricesLoading(true);
     setPriceError("");
     try {
@@ -362,6 +381,14 @@ export default function InvestmentDashboard({
         setExtendedPrices((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([s]) => failed.has(s))), ...result.extended }));
         setDayChangePct((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([s]) => failed.has(s))), ...result.dayChangePct }));
         setQuoteMeta((prev) => applyQuotes(prev, result.quotes));
+        setWatchPrices((prev) => {
+          const next = { ...prev };
+          for (const s of watched) {
+            const price = result.quotes[s]?.price;
+            if (typeof price === "number" && price > 0) next[s] = price;
+          }
+          return next;
+        });
         // "Last updated" moves only when some symbol actually received a price
         // (or there was nothing to price) - never because a request merely returned.
         const gotAnyPrice = Object.values(result.quotes).some((q) => q.price !== null);
@@ -386,13 +413,21 @@ export default function InvestmentDashboard({
     positions.filter((p) => p.symbol !== "CASH").map((p) => [p.symbol, derivePriceInfo(p.price, quoteMeta[p.symbol], { completedAt: cycleCompletedAt })])
   ), [positions, quoteMeta, cycleCompletedAt]);
   const priceSummary = useMemo(() => summarizePriceInfo(Object.values(priceInfo)), [priceInfo]);
+  // The same status for the watched symbols - deliberately NOT part of priceInfo/priceSummary, which
+  // describe the portfolio's holdings.
+  const watchPriceInfo = useMemo<Record<string, PriceInfo>>(() => Object.fromEntries(
+    watchlist.map((w) => [w.symbol, derivePriceInfo(watchPrices[w.symbol], quoteMeta[w.symbol], { completedAt: cycleCompletedAt })])
+  ), [watchlist, watchPrices, quoteMeta, cycleCompletedAt]);
+  const watchSymbols = useMemo(() => watchlist.map((w) => w.symbol), [watchlist]);
+  const heldSymbols = useMemo(() => positions.filter((p) => p.symbol !== "CASH").map((p) => p.symbol), [positions]);
+  const watchHighs = useWatchlistHighs(watchSymbols);
 
   // Data problems in what is on screen (see lib/validation.ts). Shown, never
   // blocking: a portfolio that already contains one still loads and saves.
   // The id counters are left out here (they are refs) - the server checks them.
   const dataIssues = useMemo(() => validatePortfolio({
-    positions, trades, ledger: {}, ledgerAnchors, nextPositionId: Number.MAX_SAFE_INTEGER, nextTradeId: Number.MAX_SAFE_INTEGER,
-  }), [positions, trades, ledgerAnchors]);
+    positions, trades, ledger: {}, ledgerAnchors, watchlist, nextPositionId: Number.MAX_SAFE_INTEGER, nextTradeId: Number.MAX_SAFE_INTEGER,
+  }), [positions, trades, ledgerAnchors, watchlist]);
 
   useEffect(() => {
     // Fetch on mount, then poll - the canonical data-fetching Effect.
@@ -405,6 +440,15 @@ export default function InvestmentDashboard({
     const interval = setInterval(refreshPrices, PRICE_REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [refreshPrices]);
+
+  // A symbol just added to the watchlist should get its price now, not up to 75 seconds later.
+  // Only a NEW symbol triggers it (editing an item or removing one does not).
+  const knownWatchSymbols = useRef<Set<string>>(new Set(watchSymbols));
+  useEffect(() => {
+    const added = watchSymbols.some((s) => !knownWatchSymbols.current.has(s));
+    knownWatchSymbols.current = new Set(watchSymbols);
+    if (added) refreshPrices();
+  }, [watchSymbols, refreshPrices]);
 
   const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
   function openDetail(symbol: string) { if (symbol !== "CASH") setDetailSymbol(symbol); }
@@ -923,6 +967,7 @@ export default function InvestmentDashboard({
       trades: JSON.parse(JSON.stringify(trades)),
       ledger: JSON.parse(JSON.stringify(ledger)),
       ledgerAnchors: JSON.parse(JSON.stringify(ledgerAnchors)),
+      watchlist: JSON.parse(JSON.stringify(watchlist)),
       nextPositionId: nextPosId.current,
       nextTradeId: nextId.current,
     });
@@ -934,6 +979,7 @@ export default function InvestmentDashboard({
     setTrades(undoSnapshot.trades);
     setLedger(undoSnapshot.ledger);
     setLedgerAnchors(undoSnapshot.ledgerAnchors ?? {});
+    setWatchlist(undoSnapshot.watchlist ?? []);
     nextPosId.current = undoSnapshot.nextPositionId;
     nextId.current = undoSnapshot.nextTradeId;
     setUndoSnapshot(null);
@@ -1116,6 +1162,12 @@ export default function InvestmentDashboard({
             backupRunning={backupRunning} backupDoneAt={backupDoneAt} onBackupNow={handleBackupNow}
             morningBrief={morningBrief} bigMovers={bigMovers} morningBriefLoading={morningBriefLoading} morningBriefError={morningBriefError}
             onOpenMorningBrief={() => setBriefDrawerOpen(true)}
+          />
+
+          <WatchlistSection
+            watchlist={watchlist} setWatchlist={setWatchlist} heldSymbols={heldSymbols}
+            prices={watchPrices} priceInfo={watchPriceInfo} highs={watchHighs}
+            pushUndoSnapshot={pushUndoSnapshot} pricesConfigured={pricesConfigured}
           />
 
           <TradeJournalSection

@@ -117,6 +117,29 @@ export interface LedgerAnchor {
 }
 export type LedgerAnchors = Record<string, LedgerAnchor>;
 
+export type WatchlistAssetType = "STOCK" | "ETF";
+
+/** A symbol the owner is watching but does not hold. Kept entirely apart from `positions`: it has
+ * no quantity, no value and no weight, and nothing that computes holdings, weights, cash or the
+ * health score ever reads it. The price is NOT stored - it is fetched live. */
+export interface WatchlistItem {
+  id: string;
+  symbol: string;
+  name: string;
+  assetType: WatchlistAssetType;
+  /** The price he would like to enter at ($); null = not set. */
+  entryPrice: number | null;
+  /** The weight he would like it to have in the portfolio, as a fraction; null = not set. */
+  targetWeight: number | null;
+  /** How interested he is, 1 (a little) to 5 (a lot). */
+  interest: number;
+  thesis: string;
+  notes: string;
+  /** ISO times. */
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PortfolioData {
   positions: Position[];
   trades: Trade[];
@@ -127,6 +150,10 @@ export interface PortfolioData {
   // through the same revision check). Absent in files written before anchors
   // existed = no anchors, and every symbol is rebuilt from its trades alone.
   ledgerAnchors?: LedgerAnchors;
+  // The owner's watchlist. User data like the rest (saved with the portfolio, protected by the
+  // revision check). Optional: absent in files written before it existed = an empty list - which
+  // is why it needs no schema migration (see lib/schema.ts): old code keeps an unknown field intact.
+  watchlist?: WatchlistItem[];
 }
 
 // How far apart a new position's min/max/dilute default to, relative to its

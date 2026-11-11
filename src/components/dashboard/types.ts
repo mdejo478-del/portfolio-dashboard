@@ -1,5 +1,5 @@
 import type { Position, Trade, Ledger } from "@/lib/portfolio";
-import type { LedgerAnchors } from "@/lib/portfolioTypes";
+import type { LedgerAnchors, WatchlistItem } from "@/lib/portfolioTypes";
 
 export type Tone = "green" | "amber" | "red" | "blue";
 
@@ -55,6 +55,7 @@ export interface UndoSnapshot {
   trades: Trade[];
   ledger: Ledger;
   ledgerAnchors: LedgerAnchors;
+  watchlist: WatchlistItem[];
   nextPositionId: number;
   nextTradeId: number;
 }
