@@ -175,3 +175,22 @@ test("report part 3, case 6: a buy with a -2.5 fee moves cash by -1002.50", () =
   const plan = planImport([], [{ ...row("2026-01-05", "NVDA", BUY, 10, 100), fee: -2.5 }], 1);
   assert.equal(plan.cashDelta, -1002.5, "an imported buy applies the same cash effect");
 });
+
+// ---- Audit report, part 3: cases 3 and 5 (exactly as written there) -----------------
+
+test("report part 3, case 3: editing the first buy to 12@100 gives 22 shares at about 145.45", () => {
+  // Based on case 1 (10@100, 10@200); the first buy is edited to 12@100.
+  const edited = [T(1, "2026-01-05", "NVDA", BUY, 12, 100), T(2, "2026-01-06", "NVDA", BUY, 10, 200)];
+  const { ledger, issues } = buildLedger(edited);
+  assert.equal(ledger.NVDA.qty, 22, "not 32 (the edited buy replaces the old one)");
+  near(ledger.NVDA.avgCost, (12 * 100 + 10 * 200) / 22);
+  assert.ok(Math.abs(ledger.NVDA.avgCost - 145.45) < 0.005, `expected ~145.45, got ${ledger.NVDA.avgCost}`);
+  assert.equal(issues.length, 0);
+});
+
+test("report part 3, case 5: selling 5@300 with no buy in the journal is 'unknown profit' plus a warning", () => {
+  const { ledger, issues, sellContext } = buildLedger([T(1, "2026-01-07", "NVDA", SELL, 5, 300)]);
+  assert.deepEqual(suggestSellPnl(sellContext.get(1), 300, 5), { pnl: null, warning: "no-history", heldQty: 0 }, "profit unknown (null), not 0");
+  assert.deepEqual(issues, [{ tradeId: 1, symbol: "NVDA", kind: "no-history", heldQty: 0, soldQty: 5 }]);
+  assert.deepEqual(ledger, {}, "no negative position");
+});
